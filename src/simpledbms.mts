@@ -329,13 +329,14 @@ export class Collection {
     if (bestOps.$eq !== undefined) {
       const value = bestOps.$eq;
       const prefix = serializeFieldValue(value) + ':';
+      const startKey = prefix;
+      const endKey = prefix + '\uffff';
 
-      for await (const { key, value: docId } of indexTree.entries()) {
-        if (key.startsWith(prefix)) {
-          matchingIds.add(docId);
-        } else if (key > prefix + '\uffff') {
-          break;
-        }
+      for await (const { value: docId } of indexTree.range(startKey, endKey, {
+        inclusiveStart: true,
+        inclusiveEnd: true,
+      })) {
+        matchingIds.add(docId);
       }
     } else if (
       bestOps.$gt !== undefined ||
@@ -348,39 +349,26 @@ export class Collection {
       const minInclusive = bestOps.$gte !== undefined;
       const maxInclusive = bestOps.$lte !== undefined;
 
-      for await (const { key, value: docId } of indexTree.entries()) {
-        const colonIndex = key.lastIndexOf(':');
-        const serializedValue = key.substring(0, colonIndex);
-        const actualValue = deserializeFieldValue(serializedValue);
+      const startKey = minVal !== undefined && minVal !== null ? serializeFieldValue(minVal) + ':' : '';
+      const endKey = maxVal !== undefined && maxVal !== null ? serializeFieldValue(maxVal) + ':\uffff' : '\uffff';
 
-        let matches = true;
-        if (minVal !== undefined && minVal !== null) {
-          matches =
-            matches &&
-            (minInclusive
-              ? (actualValue as unknown as number) >= (minVal as unknown as number)
-              : (actualValue as unknown as number) > (minVal as unknown as number));
-        }
-        if (maxVal !== undefined && maxVal !== null) {
-          matches =
-            matches &&
-            (maxInclusive
-              ? (actualValue as unknown as number) <= (maxVal as unknown as number)
-              : (actualValue as unknown as number) < (maxVal as unknown as number));
-        }
-        if (matches) {
-          matchingIds.add(docId);
-        }
+      for await (const { value: docId } of indexTree.range(startKey, endKey, {
+        inclusiveStart: minInclusive,
+        inclusiveEnd: maxInclusive,
+      })) {
+        matchingIds.add(docId);
       }
     } else if (bestOps.$in !== undefined) {
       for (const value of bestOps.$in) {
         const prefix = serializeFieldValue(value) + ':';
-        for await (const { key, value: docId } of indexTree.entries()) {
-          if (key.startsWith(prefix)) {
-            matchingIds.add(docId);
-          } else if (key > prefix + '\uffff') {
-            break;
-          }
+        const startKey = prefix;
+        const endKey = prefix + '\uffff';
+
+        for await (const { value: docId } of indexTree.range(startKey, endKey, {
+          inclusiveStart: true,
+          inclusiveEnd: true,
+        })) {
+          matchingIds.add(docId);
         }
       }
     }
