@@ -100,3 +100,64 @@ export class InMemoryStorage implements Storage {
         return this.data.size;
     }
 }
+
+export class StorageCodec {
+
+    static readonly encoding: BufferEncoding = "utf-8";
+
+    static encodeNumber(num: number): Buffer {
+
+        if (!Number.isSafeInteger(num)) {
+            throw new StorageError(`Number ${num} must be a safe integer`);
+        }
+
+        const buffer = Buffer.alloc(8);
+        buffer.writeBigInt64BE(BigInt(num), 0);
+
+        return buffer;
+    }
+
+    static decodeNumber(buffer: Buffer): number {
+        if (buffer.length !== 8) {
+            throw new StorageError(`Buffer length must be 8 bytes to decode a number, got ${buffer.length}`);
+        }
+
+        const bigIntValue = buffer.readBigInt64BE(0);
+        const num = Number(bigIntValue);
+
+        if (!Number.isSafeInteger(num)) {
+            throw new StorageError(`Decoded number ${num} is not a safe integer`);
+        }
+
+        return num;
+    }
+
+    static encodeString(str: string): Buffer {
+        if (typeof str !== "string") {
+            throw new StorageError(`Value must be a string, got ${typeof str}`);
+        }
+        return Buffer.from(str, StorageCodec.encoding);
+    }
+
+    static decodeString(buffer: Buffer): string {
+        return buffer.toString(StorageCodec.encoding);
+    }
+
+    static encodeJSON(obj: any): Buffer {
+        try {
+            const jsonString = JSON.stringify(obj);
+            return Buffer.from(jsonString, StorageCodec.encoding);
+        } catch (error) {
+            throw new StorageError(`Failed to encode JSON: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    static decodeJSON<T>(buffer: Buffer): T {
+        try {
+            const bufStr = buffer.toString(StorageCodec.encoding);
+            return JSON.parse(bufStr);
+        } catch (error) {
+            throw new StorageError(`Failed to decode JSON: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+}
