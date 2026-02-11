@@ -10,7 +10,8 @@ import { isRequestVoteRequestMessage,
         validateAppendEntriesRequest,
         validateAppendEntriesResponse,
         validateRequestVoteRequest,
-        validateRequestVoteResponse
+        validateRequestVoteResponse,
+        validateRPCMessage
         } from "./RPCTypes";
 
 describe('RPCTypes.ts, isRequestVoteRequestMessage', () => {
@@ -355,6 +356,86 @@ describe('RPCTypes.ts, validateAppendEntriesRequest', () => {
         leaderCommit: 0,
         entries: [],
     };
+    const invalidRequest3 = {
+        term: 1,
+        leaderId: "",
+        prevLogIndex: 0,
+        prevLogTerm: 0,
+        leaderCommit: 0,
+        entries: [],
+    };
+    const invalidRequest4 = {
+        term: 1,
+        leaderId: 123 as any,
+        prevLogIndex: 0,
+        prevLogTerm: 0,
+        leaderCommit: 0,
+        entries: [],
+    };
+    const invalidRequest5 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: "not an integer" as any,
+        prevLogTerm: 0,
+        leaderCommit: 0,
+        entries: [],
+    };
+    const invalidRequest6 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: -1,
+        prevLogTerm: 0,
+        leaderCommit: 0,
+        entries: [],
+    };
+    const invalidRequest7 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: 0,
+        prevLogTerm: "not an integer" as any,
+        leaderCommit: 0,
+        entries: [],
+    };
+    const invalidRequest8 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: 0,
+        prevLogTerm: -1,
+        leaderCommit: 0,
+        entries: [],
+    };
+    const invalidRequest9 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: 0,
+        prevLogTerm: 0,
+        leaderCommit: "not an integer" as any,
+        entries: [],
+    };
+    const invalidRequest10 = {
+        term: 1,        
+        leaderId: "node1",
+        prevLogIndex: 0,
+        prevLogTerm: 0,
+        leaderCommit: -1,
+        entries: [],
+    };
+    const invalidRequest11 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: 0,
+        prevLogTerm: 0,
+        leaderCommit: 0,
+        entries: "not an array" as any,
+    };
+    const invalidRequest12 = {
+        term: 1,
+        leaderId: "node1",
+        prevLogIndex: 0,
+        prevLogTerm: 0,
+        leaderCommit: 0,
+        entries: [123 as any],
+    };
 
     it ('should not throw error for valid AppendEntriesRequest', () => {
         expect(() => validateAppendEntriesRequest(validRequest)).not.toThrow();
@@ -367,5 +448,234 @@ describe('RPCTypes.ts, validateAppendEntriesRequest', () => {
     it('should throw error for negative term', () => {
         expect(() => validateAppendEntriesRequest(invalidRequest2)).toThrow("Invalid term: -1. term must be a non-negative integer.");
     });
+
+    it('should throw error for empty leaderId', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest3)).toThrow("Invalid leaderId: . leaderId must be a non-empty string.");
+    });
+
+    it('should throw error for non string leaderId', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest4)).toThrow("Invalid leaderId: 123. leaderId must be a non-empty string.");
+    });
+
+    it('should throw error for non integer prevLogIndex', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest5)).toThrow("Invalid prevLogIndex: not an integer. prevLogIndex must be a non-negative integer.");
+    });
+
+    it('should throw error for negative prevLogIndex', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest6)).toThrow("Invalid prevLogIndex: -1. prevLogIndex must be a non-negative integer.");
+    });
+
+    it('should throw error for non integer prevLogTerm', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest7)).toThrow("Invalid prevLogTerm: not an integer. prevLogTerm must be a non-negative integer.");
+    });
+
+    it('should throw error for negative prevLogTerm', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest8)).toThrow("Invalid prevLogTerm: -1. prevLogTerm must be a non-negative integer.");
+    });
+
+    it('should throw error for non integer leaderCommit', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest9)).toThrow("Invalid leaderCommit: not an integer. leaderCommit must be a non-negative integer.");
+    });
+
+    it('should throw error for negative leaderCommit', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest10)).toThrow("Invalid leaderCommit: -1. leaderCommit must be a non-negative integer.");
+    });
+
+    it('should throw error for non array entries', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest11)).toThrow("Invalid entries: not an array. entries must be an array of LogEntry objects.");
+    });
+
+    it('should throw error for entries array containing non object', () => {
+        expect(() => validateAppendEntriesRequest(invalidRequest12)).toThrow("Invalid entries: 123. entries must be an array of LogEntry objects.");
+    });
 });
+
+describe('RPCTypes.ts, validateAppendEntriesResponse', () => {
+
+    const validResponse = {
+        term: 1,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: 0,
+        conflictTerm: 0
+    };
+    const invalidResponse1 = {
+        term: "not an integer" as any,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: 0,
+        conflictTerm: 0
+    };
+    const invalidResponse2 = {
+        term: -1,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: 0,
+        conflictTerm: 0
+    };
+    const invalidResponse3 = {
+        term: 1,
+        success: "not a boolean" as any,
+        matchIndex: 0,
+        conflictIndex: 0,
+        conflictTerm: 0
+    };
+     const invalidResponse4 = {
+        term: 1,
+        success: true,
+        matchIndex: "not an integer" as any,
+        conflictIndex: 0,
+        conflictTerm: 0
+    };
+    const invalidResponse5 = {
+        term: 1,
+        success: true,
+        matchIndex: -1,
+        conflictIndex: 0,
+        conflictTerm: 0
+    };
+    const invalidResponse6 = {
+        term: 1,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: "not an integer" as any,
+        conflictTerm: 0
+    };
+    const invalidResponse7 = {
+        term: 1,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: -1,
+        conflictTerm: 0
+    };
+    const invalidResponse8 = {
+        term: 1,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: 0,
+        conflictTerm: "not an integer" as any
+    };
+    const invalidResponse9 = {
+        term: 1,
+        success: true,
+        matchIndex: 0,
+        conflictIndex: 0,
+        conflictTerm: -1
+     };
+
+    it('should not throw error for valid AppendEntriesResponse', () => {
+        expect(() => validateAppendEntriesResponse(validResponse)).not.toThrow();
+    });
+
+    it('should throw error for non integer term', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse1)).toThrow("Invalid term: not an integer. term must be a non-negative integer.");
+    });
+
+    it('should throw error for negative term', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse2)).toThrow("Invalid term: -1. term must be a non-negative integer.");
+    });
+
+    it('should throw error for non boolean success', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse3)).toThrow("Invalid success: not a boolean. success must be a boolean.");
+    });
+
+    it('should throw error for non integer matchIndex', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse4)).toThrow("Invalid matchIndex: not an integer. matchIndex must be a non-negative integer.");
+    });
+
+    it('should throw error for negative matchIndex', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse5)).toThrow("Invalid matchIndex: -1. matchIndex must be a non-negative integer.");
+    });
+
+    it('should throw error for non integer conflictIndex', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse6)).toThrow("Invalid conflictIndex: not an integer. conflictIndex must be a non-negative integer.");
+    });
+
+    it('should throw error for negative conflictIndex', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse7)).toThrow("Invalid conflictIndex: -1. conflictIndex must be a non-negative integer.");
+    });
+
+    it('should throw error for non integer conflictTerm', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse8)).toThrow("Invalid conflictTerm: not an integer. conflictTerm must be a non-negative integer.");
+    });
+
+    it('should throw error for negative conflictTerm', () => {
+        expect(() => validateAppendEntriesResponse(invalidResponse9)).toThrow("Invalid conflictTerm: -1. conflictTerm must be a non-negative integer.");
+    });
+});
+
+describe('RPCTypes.ts, validateRPCMessage', () => {
+    const validMessage: RequestVoteRequestMessage = {
+        type: "RequestVote",
+        direction: "request",
+        payload: {
+            term: 1,
+            candidateId: "node1",
+            lastLogIndex: 0,
+            lastLogTerm: 0
+        }
+    };
+    const validMessage2: RequestVoteResponseMessage = {
+        type: "RequestVote",
+        direction: "response",
+        payload: {
+            term: 1,
+            voteGranted: true
+        }
+    };
+    const validMessage3: AppendEntriesRequestMessage = {
+        type: "AppendEntries",
+        direction: "request",
+        payload: {
+            term: 1,
+            leaderId: "node1",
+            prevLogIndex: 0,
+            prevLogTerm: 0,
+            entries: [],
+            leaderCommit: 0
+        }
+    };
+    const validMessage4: AppendEntriesResponseMessage = {
+        type: "AppendEntries",
+        direction: "response",
+        payload: {
+            term: 1,
+            success: true,
+            matchIndex: 0,
+            conflictIndex: 0,
+            conflictTerm: 0
+        }
+    };
+    const invalidMessage1 = {
+        type: "InvalidType",
+        direction: "request",
+        payload: {
+            term: 1,
+            candidateId: "node1",
+            lastLogIndex: 0,
+            lastLogTerm: 0
+        }
+    } as any;
+
+    it ('should not throw error for valid RPCMessage of type RequestVoteRequest', () => {
+        expect(() => validateRPCMessage(validMessage)).not.toThrow();
+    });
+
+    it ('should not throw error for valid RPCMessage of type RequestVoteResponse', () => {
+        expect(() => validateRPCMessage(validMessage2)).not.toThrow();
+    });
+
+    it ('should not throw error for valid RPCMessage of type AppendEntriesRequest', () => {
+        expect(() => validateRPCMessage(validMessage3)).not.toThrow();
+    });
+
+    it ('should not throw error for valid RPCMessage of type AppendEntriesResponse', () => {
+        expect(() => validateRPCMessage(validMessage4)).not.toThrow();
+    });
+
+    it('should throw error for invalid RPCMessage with unknown type', () => {
+        expect(() => validateRPCMessage(invalidMessage1)).toThrow("Unknown RPC message type.");
+    });
+});
+
 
