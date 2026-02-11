@@ -42,7 +42,7 @@ export class ConsoleLogger implements Logger {
             const timestamp = new Date().toISOString();
             const ctx = context ? `${JSON.stringify(context)}` : "";
 
-            const toPrintMsg = `[${logLevel.toUpperCase()}] [${timestamp}] [${this.nodeId}] ${message}`
+            const toPrintMsg = `[${logLevel.toUpperCase()}] [${timestamp}] [${this.nodeId}] ${message} ${ctx}`;
             console.log(toPrintMsg);
         }
     }
