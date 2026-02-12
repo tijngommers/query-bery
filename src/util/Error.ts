@@ -5,7 +5,7 @@ export class RaftError extends Error {
     ) {
         super(message);
         this.name = 'RaftError';
-        Object.setPrototypeOf(this, RaftError.prototype); // anders kapotte prototype chain 
+        Object.setPrototypeOf(this, RaftError.prototype); // anders kapotte prototype chain, blijkbaar niet meer nodig in ES2015+ maar nodig in ES5
     }
 }
 
