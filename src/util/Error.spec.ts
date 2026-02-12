@@ -7,7 +7,8 @@ import { RaftError,
          TermMismatchError,
          TimeoutError,
          InvalidStateError,
-         PersistentStateError
+         PersistentStateError,
+         VolatileStateError
  } from "./Error";
 
 describe('Error.ts, RaftError', () => {
@@ -195,6 +196,33 @@ describe('Error.ts, PersistentStateError', () => {
         expect(error.name).toBe('PersistentStateError');
         expect(error.message).toBe('Persistent state error occurred');
         expect(error.code).toBe('PERSISTENT_STATE_ERROR');
+        expect(error.cause).toBeUndefined();
+    });
+});
+
+describe('Error.ts, VolatileStateError', () => {
+    it('should create a VolatileStateError with message and cause', () => {
+        const cause = new Error('Underlying volatile state error');
+        const error = new VolatileStateError('Volatile state error occurred', cause);
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(RaftError);
+        expect(error).toBeInstanceOf(VolatileStateError);
+        expect(error.stack).toBeDefined();
+        expect(error.name).toBe('VolatileStateError');
+        expect(error.message).toBe('Volatile state error occurred');
+        expect(error.code).toBe('VOLATILE_STATE_ERROR');
+        expect(error.cause).toBe(cause);
+    });
+
+    it('should create a VolatileStateError with message and no cause', () => {
+        const error = new VolatileStateError('Volatile state error occurred');
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(RaftError);
+        expect(error).toBeInstanceOf(VolatileStateError);
+        expect(error.stack).toBeDefined();
+        expect(error.name).toBe('VolatileStateError');
+        expect(error.message).toBe('Volatile state error occurred');
+        expect(error.code).toBe('VOLATILE_STATE_ERROR');
         expect(error.cause).toBeUndefined();
     });
 });

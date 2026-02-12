@@ -95,3 +95,13 @@ export class PersistentStateError extends RaftError {
         Object.setPrototypeOf(this, PersistentStateError.prototype);
     }
 }
+
+export class VolatileStateError extends RaftError {
+    constructor(
+        message: string, public readonly cause?: Error
+    ) {
+        super(message, 'VOLATILE_STATE_ERROR');
+        this.name = 'VolatileStateError';
+        Object.setPrototypeOf(this, VolatileStateError.prototype);
+    }
+}
