@@ -1,6 +1,5 @@
-// Benchmark for FBNodeStorage to test scalability improvements with overwriteBlock
 // @author Tijn Gommers
-// @date 2026-02-13
+// @date 13-02-2026
 
 import { performance } from 'perf_hooks';
 import { BPlusTree } from '../b-plus-tree.mjs';
