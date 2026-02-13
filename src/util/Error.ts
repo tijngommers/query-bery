@@ -115,3 +115,13 @@ export class LeaderStateError extends RaftError {
         Object.setPrototypeOf(this, LeaderStateError.prototype);
     }
 }
+
+export class TimerManagerError extends RaftError {
+    constructor(
+        message: string, public readonly cause?: Error
+    ) {
+        super(message, 'TIMER_MANAGER_ERROR');
+        this.name = 'TimerManagerError';
+        Object.setPrototypeOf(this, TimerManagerError.prototype);
+    }
+}

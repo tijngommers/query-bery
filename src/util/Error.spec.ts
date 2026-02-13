@@ -9,7 +9,8 @@ import { RaftError,
          InvalidStateError,
          PersistentStateError,
          VolatileStateError,
-         LeaderStateError
+         LeaderStateError,
+         TimerManagerError
  } from "./Error";
 
 describe('Error.ts, RaftError', () => {
@@ -251,6 +252,33 @@ describe('Error.ts, LeaderStateError', () => {
         expect(error.name).toBe('LeaderStateError');
         expect(error.message).toBe('Leader state error occurred');
         expect(error.code).toBe('LEADER_STATE_ERROR');
+        expect(error.cause).toBeUndefined();
+    });
+});
+
+describe('Error.ts, TimerManagerError', () => {
+    it('should create a TimerManagerError with message and cause', () => {
+        const cause = new Error('Underlying timer manager error');
+        const error = new TimerManagerError('Timer manager error occurred', cause);
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(RaftError);
+        expect(error).toBeInstanceOf(TimerManagerError);
+        expect(error.stack).toBeDefined();
+        expect(error.name).toBe('TimerManagerError');
+        expect(error.message).toBe('Timer manager error occurred');
+        expect(error.code).toBe('TIMER_MANAGER_ERROR');
+        expect(error.cause).toBe(cause);
+    });
+
+    it('should create a TimerManagerError with message and no cause', () => {
+        const error = new TimerManagerError('Timer manager error occurred');
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(RaftError);
+        expect(error).toBeInstanceOf(TimerManagerError);
+        expect(error.stack).toBeDefined();
+        expect(error.name).toBe('TimerManagerError');
+        expect(error.message).toBe('Timer manager error occurred');
+        expect(error.code).toBe('TIMER_MANAGER_ERROR');
         expect(error.cause).toBeUndefined();
     });
 });
