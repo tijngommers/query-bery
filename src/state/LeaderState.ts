@@ -156,7 +156,11 @@ export class LeaderState implements LeaderStateInterface {
 
         values.sort((a, b) => b - a);
 
-        return values[majorityCount - 1] ?? 0;
+        const result = values[majorityCount - 1]
+        if (result === undefined) {
+            throw new LeaderStateError(`Not enough match indices to determine majority. Cluster size: ${clusterSize}`);
+        }
+        return result;
     }
 
     isFullyReplicated(index: number): boolean {
