@@ -138,7 +138,8 @@ describe('FBNodeStorage', () => {
 
     await cur.insert(15, 'v15');
     const newId = leaf.blockId!;
-    expect(newId).not.toBe(firstId);
+    // With in-place updates (overwriteBlock), blockId stays the same
+    expect(newId).toBe(firstId);
 
     const freeHeadBefore = await fb.debug_getFreeListHead();
     expect(freeHeadBefore).toBe(NO_BLOCK);
@@ -146,8 +147,10 @@ describe('FBNodeStorage', () => {
     await storage.commitAndReclaim();
 
     const freeHeadAfter = await fb.debug_getFreeListHead();
-    expect(freeHeadAfter).toBe(firstId);
+    // No old block to reclaim since we overwrote in place
+    expect(freeHeadAfter).toBe(NO_BLOCK);
 
+    // Since no blocks were freed, allocating won't reuse firstId
     const alloc = await fb.allocateBlocks(1);
 
     let allocatedId: number;
@@ -159,7 +162,8 @@ describe('FBNodeStorage', () => {
       throw new Error(`unexpected allocateBlocks return value: ${String(alloc)}`);
     }
 
-    expect(allocatedId).toBe(firstId);
+    // New allocation gets a fresh block, not the reused firstId
+    expect(allocatedId).not.toBe(firstId);
   });
 
   it('returns maxKeySize', () => {
