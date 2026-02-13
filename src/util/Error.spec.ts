@@ -10,7 +10,8 @@ import { RaftError,
          PersistentStateError,
          VolatileStateError,
          LeaderStateError,
-         TimerManagerError
+         TimerManagerError,
+         RPCHandlerError
  } from "./Error";
 
 describe('Error.ts, RaftError', () => {
@@ -279,6 +280,33 @@ describe('Error.ts, TimerManagerError', () => {
         expect(error.name).toBe('TimerManagerError');
         expect(error.message).toBe('Timer manager error occurred');
         expect(error.code).toBe('TIMER_MANAGER_ERROR');
+        expect(error.cause).toBeUndefined();
+    });
+});
+
+describe('Error.ts, RPCHandlerError', () => {
+    it('should create a RPCHandlerError with message and cause', () => {
+        const cause = new Error('Underlying RPC handler error');
+        const error = new RPCHandlerError('RPC handler error occurred', cause);
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(RaftError);
+        expect(error).toBeInstanceOf(RPCHandlerError);
+        expect(error.stack).toBeDefined();
+        expect(error.name).toBe('RPCHandlerError');
+        expect(error.message).toBe('RPC handler error occurred');
+        expect(error.code).toBe('RPC_HANDLER_ERROR');
+        expect(error.cause).toBe(cause);
+    });
+
+    it('should create a RPCHandlerError with message and no cause', () => {
+        const error = new RPCHandlerError('RPC handler error occurred');
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(RaftError);
+        expect(error).toBeInstanceOf(RPCHandlerError);
+        expect(error.stack).toBeDefined();
+        expect(error.name).toBe('RPCHandlerError');
+        expect(error.message).toBe('RPC handler error occurred');
+        expect(error.code).toBe('RPC_HANDLER_ERROR');
         expect(error.cause).toBeUndefined();
     });
 });

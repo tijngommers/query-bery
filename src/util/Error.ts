@@ -125,3 +125,13 @@ export class TimerManagerError extends RaftError {
         Object.setPrototypeOf(this, TimerManagerError.prototype);
     }
 }
+
+export class RPCHandlerError extends RaftError {
+    constructor(
+        message: string, public readonly cause?: Error
+    ) {
+        super(message, 'RPC_HANDLER_ERROR');
+        this.name = 'RPCHandlerError';
+        Object.setPrototypeOf(this, RPCHandlerError.prototype);
+    }
+}

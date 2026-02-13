@@ -6,13 +6,13 @@ import { Random } from "../util/Random";
 export type MessageHandler = (
     from: NodeId,
     message: RPCMessage
-) => Promise<RPCMessage | void>;
+) => Promise<RPCMessage>;
 
 export interface Transport {
     start(): Promise<void>;
     stop(): Promise<void>;
     isStarted(): boolean;
-    send(peerId: NodeId, message: RPCMessage): Promise<RPCMessage | void>;
+    send(peerId: NodeId, message: RPCMessage): Promise<RPCMessage>;
     onMessage(handler: MessageHandler): void;
 }
 
@@ -48,7 +48,7 @@ export class MockTransport implements Transport {
         return this.started;
     }
 
-    async send(peerId: NodeId, message: RPCMessage): Promise<RPCMessage | void> {
+    async send(peerId: NodeId, message: RPCMessage): Promise<RPCMessage> {
         if (!this.started) {
             throw new NetworkError(`Transport for node ${this.nodeId} is not started.`);
         }
