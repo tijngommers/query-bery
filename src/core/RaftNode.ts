@@ -3,7 +3,6 @@ import { Command, LogEntry } from "../log/LogEntry";
 import { RaftState } from "./StateMachine";
 import { PersistentState } from "../state/PersistentState";
 import { VolatileState } from "../state/VolatileState";
-import { LeaderState } from "../state/LeaderState";
 import { LogManager } from "../log/LogManager";
 import { StateMachine } from "./StateMachine";
 import { RPCHandler } from "../rpc/RPCHandler";
@@ -14,6 +13,7 @@ import { Clock } from "../timing/Clock";
 import { Storage } from "../storage/Storage";
 import { Transport } from "../transport/Transport";
 import { RaftError } from "../util/Error";
+import { AsyncLock } from "../lock/AsyncLock";
 
 export interface CommandResult {
     success: boolean;
@@ -55,6 +55,10 @@ export class RaftNode implements RaftNodeInterface {
 
     private started: boolean = false;
     private applyLoopRunning: boolean = false;
+
+    private applyLock: AsyncLock = new AsyncLock();
+    private commandLock: AsyncLock = new AsyncLock();
+    private rpcLock: AsyncLock = new AsyncLock();
 
     constructor(
         private config: RaftConfig,
@@ -143,11 +147,15 @@ export class RaftNode implements RaftNodeInterface {
             this.transport.onMessage(async (from, message) => {
                 return await this.rpcHandler.handleIncomingMessage(from, message, {
                     onRequestVote: async (request, from) => {
-                        return await this.stateMachine.handleRequestVote(request, from);
+                        return await this.rpcLock.runExclusive(async () => {
+                            return await this.stateMachine.handleRequestVote(request, from);
+                        });
                     },
 
                     onAppendEntries: async (request, from) => {
-                        return await this.stateMachine.handleAppendEntries(request, from);
+                        return await this.rpcLock.runExclusive(async () => {
+                            return await this.stateMachine.handleAppendEntries(request, from);
+                        });
                     }
                 });
             });
@@ -195,34 +203,49 @@ export class RaftNode implements RaftNodeInterface {
     }
 
     async submitCommand(command: Command): Promise<CommandResult> {
-        if (!this.started) {
-            return { success: false, error: 'Node is not started' };
-        }
 
-        if (!this.stateMachine.isLeader()) {
-            return { success: false, leaderId: this.stateMachine.getCurrentLeader() ?? undefined, error: 'Not the leader' };
-        }
-
-        try {
-            const term = this.persistentState.getCurrentTerm();
-
-            const idx = await this.logManager.appendCommand(command, term);
-
-            if (!this.stateMachine.isLeader() || this.persistentState.getCurrentTerm() !== term) {
-                this.logger.warn(`Node ${this.config.nodeId} is no longer the leader or term has changed after appending command. Current term: ${this.persistentState.getCurrentTerm()}, expected term: ${term}`);
-                return { success: false, leaderId: this.stateMachine.getCurrentLeader() ?? undefined, error: 'Not the leader or term has changed' };
+        const appendResult = await this.commandLock.runExclusive(async () => {
+            if (!this.started) {
+                return { success: false, error: 'Node is not started' };
             }
 
-            this.logger.info(`Leader ${this.config.nodeId} appended command to log at index ${idx} for term ${term}`);
+            if (!this.stateMachine.isLeader()) {
+                return { success: false, leaderId: this.stateMachine.getCurrentLeader() ?? undefined, error: 'Not the leader' };
+            }
 
+            try {
+                const term = this.persistentState.getCurrentTerm();
+
+                const idx = await this.logManager.appendCommand(command, term);
+
+                if (!this.stateMachine.isLeader() || this.persistentState.getCurrentTerm() !== term) {
+                    this.logger.warn(`Node ${this.config.nodeId} is no longer the leader or term has changed after appending command. Current term: ${this.persistentState.getCurrentTerm()}, expected term: ${term}`);
+                    return { success: false, leaderId: this.stateMachine.getCurrentLeader() ?? undefined, error: 'Not the leader or term has changed' };
+                }
+
+                this.logger.info(`Leader ${this.config.nodeId} appended command to log at index ${idx} for term ${term}`);
+
+                return { success: true, index: idx, term: term };
+            } catch (error) {
+                this.logger.error(`Error appending command to log`, error as Error);
+                return { success: false, error: (error as Error).message };
+            }
+        });
+
+        if (!appendResult.success) {
+            return appendResult;
+        }
+        const { index: idx, term } = appendResult;
+
+        try {
             await this.triggerReplication();
 
-            if (!this.stateMachine.isLeader() || this.persistentState.getCurrentTerm() !== term) {
+            if (!this.stateMachine.isLeader() || this.persistentState.getCurrentTerm() !== term!) {
                 this.logger.warn(`Node ${this.config.nodeId} is no longer the leader or term has changed after triggering replication. Current term: ${this.persistentState.getCurrentTerm()}, expected term: ${term}`);
                 return { success: false, leaderId: this.stateMachine.getCurrentLeader() ?? undefined, error: 'Not the leader or term has changed' };
             }
 
-            const committed = await this.waitForCommit(idx, 5000, term);
+            const committed = await this.waitForCommit(idx!, 5000, term);
 
             if (committed) {
                 this.logger.info(`Command at index ${idx} committed successfully`);
@@ -233,8 +256,8 @@ export class RaftNode implements RaftNodeInterface {
             }
 
         } catch (error) {
-            this.logger.error(`Error submitting command`, error as Error);
-            return { success: false, error: (error as Error).message };
+                this.logger.error(`Error submitting command`, error as Error);
+                return { success: false, error: (error as Error).message };
         }
     }
 
@@ -309,7 +332,8 @@ export class RaftNode implements RaftNodeInterface {
     }
 
     private async applyCommittedEntries(): Promise<void> {
-        while (true) {
+        await this.applyLock.runExclusive(async () => {
+            while (true) {
             const lastApplied = this.volatileState.getLastApplied();
             const commitIndex = this.volatileState.getCommitIndex();
 
@@ -318,10 +342,6 @@ export class RaftNode implements RaftNodeInterface {
             }
 
             const nextIndex = lastApplied + 1;
-
-            if (nextIndex > commitIndex) {
-                break;
-            }
 
             const entry = await this.logManager.getEntry(nextIndex);
             if (!entry) {
@@ -343,7 +363,8 @@ export class RaftNode implements RaftNodeInterface {
                 
                 throw new RaftError(`Failed to apply log entry at index ${nextIndex}: ${(error as Error).message}`, 'ApplyEntryFailed');
             }
-        }
+            }
+        });
     }
 
     private async triggerReplication(): Promise<void> {
