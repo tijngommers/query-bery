@@ -36,6 +36,8 @@ export class StateMachine implements StateMachineInterface {
     private votesReceived: Set<NodeId> = new Set();
     private votesNeeded: number = 0;
 
+    private leaderState: LeaderState | null = null;
+
     constructor(
         private nodeId: NodeId,
         private peers: NodeId[],
@@ -46,7 +48,6 @@ export class StateMachine implements StateMachineInterface {
         private rpcHandler: RPCHandler,
         private timerManager: TimerManager,
         private logger: Logger,
-        private leaderState?: LeaderState,
     ) {}
 
     async start(): Promise<void> {
@@ -87,6 +88,7 @@ export class StateMachine implements StateMachineInterface {
         this.currentLeader = leaderId;
 
         if (wasLeader) {
+            this.leaderState = null;
             this.timerManager.stopHeartbeatTimer();
             this.logger.info(`Node ${this.nodeId} was previously a Leader, now a Follower`);
         }
@@ -99,6 +101,8 @@ export class StateMachine implements StateMachineInterface {
     async becomeCandidate(): Promise<void> {
         this.currentState = RaftState.Candidate;
         this.currentLeader = null;
+
+        this.leaderState = null;
 
         const newTerm = (this.persistentState.getCurrentTerm() + 1);
 
@@ -118,9 +122,6 @@ export class StateMachine implements StateMachineInterface {
     }
 
     async becomeLeader(): Promise<void> {
-        if (!this.leaderState) {
-            throw new RaftError("LeaderState is required to become Leader", "LEADER_STATE_REQUIRED");
-        }
 
         this.currentState = RaftState.Leader;
         this.currentLeader = this.nodeId;
@@ -130,7 +131,7 @@ export class StateMachine implements StateMachineInterface {
 
         this.logger.info(`Node ${this.nodeId} became Leader for term ${currentTerm}, last log index: ${lastLogIndex}`);
 
-        this.leaderState.initialize(lastLogIndex);
+        this.leaderState = new LeaderState(this.peers, lastLogIndex);
 
         this.timerManager.startHeartbeatTimer(() => this.sendHeartbeats());
 
@@ -188,6 +189,12 @@ export class StateMachine implements StateMachineInterface {
             term: this.persistentState.getCurrentTerm(),
             voteGranted: true
         };
+    }
+
+    async triggerReplication(): Promise<void> {
+        if (this.currentState === RaftState.Leader) {
+            await this.sendHeartbeats();
+        }
     }
 
     private isLogUpToDate(candidateLastLogIndex: number, candidateLastLogTerm: number): boolean {
