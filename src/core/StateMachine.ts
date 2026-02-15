@@ -453,29 +453,35 @@ export class StateMachine implements StateMachineInterface {
 
     private async sendAppendEntries(peer: NodeId): Promise<void> {
 
-        if (!this.leaderState) {
-            throw new RaftError("LeaderState is required to handle AppendEntriesResponse", "LEADER_STATE_REQUIRED");
-        }
-
-        const currentTerm = this.persistentState.getCurrentTerm();
-        const nextIndex = this.leaderState!.getNextIndex(peer);
-        const prevLogIndex = nextIndex - 1;
-        const prevLogTerm = await this.logManager.getTermAtIndex(prevLogIndex) ?? 0;
-
-        const entries = await this.logManager.getEntriesFromIndex(nextIndex);
-
-        const request: AppendEntriesRequest = {
-            term: currentTerm,
-            leaderId: this.nodeId,
-            prevLogIndex,
-            prevLogTerm,
-            entries,
-            leaderCommit: this.volatileState.getCommitIndex()
-        };
+        let request: AppendEntriesRequest
 
         try {
-            const response: AppendEntriesResponse = await this.rpcHandler.sendAppendEntries(peer, request);
+            await this.stateLock.runExclusive(async () => {
+                if (!this.leaderState) {
+                    throw new RaftError("LeaderState is required to handle AppendEntriesResponse", "LEADER_STATE_REQUIRED");
+                }
+
+                const currentTerm = this.persistentState.getCurrentTerm();
+                const nextIndex = this.leaderState!.getNextIndex(peer);
+                const prevLogIndex = nextIndex - 1;
+                const prevLogTerm = await this.logManager.getTermAtIndex(prevLogIndex) ?? 0;
+
+                const entries = await this.logManager.getEntriesFromIndex(nextIndex);
+
+                const request = {
+                    term: currentTerm,
+                    leaderId: this.nodeId,
+                    prevLogIndex,
+                    prevLogTerm,
+                    entries,
+                    leaderCommit: this.volatileState.getCommitIndex()
+                };
+            });
+
+            const response: AppendEntriesResponse = await this.rpcHandler.sendAppendEntries(peer, request!);
+            
             await this.handleAppendEntriesResponse(peer, response);
+
         } catch (err) {
             if (err instanceof Error) {
                 this.logger.error(`Node ${this.nodeId} error sending AppendEntries to ${peer}: ${err.message}`);
