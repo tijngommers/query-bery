@@ -222,7 +222,7 @@ export class RaftNode implements RaftNodeInterface {
                 return { success: false, leaderId: this.stateMachine.getCurrentLeader() ?? undefined, error: 'Not the leader or term has changed' };
             }
 
-            const committed = await this.waitForCommit(idx, 5000);
+            const committed = await this.waitForCommit(idx, 5000, term);
 
             if (committed) {
                 this.logger.info(`Command at index ${idx} committed successfully`);
@@ -309,24 +309,37 @@ export class RaftNode implements RaftNodeInterface {
     }
 
     private async applyCommittedEntries(): Promise<void> {
-        while (this.volatileState.needsApplication()) {
-            const idx = this.volatileState.getNextIndexToApply();
-            if (idx === null) {
+        while (true) {
+            const lastApplied = this.volatileState.getLastApplied();
+            const commitIndex = this.volatileState.getCommitIndex();
+
+            if (lastApplied >= commitIndex) {
                 break;
             }
 
-            const entry = await this.logManager.getEntry(idx);
+            const nextIndex = lastApplied + 1;
+
+            if (nextIndex > commitIndex) {
+                break;
+            }
+
+            const entry = await this.logManager.getEntry(nextIndex);
             if (!entry) {
-                this.logger.error(`Failed to retrieve log entry at index ${idx} for application`);
+                this.logger.error(`Failed to retrieve log entry at index ${nextIndex} for application`);
+                break;
+            }
+
+            if (entry.index !== nextIndex) {
+                this.logger.error(`Log entry index mismatch at index ${nextIndex}. Expected ${nextIndex} but got ${entry.index}`);
                 break;
             }
 
             try {
                 const result = await this.applicationStateMachine.apply(entry.command);
-                this.logger.info(`Applied log entry at index ${idx} with command ${JSON.stringify(entry.command)}, result: ${JSON.stringify(result)}`);
-                this.volatileState.advanceLastApplied();
+                this.logger.info(`Applied log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}, result: ${JSON.stringify(result)}`);
+                this.volatileState.setLastApplied(nextIndex);
             } catch (error) {
-                this.logger.error(`Error applying log entry at index ${idx} with command ${JSON.stringify(entry.command)}`, error as Error);
+                this.logger.error(`Error applying log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}`, error as Error);
                 break;
             }
         }
@@ -338,10 +351,16 @@ export class RaftNode implements RaftNodeInterface {
         }
     }
 
-    private async waitForCommit(index: number, timeoutMs: number): Promise<boolean> {
+    private async waitForCommit(index: number, timeoutMs: number, term: number): Promise<boolean> {
         const startTime = this.clock.now();
 
         while (this.clock.now() - startTime < timeoutMs) {
+
+            if (!this.stateMachine.isLeader() || this.persistentState.getCurrentTerm() !== term) {
+                this.logger.warn(`Node ${this.config.nodeId} is no longer the leader or term has changed while waiting for commit. Current term: ${this.persistentState.getCurrentTerm()}, expected term: ${term}`);
+                return false;
+            }
+
             const committedIndex = this.volatileState.getCommitIndex();
 
             if (committedIndex >= index) {
@@ -349,10 +368,6 @@ export class RaftNode implements RaftNodeInterface {
             }
 
             await new Promise<void>(resolve => this.clock.setTimeout(() => resolve(), 10));
-
-            if (!this.stateMachine.isLeader()) {
-                throw new RaftError(`Node ${this.config.nodeId} is no longer the leader while waiting for commit`, 'NotLeader');
-            }
         }
         return false;
     }
