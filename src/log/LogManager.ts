@@ -1,6 +1,7 @@
 import { LogEntry, validateLogEntry, Command } from './LogEntry';
 import { StorageError, LogInconsistencyError } from '../util/Error';
 import { Storage, StorageOperation, StorageCodec } from '../storage/Storage';
+import { b } from 'vitest/dist/chunks/suite.d.BJWk38HB';
 
 
 export interface LogManagerInterface {
@@ -336,13 +337,31 @@ export class LogManager implements LogManagerInterface {
             return this.lastIndex;
         }
 
-        await this.deleteEntriesFrom(prevLogIndex + 1);
+        let truncateFromIndex: number | null = null;
+        for (const newEntry of entries) {
+            const existing = await this.getEntry(newEntry.index);
 
-        if (this.lastIndex !== prevLogIndex) {
-            throw new LogInconsistencyError(`After deleting entries from index ${prevLogIndex + 1}, last index is ${this.lastIndex} but expected ${prevLogIndex}`);
+            if (existing === null) {
+                break;
+            }
+
+            if (existing.term !== newEntry.term) {
+                truncateFromIndex = newEntry.index;
+                break;
+            }
         }
 
-        return await this.appendEntries(entries);
+        if (truncateFromIndex !== null) {
+            await this.deleteEntriesFrom(truncateFromIndex);
+        }
+
+        const toAppend = entries.filter(e => e.index > this.lastIndex);
+
+        if (toAppend.length === 0) {
+            return this.lastIndex;
+        }
+
+        return await this.appendEntries(toAppend);
     }
 
     async matchesPrevLog(prevLogIndex: number, prevLogTerm: number): Promise<boolean> {
