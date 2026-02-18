@@ -2,7 +2,7 @@
 // @date 2025-11-22
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { Collection, SimpleDBMS } from './simpledbms.mjs';
+import { Collection, SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
 import { MockFile } from './file/mockfile.mjs';
 import { FBNodeStorage } from './node-storage/fb-node-storage.mjs';
 
@@ -64,6 +64,29 @@ describe('Collection', () => {
     expect(stale).toHaveLength(0);
     expect(fresh).toHaveLength(1);
     expect(fresh[0]).toEqual(updated);
+  });
+
+  it('should isolate nested objects between insert and update (deep copy)', async () => {
+    const doc = await collection.insert({
+      name: 'alice',
+      settings: { theme: 'dark', notifications: true },
+    });
+
+    const updated = await collection.update(doc.id, { name: 'Alice' });
+    expect(updated).toBeDefined();
+
+    const updatedSettings = updated!['settings'] as { [key: string]: DocumentValue };
+    updatedSettings['theme'] = 'light';
+    updatedSettings['notifications'] = false;
+
+    const docSettings = doc['settings'] as { [key: string]: DocumentValue };
+    expect(docSettings['theme']).toBe('dark');
+    expect(docSettings['notifications']).toBe(true);
+
+    const stored = await collection.findById(doc.id);
+    const storedSettings = stored!['settings'] as { [key: string]: DocumentValue };
+    expect(storedSettings['theme']).toBe('light');
+    expect(storedSettings['notifications']).toBe(false);
   });
 
   it('should delete documents and remove index entries', async () => {

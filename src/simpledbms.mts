@@ -292,7 +292,7 @@ export class Collection {
   //TODO: is the omit really needed? Can't you just get it form the Document input itself?
   async insert(doc: Omit<Document, 'id'> & { id?: string }): Promise<Document> {
     const id = doc.id ?? randomUUID();
-    const newDoc: Document = { ...doc, id };
+    const newDoc: Document = structuredClone({ ...doc, id });
 
     // Insert into primary index
     await this.primaryTree.insert(id, newDoc);
@@ -830,7 +830,7 @@ export class Collection {
     const existing = await this.primaryTree.search(id);
     if (!existing) return null;
 
-    const updated: Document = { ...existing, ...updates, id };
+    const updated: Document = structuredClone({ ...existing, ...updates, id });
 
     // Remove old index entries for changed fields
     for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
