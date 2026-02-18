@@ -164,10 +164,14 @@ export class StateMachine implements StateMachineInterface {
                 this.logger.info(`Node ${this.nodeId} received RequestVote from ${from} with higher term ${request.term}, updating term and becoming Follower`);
                 await this.becomeFollowerUnlocked(request.term, null);
 
-            } else if (request.term === currentTerm && this.currentState !== RaftState.Follower) {
+            }
+
+            /* no step down ?
+            else if (request.term === currentTerm && this.currentState !== RaftState.Follower) {
                 this.logger.info(`Node ${this.nodeId} received RequestVote from ${from} with current term ${request.term} but is not a Follower, becoming Follower`);
                 await this.becomeFollowerUnlocked(request.term, null);
             }
+            */
 
             const votedFor = this.persistentState.getVotedFor();
 
@@ -461,7 +465,9 @@ export class StateMachine implements StateMachineInterface {
         try {
             await this.stateLock.runExclusive(async () => {
                 if (!this.leaderState) {
-                    throw new RaftError("LeaderState is required to handle AppendEntriesResponse", "LEADER_STATE_REQUIRED");
+                    // throw new RaftError("LeaderState is required to handle AppendEntriesResponse", "LEADER_STATE_REQUIRED");
+                    this.logger.error(`Node ${this.nodeId} is not a leader but trying to send AppendEntries to ${peer}`);
+                    return;
                 }
 
                 const currentTerm = this.persistentState.getCurrentTerm();
@@ -499,7 +505,9 @@ export class StateMachine implements StateMachineInterface {
         await this.stateLock.runExclusive(async () => {
 
             if (!this.leaderState) {
-                throw new RaftError("LeaderState is required to handle AppendEntriesResponse", "LEADER_STATE_REQUIRED");
+                // throw new RaftError("LeaderState is required to handle AppendEntriesResponse", "LEADER_STATE_REQUIRED");
+                this.logger.error(`Node ${this.nodeId} received AppendEntriesResponse from ${from} but has no LeaderState`);
+                return;
             }
 
             const currentTerm = this.persistentState.getCurrentTerm();

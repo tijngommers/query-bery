@@ -28,7 +28,7 @@ export class TimerManager implements TimerManagerIInterface {
     private electionCallback: (() => void) | null = null;
     private heartbeatCallback: (() => void) | null = null;
     private static readonly minRatio = 2;
-    private static readonly maxHeartBeats = 10;
+    private static readonly maxHeartBeats = Number.MAX_SAFE_INTEGER;
     private heartbeatCount = 0;
 
     constructor(private clock: Clock, private random: Random, private logger: Logger, private config: TimerConfig) {
@@ -145,6 +145,7 @@ export class TimerManager implements TimerManagerIInterface {
         }
         */
 
+        /*
         if (this.heartbeatCount >= TimerManager.maxHeartBeats) {
             this.logger.warn(`Reached maximum heartbeat count (${TimerManager.maxHeartBeats}). Stopping heartbeat timer to prevent potential issues.`);
             this.stopHeartbeatTimer();
@@ -152,6 +153,7 @@ export class TimerManager implements TimerManagerIInterface {
         }
 
         this.heartbeatCount++;
+        */
 
         this.heartbeatTimer = this.clock.setTimeout(() => {
             try {
