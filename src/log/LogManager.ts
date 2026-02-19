@@ -1,8 +1,6 @@
 import { LogEntry, validateLogEntry, Command } from './LogEntry';
 import { StorageError, LogInconsistencyError } from '../util/Error';
 import { Storage, StorageOperation, StorageCodec } from '../storage/Storage';
-import { b } from 'vitest/dist/chunks/suite.d.BJWk38HB';
-
 
 export interface LogManagerInterface {
     initialize(): Promise<void>;

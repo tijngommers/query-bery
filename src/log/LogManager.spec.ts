@@ -3,7 +3,6 @@ import { LogManager } from "./LogManager";
 import { LogEntry, Command } from "./LogEntry";
 import { InMemoryStorage } from "../storage/Storage";
 import { LogInconsistencyError, StorageError } from "../util/Error";
-import { log } from "node:console";
 
 describe('LogManager.ts, LogManager', () => {
 
