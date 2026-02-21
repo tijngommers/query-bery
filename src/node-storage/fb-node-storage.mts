@@ -62,6 +62,24 @@ function deserializeValue(serializedValue: unknown): unknown {
   return obj['value'];
 }
 
+function lowerBound<Keystype>(
+  keys: Keystype[],
+  key: Keystype,
+  compareKeys: (a: Keystype, b: Keystype) => number,
+): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (compareKeys(keys[mid], key) < 0) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
 /**
  * FBNodeStorage is a NodeStorage implementation that uses FreeBlockFile for storage.
  *
@@ -393,15 +411,9 @@ export class FBLeafNode<Keystype, ValuesType>
     cursor: LeafCursor<Keystype, ValuesType, FBLeafNode<Keystype, ValuesType>, FBInternalNode<Keystype, ValuesType>>;
     isAtKey: boolean;
   } {
-    let index = -1;
-    for (let i = 0; i < this.keys.length; i++) {
-      if (this.storage.compareKeys(this.keys[i], key) >= 0) {
-        index = i;
-        break;
-      }
-    }
+    const index = lowerBound(this.keys, key, this.storage.compareKeys);
     const cursor = new FBLeafCursor<Keystype, ValuesType>(this, index - 1);
-    const isAtKey = index >= 0 && this.storage.compareKeys(this.keys[index], key) === 0;
+    const isAtKey = index < this.keys.length && this.storage.compareKeys(this.keys[index], key) === 0;
     return { cursor, isAtKey };
   }
 
@@ -515,14 +527,7 @@ export class FBLeafCursor<Keystype, ValuesType>
     key: Keystype,
     value: ValuesType,
   ): Promise<{ nodes: FBLeafNode<Keystype, ValuesType>[]; keys: Keystype[] }> {
-    let index = -1;
-    for (let i = 0; i < this.leaf.keys.length; i++) {
-      if (this.leaf.getStorage().compareKeys(this.leaf.keys[i], key) >= 0) {
-        index = i;
-        break;
-      }
-    }
-    const insertPosition = index === -1 ? this.leaf.keys.length : index;
+    const insertPosition = lowerBound(this.leaf.keys, key, this.leaf.getStorage().compareKeys);
     this.leaf.keys.splice(insertPosition, 0, key);
     this.leaf.values.splice(insertPosition, 0, value);
 
@@ -587,13 +592,10 @@ export class FBInternalNode<Keystype, ValuesType>
     cursor: ChildCursor<Keystype, ValuesType, FBLeafNode<Keystype, ValuesType>, FBInternalNode<Keystype, ValuesType>>;
     isAtKey: boolean;
   }> {
-    let index = 0;
-    while (index < this.keys.length && this.storage.compareKeys(key, this.keys[index]) >= 0) {
-      index++;
-    }
+    const index = lowerBound(this.keys, key, this.storage.compareKeys);
     const cursor = new FBChildCursor<Keystype, ValuesType>(this);
     cursor.setPosition(index);
-    const isAtKey = index > 0 && this.storage.compareKeys(key, this.keys[index - 1]) === 0;
+    const isAtKey = index < this.keys.length && this.storage.compareKeys(key, this.keys[index]) === 0;
     return Promise.resolve({ cursor, isAtKey });
   }
 
