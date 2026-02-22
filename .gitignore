@@ -13,3 +13,4 @@
 
 *node_modules/
 *src/test-scripts/
+*coverage/
