@@ -6,5 +6,10 @@
 !*.spec.ts
 !*.gitignore
 
+!*.tsx
+!*.css
+!*.svg
+!*.html
+
 *node_modules/
 *src/test-scripts/
