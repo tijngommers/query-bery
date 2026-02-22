@@ -92,6 +92,18 @@ export class LogManager implements LogManagerInterface {
             this.lastTerm = entry.term;
         }, `appendEntry (${entry.index})`);
 
+        if (this.nodeId) {
+            this.eventBus.emit({
+                eventId: crypto.randomUUID(),
+                timestamp: performance.now(),
+                wallTime: Date.now(),
+                nodeId: this.nodeId,
+                type: 'LogAppended',
+                entries: [entry],
+                term: entry.term,
+            });
+        }
+
         return entry.index;
     }
 
