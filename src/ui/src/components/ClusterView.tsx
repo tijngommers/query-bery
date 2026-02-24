@@ -19,7 +19,7 @@ function computePositionsCircle(nodeIds: string[], radius: number, centerX: numb
     return positions;
 }
 
-const width = 1600;
+const width = 2160;
 const height = 1200;
 const nodeRadius = 30;
 
@@ -27,6 +27,10 @@ export function ClusterView() {
     const nodeIds = useRaftStore((state) => state.nodeIds);
     const nodes = useRaftStore((state) => state.nodes);
     const positions = computePositionsCircle(nodeIds, 200, width / 2, height / 2);
+
+    const selectNode = useRaftStore((state) => state.selectNode);
+    const selectedNodeId = useRaftStore((state) => state.selectedNodeId);
+
     return (
         <div style={{ position: 'relative', width, height}}>
             <svg width={width} height={height} style={{ background: '#0d1117', display: 'block' }}>
@@ -35,7 +39,7 @@ export function ClusterView() {
                     const node = nodes[id];
                     const color = node ? roleColors[node.role] : "#161b22";
                     return (
-                        <g key={id}>
+                        <g key={id} onClick={() => selectNode(selectedNodeId === id ? null : id)} style={{ cursor: 'pointer' }}>
                             <circle cx={x} cy={y} r={nodeRadius} fill="#161b22" stroke={color} strokeWidth={2} />
                             <text x={x} y={y - 10} textAnchor="middle" dominantBaseline="middle" fill="#e6edf3" fontSize={12} fontFamily="monospace">
                                 {id}
@@ -43,11 +47,31 @@ export function ClusterView() {
                             <text x={x} y={y + 5} textAnchor="middle" dominantBaseline="middle" fill={color} fontSize={9} fontFamily="monospace">
                                 {node?.role ?? '—'}
                             </text>
+
+                            {selectedNodeId === id && (
+                                <circle cx={x} cy={y} r={nodeRadius + 6} fill="none" stroke="#e6edf3" strokeWidth={2} />
+                            )}
                         </g>
                     );
                 })}
             </svg>
             <MessageLayer positions={positions} nodeRadius={nodeRadius} width={width} height={height} />
+            <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={width} height={height}>
+                {nodeIds.flatMap((a, i) =>
+                    nodeIds.slice(i + 1).map(b => {
+                        const pa = positions[a];
+                        const pb = positions[b];
+                        return (
+                            <line key={`${a}-${b}`}
+                                x1={pa.x} y1={pa.y}
+                                x2={pb.x} y2={pb.y}
+                                stroke="#ffffff0a"
+                                strokeWidth={1}
+                            />
+                        );
+                    })
+                )}
+            </svg>
         </div>
     );
 }

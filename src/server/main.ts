@@ -18,6 +18,14 @@ async function main() {
     const wsServer = new WsServer(eventStore, cluster, port);
     wsServer.start();
 
+    let counter = 0;
+    setInterval(async () => {
+        try {
+            await cluster.submitCommand({ type: "set", payload: { key: `key${counter}`, value: `value${counter}` }});
+            counter++;
+        } catch (err) {}
+    }, 5000);
+
     process.on("SIGINT", async () => {
         console.log("Shutting down...");
         wsServer.stop();

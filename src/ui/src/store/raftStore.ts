@@ -6,9 +6,11 @@ interface RaftStore {
     events: RaftEvent[];
     nodes: Record<string, NodeUIState>;
     arrows: MessageArrow[];
+    selectedNodeId?: string | null;
     setNodeIds: (ids: string[]) => void;
     pushEvent: (event: RaftEvent) => void;
     processEvent: (event: RaftEvent) => void;
+    selectNode: (nodeId: string | null) => void;
     reset: () => void;
 }
 
@@ -27,7 +29,7 @@ export const useRaftStore = create<RaftStore>((set) => ({
     events: [],
     nodes: {},
     arrows: [],
-
+    selectedNodeId: null,
     setNodeIds: (ids) => { 
         const nodes: Record<string, NodeUIState> = {};
         for (const id of ids) {
@@ -75,7 +77,7 @@ export const useRaftStore = create<RaftStore>((set) => ({
                     const returnId = event.messageId + "-response";
 
                     const originalArrow = useRaftStore.getState().arrows.find(a => a.id === event.messageId);
-                    
+
                     set(s => ({ arrows: s.arrows.filter(a => a.id !== event.messageId) }));
                     set(s => ({ arrows: [...s.arrows, {
                         id: returnId,
@@ -114,6 +116,7 @@ export const useRaftStore = create<RaftStore>((set) => ({
             }
         }
     },
-    reset: () => set({ nodeIds: [], events: [], nodes: {}, arrows: [] }),
+    selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
+    reset: () => set({ nodeIds: [], events: [], nodes: {}, arrows: [], selectedNodeId: null }),
     })
 )
