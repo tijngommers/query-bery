@@ -2,10 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
-import { SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { SimpleDBMS} from './simpledbms.mjs';
 
 const app = express();
 const port = 3000;
