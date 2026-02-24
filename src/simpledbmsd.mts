@@ -8,6 +8,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import cors from 'cors';
 import { SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
 import { RealFile } from './file/file.mjs';
+import { compactDatabase } from './compaction.mjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -61,13 +62,15 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 let db: SimpleDBMS;
+let currentDbPath: string;
+let currentWalPath: string;
 
 async function initDB(customDbPath?: string, customWalPath?: string) {
   try {
-    const dbPath = customDbPath || process.argv[2] || 'mydb.db';
-    const walPath = customWalPath || process.argv[3] || 'mydb.wal';
-    const dbFile = new RealFile(dbPath);
-    const walFile = new RealFile(walPath);
+    currentDbPath = customDbPath || process.argv[2] || 'mydb.db';
+    currentWalPath = customWalPath || process.argv[3] || 'mydb.wal';
+    const dbFile = new RealFile(currentDbPath);
+    const walFile = new RealFile(currentWalPath);
     try {
       db = await SimpleDBMS.open(dbFile, walFile);
       console.log('Database opened successfully.');
@@ -530,6 +533,57 @@ app.post('/db/:collection/join', async (req, res) => {
     res.json(results);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * @swagger
+ * /db/compact:
+ *   post:
+ *     summary: Compact the database
+ *     description: >
+ *       Defragments the database file by rebuilding it from scratch.
+ *       Removes accumulated empty space from deletions and updates,
+ *       reducing the physical file size. This is a blocking maintenance
+ *       operation — no other requests should be in progress.
+ *     responses:
+ *       200:
+ *         description: Compaction completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 collectionsCompacted:
+ *                   type: number
+ *                 totalDocuments:
+ *                   type: number
+ *                 sizeBefore:
+ *                   type: number
+ *                 sizeAfter:
+ *                   type: number
+ *       500:
+ *         description: Compaction failed
+ */
+app.post('/db/compact', async (_req, res) => {
+  try {
+    const dbFile = new RealFile(currentDbPath);
+    const walFile = new RealFile(currentWalPath);
+
+    const { db: newDb, result } = await compactDatabase(db, dbFile, walFile);
+    db = newDb;
+
+    console.log(
+      `Database compacted: ${result.sizeBefore} -> ${result.sizeAfter} bytes ` +
+        `(${result.collectionsCompacted} collections, ${result.totalDocuments} documents)`,
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Compaction error:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 

@@ -879,15 +879,8 @@ export class SimpleDBMS {
 
   private async saveCatalogRoot() {
     const root = this.catalogTree.getRoot();
-    let rootId: number;
-
-    if (root.isLeaf) {
-      await this.catalogStorage.persistLeaf(root);
-      rootId = root.blockId!;
-    } else {
-      await this.catalogStorage.persistInternal(root);
-      rootId = root.blockId!;
-    }
+    await this.persistNodeTree(root, this.catalogStorage);
+    const rootId = root.blockId!;
 
     this.dbHeader.catalogRootBlockId = rootId;
 
@@ -1035,20 +1028,37 @@ export class SimpleDBMS {
     return results;
   }
 
+  /**
+   * Recursively persists all unpersisted nodes in a B+ tree,
+   * ensuring children are persisted before their parents.
+   */
+  private async persistNodeTree<K, V>(
+    node: FBLeafNode<K, V> | FBInternalNode<K, V>,
+    storage: FBNodeStorage<K, V>,
+  ): Promise<void> {
+    if (node.isLeaf) {
+      await storage.persistLeaf(node as FBLeafNode<K, V>);
+    } else {
+      const internal = node as FBInternalNode<K, V>;
+      for (let i = 0; i < internal.children.length; i++) {
+        const child = internal.children[i];
+        if (child.blockId === undefined || child.blockId === 0) {
+          await this.persistNodeTree(child, storage);
+        }
+        internal.childBlockIds[i] = child.blockId!;
+      }
+      await storage.persistInternal(internal);
+    }
+  }
+
   private async saveCollectionRoot(
     name: string,
     tree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>,
     storage: FBNodeStorage<string, Document>,
   ) {
     const root = tree.getRoot();
-    let rootId: number;
-    if (root.isLeaf) {
-      await storage.persistLeaf(root);
-      rootId = root.blockId!;
-    } else {
-      await storage.persistInternal(root);
-      rootId = root.blockId!;
-    }
+    await this.persistNodeTree(root, storage);
+    const rootId = root.blockId!;
 
     await this.catalogTree.insert(name, rootId);
     await this.saveCatalogRoot();
@@ -1081,6 +1091,31 @@ export class SimpleDBMS {
       delete this.dbHeader.collections[collectionName].indexes[field];
       await this.saveCatalogRoot();
     }
+  }
+
+  /**
+   * Returns all collection names stored in the catalog.
+   * Uses a Set to deduplicate since the catalog tree may contain
+   * multiple entries for the same collection (from repeated saves).
+   * @returns {Promise<string[]>} An array of unique collection names.
+   */
+  async getCollectionNames(): Promise<string[]> {
+    const names = new Set<string>();
+    for await (const { key } of this.catalogTree.entries()) {
+      names.add(key);
+    }
+    return [...names];
+  }
+
+  /**
+   * Returns the indexed fields for a given collection from the database header.
+   * @param {string} collectionName The collection name.
+   * @returns {string[]} An array of indexed field names.
+   */
+  getCollectionIndexInfo(collectionName: string): string[] {
+    const meta = this.dbHeader.collections[collectionName];
+    if (!meta?.indexes) return [];
+    return Object.keys(meta.indexes);
   }
 
   /**
