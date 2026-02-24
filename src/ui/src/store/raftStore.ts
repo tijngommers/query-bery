@@ -1,10 +1,11 @@
-import type { NodeUIState, RaftEvent } from "../types/raftTypes";
+import type { MessageArrow, NodeUIState, RaftEvent } from "../types/raftTypes";
 import { create } from 'zustand'
 
 interface RaftStore {
     nodeIds: string[];
     events: RaftEvent[];
     nodes: Record<string, NodeUIState>;
+    arrows: MessageArrow[];
     setNodeIds: (ids: string[]) => void;
     pushEvent: (event: RaftEvent) => void;
     processEvent: (event: RaftEvent) => void;
@@ -25,6 +26,7 @@ export const useRaftStore = create<RaftStore>((set) => ({
     nodeIds: [],
     events: [],
     nodes: {},
+    arrows: [],
 
     setNodeIds: (ids) => { 
         const nodes: Record<string, NodeUIState> = {};
@@ -51,10 +53,59 @@ export const useRaftStore = create<RaftStore>((set) => ({
                 }));
                 break;
             }
+            case "MessageSent": {
+                if (event.messageType !== "RequestVote") break;
+
+                const arrow: MessageArrow = {
+                    id: event.messageId,
+                    fromNodeId: event.fromNodeId,
+                    toNodeId: event.toNodeId,
+                    messageType: event.messageType,
+                    status: "inFlight",
+                    createdAt: Date.now(),
+                };
+                set(state => ({ arrows: [...state.arrows, arrow] }));
+                break;
+            }
+
+            case "MessageReceived": {
+
+                if (event.messageType !== "RequestVoteResponse") break;
+
+                let returnArrow: MessageArrow;
+
+                setTimeout(() => {
+                    returnArrow = {
+                        id: event.messageId + "-response",
+                        fromNodeId: event.fromNodeId,
+                        toNodeId: event.toNodeId,
+                        messageType: event.messageType,
+                        status: "inFlight",
+                        createdAt: Date.now(),
+                    };
+                    set(state => ({ arrows: [...state.arrows, returnArrow] }));
+                }, 1500);
+
+
+                setTimeout(() => {
+                    set(state => ({
+                        arrows: state.arrows.filter(arrow => arrow.id !== event.messageId),
+                    }));
+                }, 1000);
+
+                setTimeout(() => {
+                    set(state => ({
+                        arrows: state.arrows.filter(arrow => arrow.id !== returnArrow.id),
+                    }));
+                }, 2500);
+
+                break;
+            }
+
             default:
                 break;
         }
     },
-    reset: () => set({ nodeIds: [], events: [], nodes: {} }),
+    reset: () => set({ nodeIds: [], events: [], nodes: {}, arrows: [] }),
     })
 )

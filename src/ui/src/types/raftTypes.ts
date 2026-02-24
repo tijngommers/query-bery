@@ -206,7 +206,7 @@ export interface MessageArrow {
     id: string;
     fromNodeId: string;
     toNodeId: string;
-    messageType: "RequestVote" | "AppendEntries";
+    messageType: "RequestVote" | "AppendEntries" | "RequestVoteResponse" | "AppendEntriesResponse";
     status: ArrowStatus;
     createdAt: number;
 }
