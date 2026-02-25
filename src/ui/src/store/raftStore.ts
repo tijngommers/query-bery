@@ -16,6 +16,9 @@ interface RaftStore {
     sendCommand: (cmd: ClientCommand) => void;
     setDropRate: (nodeId: string, dropRate: number) => void;
     isLinkCut: (nodeA: string, nodeB: string) => boolean;
+    cutLink: (nodeA: string, nodeB: string) => void;
+    healLink: (nodeA: string, nodeB: string) => void;
+    healAllLinks: () => void;
     reset: () => void;
 }
 
@@ -242,6 +245,15 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
     },
     isLinkCut: (nodeA, nodeB) => {
         return get().cutLinks.has(`${nodeA}-${nodeB}`);
+    },
+    cutLink: (nodeA, nodeB) => {
+        get().sendCommand({ type: "CutLink", nodeA, nodeB });
+    },
+    healLink: (nodeA, nodeB) => {
+        get().sendCommand({ type: "HealLink", nodeA, nodeB });
+    },
+    healAllLinks: () => {
+        get().sendCommand({ type: "HealAllLinks" });
     },
     reset: () => set({ nodeIds: [], events: [], nodes: {}, arrows: [], selectedNodeId: null, dropRateByNode: {}, cutLinks: new Set() }),
     })

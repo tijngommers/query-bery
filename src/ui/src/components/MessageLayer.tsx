@@ -12,7 +12,7 @@ export function MessageLayer({ positions, nodeRadius, width, height }: Props) {
     const arrows = useRaftStore(s => s.arrows);
 
     return (
-        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}
             width={width} height={height}>
             <defs>
                 <marker id="arrow-rv" markerWidth={7} markerHeight={7}
