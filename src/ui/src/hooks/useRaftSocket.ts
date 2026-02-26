@@ -9,6 +9,7 @@ export function useRaftSocket() {
     const setNodeIds = useRaftStore((state) => state.setNodeIds);
     const pushEvent = useRaftStore((state) => state.pushEvent);
     const processEvent = useRaftStore((state) => state.processEvent);
+    const setConnected = useRaftStore((state) => state.setConnected);
     const reset = useRaftStore((state) => state.reset);
 
     useEffect(() => {
@@ -41,10 +42,15 @@ export function useRaftSocket() {
                 }
             };
 
+            ws.onopen = () => {
+                setConnected(true);
+            };
+
             ws.onclose = () => {
                 if (!canceled) {
                     reconnectTimer = setTimeout(connect, reconnnect_ms);
                 }
+                setConnected(false);
             };
 
             ws.onerror = () => ws.close();
@@ -57,6 +63,7 @@ export function useRaftSocket() {
             clearTimeout(reconnectTimer);
             ws?.close();
             setStoreWebSocket(null);
+            setConnected(false);
         };
     }, []);
 }

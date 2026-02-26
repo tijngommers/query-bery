@@ -9,6 +9,7 @@ interface RaftStore {
     selectedNodeId?: string | null;
     dropRateByNode: Record<string, number>;
     cutLinks: Set<string>;
+    connected: boolean;
     setNodeIds: (ids: string[]) => void;
     pushEvent: (event: RaftEvent) => void;
     processEvent: (event: RaftEvent) => void;
@@ -19,6 +20,7 @@ interface RaftStore {
     cutLink: (nodeA: string, nodeB: string) => void;
     healLink: (nodeA: string, nodeB: string) => void;
     healAllLinks: () => void;
+    setConnected: (connected: boolean) => void;
     reset: () => void;
 }
 
@@ -43,6 +45,7 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
     selectedNodeId: null,
     dropRateByNode: {},
     cutLinks: new Set(),
+    connected: false,
     setNodeIds: (ids) => { 
         const nodes: Record<string, NodeUIState> = {};
         for (const id of ids) {
@@ -255,6 +258,7 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
     healAllLinks: () => {
         get().sendCommand({ type: "HealAllLinks" });
     },
+    setConnected: (connected) => set({ connected }),
     reset: () => set({ nodeIds: [], events: [], nodes: {}, arrows: [], selectedNodeId: null, dropRateByNode: {}, cutLinks: new Set() }),
     })
 )

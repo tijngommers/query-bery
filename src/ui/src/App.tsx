@@ -2,6 +2,7 @@ import { useRaftSocket } from "./hooks/useRaftSocket";
 import { EventFeed } from "./components/EventFeed";
 import { ClusterView } from "./components/ClusterView";
 import { NodeDetail } from "./components/NodeDetail";
+import { ConnectionOverlay } from "./components/ConnectionOverlay";
 
 export default function App() {
     useRaftSocket();
@@ -12,6 +13,7 @@ export default function App() {
                 <NodeDetail />
                 <EventFeed />
             </div>
+            <ConnectionOverlay />
         </div>
     )
 }
