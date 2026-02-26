@@ -23,6 +23,7 @@ export class MockTransport implements Transport {
 
     private static transports: Map<NodeId, MockTransport> = new Map();
     private static partitions: Set<NodeId>[] = [];
+    private static blockedPairs: Set<string> = new Set();
 
     constructor(private readonly nodeId: NodeId, private readonly random: Random) {}
 
@@ -53,7 +54,11 @@ export class MockTransport implements Transport {
             throw new NetworkError(`Transport for node ${this.nodeId} is not started.`);
         }
 
-        if (this.random.nextFloat() < this.dropRate) {
+        // changed drop rate from only effect on sending to also experience dropped incoming messages
+        const peerTransport = MockTransport.transports.get(peerId);
+        const effectiveDropRate = Math.max(this.dropRate, peerTransport?.getDropRate() ?? 0);
+
+        if (this.random.nextFloat() < effectiveDropRate) {
             throw new NetworkError(`Message from ${this.nodeId} to ${peerId} was dropped due to simulated network conditions.`);
         }
 
@@ -61,7 +66,9 @@ export class MockTransport implements Transport {
             throw new NetworkError(`Message from ${this.nodeId} to ${peerId} was dropped due to network partition.`);
         }
 
-        const peerTransport = MockTransport.transports.get(peerId);
+        if (MockTransport.isLinkBlocked(this.nodeId, peerId)) {
+            throw new NetworkError(`Message from ${this.nodeId} to ${peerId} was dropped due to cut link.`);
+        }
 
         if (!peerTransport || !peerTransport.isStarted()) {
             throw new NetworkError(`Peer ${peerId} is not available.`);
@@ -84,10 +91,16 @@ export class MockTransport implements Transport {
 
     setDropRate(dropRate: number): void {
 
-        if (!Number(dropRate) || dropRate < 0 || dropRate > 1) {
+        if (typeof dropRate !== "number" || dropRate < 0 || dropRate > 1) {
             throw new NetworkError(`Invalid drop rate: ${dropRate}. Drop rate must be a number between 0 and 1.`);
         }
         this.dropRate = dropRate;
+    }
+
+    static setDropRate(nodeId: NodeId, dropRate: number): void {
+        const transport = MockTransport.transports.get(nodeId);
+        if (!transport) { return; }
+        transport.setDropRate(dropRate);
     }
 
     getDropRate(): number {
@@ -138,9 +151,28 @@ export class MockTransport implements Transport {
     static reset(): void {
         MockTransport.transports.clear();
         MockTransport.partitions = [];
+        MockTransport.blockedPairs.clear();
     }
 
     static getRegisteredNodes(): NodeId[] {
         return Array.from(MockTransport.transports.keys());
+    }
+
+    static cutLink(nodeA: NodeId, nodeB: NodeId): void {
+        MockTransport.blockedPairs.add(`${nodeA}-${nodeB}`);
+        MockTransport.blockedPairs.add(`${nodeB}-${nodeA}`);
+    }
+
+    static healLink(nodeA: NodeId, nodeB: NodeId): void {
+        MockTransport.blockedPairs.delete(`${nodeA}-${nodeB}`);
+        MockTransport.blockedPairs.delete(`${nodeB}-${nodeA}`);
+    }
+
+    static healAllLinks(): void {
+        MockTransport.blockedPairs.clear();
+    }
+
+    static isLinkBlocked(nodeA: NodeId, nodeB: NodeId): boolean {
+        return MockTransport.blockedPairs.has(`${nodeA}-${nodeB}`);
     }
 }

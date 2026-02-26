@@ -9,6 +9,17 @@ import { TimerManager } from "../timing/TimerManager";
 import { Logger } from "../util/Logger";
 import { RaftError } from "../util/Error";
 import { AsyncLock } from "../lock/AsyncLock";
+import { RaftEventBus, BaseEvent } from "../events/RaftEvents";
+import { NoOpEventBus } from "../events/EventBus";
+
+function baseEvent(nodeId: NodeId): BaseEvent {
+    return {
+        eventId: crypto.randomUUID(),
+        timestamp: performance.now(),
+        wallTime: Date.now(),
+        nodeId
+    };
+}
 
 
 export enum RaftState {
@@ -51,7 +62,8 @@ export class StateMachine implements StateMachineInterface {
         private rpcHandler: RPCHandler,
         private timerManager: TimerManager,
         private logger: Logger,
-        private onCommitIndexAdvanced?: (newCommitIndex: number) => void
+        private onCommitIndexAdvanced?: (newCommitIndex: number) => void,
+        private eventBus: RaftEventBus = new NoOpEventBus()
     ) {}
 
     async start(): Promise<void> {
@@ -78,73 +90,19 @@ export class StateMachine implements StateMachineInterface {
 
     async becomeFollower(term: number, leaderId: NodeId | null): Promise<void> {
         await this.stateLock.runExclusive(async () => {
-            this.logger.info(`Node ${this.nodeId} becoming Follower for term ${term}, leader: ${leaderId}`);
-
-            const currentTerm = this.persistentState.getCurrentTerm();
-            if (term > currentTerm) {
-                await this.persistentState.updateTermAndVote(term, null);
-                this.logger.info(`Node ${this.nodeId} updated term to ${term} and cleared votes`);
-            }
-
-            const wasLeader = this.currentState === RaftState.Leader;
-
-            this.currentState = RaftState.Follower;
-            this.votesReceived.clear();
-            this.currentLeader = leaderId;
-
-            if (wasLeader) {
-                this.leaderState = null;
-                this.timerManager.stopHeartbeatTimer();
-                this.logger.info(`Node ${this.nodeId} was previously a Leader, now a Follower`);
-            }
-
-            this.timerManager.startElectionTimer(() => this.handleElectionTimeoutlocked());
-
-            this.logger.info(`Node ${this.nodeId} is now a Follower with term ${this.persistentState.getCurrentTerm()}`);
+            await this.becomeFollowerUnlocked(term, leaderId);
         });
     }
 
     async becomeCandidate(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
-            this.currentState = RaftState.Candidate;
-            this.currentLeader = null;
-
-            this.leaderState = null;
-
-            const newTerm = (this.persistentState.getCurrentTerm() + 1);
-
-            await this.persistentState.updateTermAndVote(newTerm, this.nodeId);
-
-            this.votesReceived.clear();
-            this.votesReceived.add(this.nodeId);
-
-            const clusterSize = this.peers.length + 1;
-            this.votesNeeded = Math.floor(clusterSize / 2) + 1;
-
-            this.logger.info(`Node ${this.nodeId} became Candidate for term ${newTerm}, votes needed: ${this.votesNeeded}`);
-
-            this.timerManager.startElectionTimer(() => this.handleElectionTimeoutlocked());
-
-            await this.requestVotes();
+            await this.becomeCandidateUnlocked();
         });
     }
 
     async becomeLeader(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
-
-            this.currentState = RaftState.Leader;
-            this.currentLeader = this.nodeId;
-
-            const currentTerm = this.persistentState.getCurrentTerm();
-            const lastLogIndex = this.logManager.getLastIndex();
-
-            this.logger.info(`Node ${this.nodeId} became Leader for term ${currentTerm}, last log index: ${lastLogIndex}`);
-
-            this.leaderState = new LeaderState(this.peers, lastLogIndex);
-
-            this.timerManager.startHeartbeatTimer(() => this.sendHeartbeatsLocked());
-
-            await this.sendHeartbeatsUnlocked();
+            await this.becomeLeaderUnlocked();
         });
     }
 
@@ -154,6 +112,16 @@ export class StateMachine implements StateMachineInterface {
 
             if (request.term < currentTerm) {
                 this.logger.info(`Node ${this.nodeId} received RequestVote from ${from} with stale term ${request.term}, current term is ${currentTerm}`);
+
+                this.eventBus.emit({
+                    ...baseEvent(this.nodeId),
+                    type: "VoteDenied",
+                    term: currentTerm,
+                    voterId: this.nodeId,
+                    candidateId: request.candidateId,
+                    reason: "outdated term"
+                });
+
                 return {
                     term: currentTerm,
                     voteGranted: false
@@ -179,6 +147,16 @@ export class StateMachine implements StateMachineInterface {
 
             if (!canGrantVote) {
                 this.logger.info(`Node ${this.nodeId} cannot grant vote to ${request.candidateId} because it has already voted for ${votedFor}`);
+
+                this.eventBus.emit({
+                    ...baseEvent(this.nodeId),
+                    type: "VoteDenied",
+                    term: this.persistentState.getCurrentTerm(),
+                    voterId: this.nodeId,
+                    candidateId: request.candidateId,
+                    reason: "already voted"
+                });
+
                 return {
                     term: this.persistentState.getCurrentTerm(),
                     voteGranted: false
@@ -189,6 +167,16 @@ export class StateMachine implements StateMachineInterface {
 
             if (!isLogUpToDate) {
                 this.logger.info(`Node ${this.nodeId} cannot grant vote to ${request.candidateId} because its log is not up-to-date`);
+
+                this.eventBus.emit({
+                    ...baseEvent(this.nodeId),
+                    type: "VoteDenied",
+                    term: this.persistentState.getCurrentTerm(),
+                    voterId: this.nodeId,
+                    candidateId: request.candidateId,
+                    reason: "log not up-to-date"
+                });
+
                 return {
                     term: this.persistentState.getCurrentTerm(),
                     voteGranted: false
@@ -197,6 +185,14 @@ export class StateMachine implements StateMachineInterface {
 
             await this.persistentState.updateTermAndVote(request.term, request.candidateId);
             this.logger.info(`Node ${this.nodeId} granted vote to ${request.candidateId} for term ${request.term}`);
+
+            this.eventBus.emit({
+                ...baseEvent(this.nodeId),
+                type: "VoteGranted",
+                term: request.term,
+                voterId: this.nodeId,
+                candidateId: request.candidateId
+            });
 
             this.timerManager.resetElectionTimer();
 
@@ -259,6 +255,7 @@ export class StateMachine implements StateMachineInterface {
             }
 
             if (request.entries.length > 0) {
+
                 await this.logManager.appendEntriesFrom(request.prevLogIndex, request.entries);
                 this.logger.info(`Node ${this.nodeId} appended ${request.entries.length} entries from ${from}`);
             }
@@ -271,6 +268,14 @@ export class StateMachine implements StateMachineInterface {
                 const newCommitIndex = Math.min(leaderCommit, lastNewEntryIndex);
                 this.volatileState.setCommitIndex(newCommitIndex);
                 this.logger.info(`Node ${this.nodeId} updated commit index to ${newCommitIndex} based on leader ${from}`);
+
+                this.eventBus.emit({
+                    ...baseEvent(this.nodeId),
+                    type: "CommitIndexAdvanced",
+                    oldCommitIndex: currentCommitIndex,
+                    newCommitIndex,
+                    term: this.persistentState.getCurrentTerm()
+                });
 
                 this.onCommitIndexAdvanced?.(newCommitIndex);
             }
@@ -309,11 +314,30 @@ export class StateMachine implements StateMachineInterface {
         if (term > currentTerm) {
             await this.persistentState.updateTermAndVote(term, null);
             this.logger.info(`Node ${this.nodeId} updated term to ${term} and cleared votes`);
+            this.eventBus.emit({
+                ...baseEvent(this.nodeId),
+                type: "TermChanged",
+                oldTerm: currentTerm,
+                newTerm: term,
+                reason: "higher term"
+            });
         }
 
         const wasLeader = this.currentState === RaftState.Leader;
 
+        const oldState = this.currentState;
         this.currentState = RaftState.Follower;
+
+        if (oldState !== RaftState.Follower) {
+            this.eventBus.emit({
+                ...baseEvent(this.nodeId),
+                type: "NodeStateChanged",
+                oldState,
+                newState: RaftState.Follower,
+                term: this.persistentState.getCurrentTerm()
+            });
+        }
+
         this.votesReceived.clear();
         this.currentLeader = leaderId;
 
@@ -329,6 +353,9 @@ export class StateMachine implements StateMachineInterface {
     }
 
     private async becomeCandidateUnlocked(): Promise<void> {
+
+        const oldState = this.currentState;
+
         this.currentState = RaftState.Candidate;
         this.currentLeader = null;
 
@@ -337,6 +364,28 @@ export class StateMachine implements StateMachineInterface {
         const newTerm = (this.persistentState.getCurrentTerm() + 1);
 
         await this.persistentState.updateTermAndVote(newTerm, this.nodeId);
+
+        this.eventBus.emit({
+            ...baseEvent(this.nodeId),
+            type: "TermChanged",
+            oldTerm: newTerm - 1,
+            newTerm: newTerm,
+            reason: "election"
+        });
+
+        this.eventBus.emit({
+            ...baseEvent(this.nodeId),
+            type: "NodeStateChanged",
+            oldState: oldState,
+            newState: RaftState.Candidate,
+            term: newTerm
+        });
+
+        this.eventBus.emit({
+            ...baseEvent(this.nodeId),
+            type: "ElectionStarted",
+            term: newTerm
+        });
 
         this.votesReceived.clear();
         this.votesReceived.add(this.nodeId);
@@ -352,6 +401,9 @@ export class StateMachine implements StateMachineInterface {
     }
 
     private async becomeLeaderUnlocked(): Promise<void> {
+        
+        const oldState = this.currentState;
+
         this.currentState = RaftState.Leader;
         this.currentLeader = this.nodeId;
 
@@ -359,6 +411,23 @@ export class StateMachine implements StateMachineInterface {
         const lastLogIndex = this.logManager.getLastIndex();
 
         this.logger.info(`Node ${this.nodeId} became Leader for term ${currentTerm}, last log index: ${lastLogIndex}`);
+
+        this.eventBus.emit({
+            ...baseEvent(this.nodeId),
+            type: "NodeStateChanged",
+            oldState: oldState,
+            newState: RaftState.Leader,
+            term: currentTerm
+        });
+
+        this.eventBus.emit({
+            ...baseEvent(this.nodeId),
+            type: "LeaderElected",
+            term: currentTerm,
+            leaderId: this.nodeId,
+            voteCount: this.votesReceived.size,
+            clusterSize: this.peers.length + 1
+        });
 
         this.leaderState = new LeaderState(this.peers, lastLogIndex);
 
@@ -387,8 +456,11 @@ export class StateMachine implements StateMachineInterface {
     }
 
     private async sendRequestVote(peer: NodeId, request: RequestVoteRequest): Promise<void> {
+
         try {
+
             const response = await this.rpcHandler.sendRequestVote(peer, request);
+
             await this.handleRequestVoteResponse(peer, response);
         } catch (err) {
 
@@ -458,8 +530,8 @@ export class StateMachine implements StateMachineInterface {
 
     private async sendAppendEntries(peer: NodeId): Promise<void> {
 
-        let request: AppendEntriesRequest;
-
+        let request: AppendEntriesRequest | null = null;
+        
         try {
             await this.stateLock.runExclusive(async () => {
                 if (!this.leaderState) {
@@ -486,11 +558,16 @@ export class StateMachine implements StateMachineInterface {
                 };
             });
 
-            const response: AppendEntriesResponse = await this.rpcHandler.sendAppendEntries(peer, request!);
+            if (!request) {
+                return;
+            }
+
+            const response: AppendEntriesResponse = await this.rpcHandler.sendAppendEntries(peer, request);
             
             await this.handleAppendEntriesResponse(peer, response);
 
         } catch (err) {
+
             if (err instanceof Error) {
                 this.logger.error(`Node ${this.nodeId} error sending AppendEntries to ${peer}: ${err.message}`);
             } else {
@@ -532,21 +609,47 @@ export class StateMachine implements StateMachineInterface {
                     return;
                 }
 
+                const prevMatchIndex = this.leaderState.getMatchIndex(from);
+
                 this.leaderState.updateMatchIndex(from, response.matchIndex);
                 this.logger.info(`Node ${this.nodeId} received successful AppendEntriesResponse from ${from}, matchIndex: ${response.matchIndex}`);
+
+                this.eventBus.emit({
+                    ...baseEvent(this.nodeId),
+                    type: "MatchIndexUpdated",
+                    followerId: from,
+                    prevMatchIndex: prevMatchIndex,
+                    newMatchIndex: response.matchIndex,
+                    term: currentTerm
+                });
+
                 await this.tryAdvanceCommitIndex();
             } else {
+
+                const prevNextIndex = this.leaderState.getNextIndex(from);
+
                 if (response.conflictTerm !== undefined && response.conflictIndex !== undefined) {
                     this.logger.debug('using conflict info to backtrack nextIndex for peer', { peer: from, conflictTerm: response.conflictTerm, conflictIndex: response.conflictIndex, oldNextIndex: this.leaderState.getNextIndex(from) });
 
                     this.leaderState.updateNextIndexWithConflict(from, response.conflictIndex, response.conflictTerm, this.logManager);
 
                     this.logger.debug('updated nextIndex for peer after conflict', { peer: from, newNextIndex: this.leaderState.getNextIndex(from) });
+
                 } else {
                     this.logger.debug('no conflict info provided, simply decrementing nextIndex for peer', { peer: from, oldNextIndex: this.leaderState.getNextIndex(from) });
+
                     this.leaderState.decrementNextIndex(from);
                     this.logger.debug('decremented nextIndex for peer', { peer: from, newNextIndex: this.leaderState.getNextIndex(from) });
                 }
+
+                this.eventBus.emit({
+                    ...baseEvent(this.nodeId),
+                    type: "NextIndexDecremented",
+                    followerId: from,
+                    prevNextIndex: prevNextIndex,
+                    newNextIndex: this.leaderState.getNextIndex(from),
+                    term: currentTerm
+                });
             }
         });
     }
@@ -565,6 +668,14 @@ export class StateMachine implements StateMachineInterface {
         if (newCommitIndex > currentCommitIndex) {
             this.volatileState.setCommitIndex(newCommitIndex);
             this.logger.info(`Node ${this.nodeId} advanced commit index to ${newCommitIndex}`);
+
+            this.eventBus.emit({
+                ...baseEvent(this.nodeId),
+                type: "CommitIndexAdvanced",
+                oldCommitIndex: currentCommitIndex,
+                newCommitIndex: newCommitIndex,
+                term: currentTerm
+            });
 
             this.onCommitIndexAdvanced?.(newCommitIndex);
         }
