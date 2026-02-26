@@ -246,34 +246,6 @@ function median(values: number[]): number {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
-function stdDev(values: number[]): number {
-  if (values.length <= 1) return 0;
-  const avg = mean(values);
-  const variance = values.reduce((sum, value) => sum + (value - avg) ** 2, 0) / (values.length - 1);
-  return Math.sqrt(variance);
-}
-
-function percentile(sortedValues: number[], p: number): number {
-  if (sortedValues.length === 0) return NaN;
-  const idx = (sortedValues.length - 1) * p;
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sortedValues[lo];
-  const w = idx - lo;
-  return sortedValues[lo] * (1 - w) + sortedValues[hi] * w;
-}
-
-function iqrUpperFilter(values: number[]): { kept: number[]; removed: number } {
-  if (values.length < 4) return { kept: values.slice(), removed: 0 };
-  const sorted = [...values].sort((a, b) => a - b);
-  const q1 = percentile(sorted, 0.25);
-  const q3 = percentile(sorted, 0.75);
-  const iqr = q3 - q1;
-  const upperFence = q3 + 1.5 * iqr;
-  const kept = values.filter((value) => value <= upperFence);
-  return { kept, removed: values.length - kept.length };
-}
-
 async function runSizes(
   sizes: number[],
   mode: 'random' | 'sequential',
@@ -296,10 +268,6 @@ async function runSizes(
   }
 
   const summarize = summary === 'median' ? median : mean;
-
-  console.log(
-    `Using ${summary} of ${totalRuns - discardRuns} runs per size (discarding first ${discardRuns} warmup run(s))`,
-  );
   console.log('n\tlog2(n)\tinsert_us/op\tsearch_us/op\tdelete_us/op');
 
   for (const n of sizes) {
@@ -307,9 +275,6 @@ async function runSizes(
       const insertArr: number[] = [];
       const searchArr: number[] = [];
       const deleteArr: number[] = [];
-      const insertUsAll: number[] = [];
-      const searchUsAll: number[] = [];
-      const deleteUsAll: number[] = [];
 
       for (let r = 0; r < totalRuns; r++) {
         if (typeof global.gc === 'function') {
@@ -326,9 +291,6 @@ async function runSizes(
         const insertUs = (res.insertMs / res.opCount) * 1000;
         const searchUs = (res.searchMs / res.opCount) * 1000;
         const deleteUs = (res.deleteMs / res.opCount) * 1000;
-        insertUsAll.push(insertUs);
-        searchUsAll.push(searchUs);
-        deleteUsAll.push(deleteUs);
 
         if (r < discardRuns) continue;
 
@@ -342,46 +304,7 @@ async function runSizes(
         await sleep(coolDownMs);
       }
 
-      const fmtRuns = (values: number[]) =>
-        values.map((value, idx) => `${idx + 1}${idx < discardRuns ? '*' : ''}:${value.toFixed(3)}`).join(' | ');
-
-      console.log(`  runs insert_us/op: ${fmtRuns(insertUsAll)}`);
-      console.log(`  runs search_us/op: ${fmtRuns(searchUsAll)}`);
-      console.log(`  runs delete_us/op: ${fmtRuns(deleteUsAll)}`);
-
-      const keptInsertUs = insertUsAll.slice(discardRuns);
-      const keptSearchUs = searchUsAll.slice(discardRuns);
-      const keptDeleteUs = deleteUsAll.slice(discardRuns);
-      const filteredInsert = iqrUpperFilter(keptInsertUs);
-      const filteredSearch = iqrUpperFilter(keptSearchUs);
-      const filteredDelete = iqrUpperFilter(keptDeleteUs);
-      const cv = (values: number[]) => {
-        const avg = mean(values);
-        return avg === 0 ? 0 : (stdDev(values) / avg) * 100;
-      };
-
-      console.log(
-        `  spread kept-runs: insert[min=${Math.min(...keptInsertUs).toFixed(3)}, max=${Math.max(
-          ...keptInsertUs,
-        ).toFixed(3)}, std=${stdDev(keptInsertUs).toFixed(3)}, cv=${cv(keptInsertUs).toFixed(2)}%] ` +
-          `search[min=${Math.min(...keptSearchUs).toFixed(3)}, max=${Math.max(...keptSearchUs).toFixed(3)}, std=${stdDev(
-            keptSearchUs,
-          ).toFixed(3)}, cv=${cv(keptSearchUs).toFixed(2)}%] ` +
-          `delete[min=${Math.min(...keptDeleteUs).toFixed(3)}, max=${Math.max(...keptDeleteUs).toFixed(3)}, std=${stdDev(
-            keptDeleteUs,
-          ).toFixed(3)}, cv=${cv(keptDeleteUs).toFixed(2)}%]`,
-      );
-
-      console.log(
-        `  iqr-filter removed: insert=${filteredInsert.removed}, search=${filteredSearch.removed}, delete=${filteredDelete.removed}`,
-      );
-
-      printRowFromUs(
-        n,
-        summarize(filteredInsert.kept.length > 0 ? filteredInsert.kept : keptInsertUs),
-        summarize(filteredSearch.kept.length > 0 ? filteredSearch.kept : keptSearchUs),
-        summarize(filteredDelete.kept.length > 0 ? filteredDelete.kept : keptDeleteUs),
-      );
+      printRowFromUs(n, summarize(insertArr), summarize(searchArr), summarize(deleteArr));
     } catch (err) {
       console.error('error running size', n, err);
       break;
@@ -398,26 +321,11 @@ async function main() {
   const coolDownMs = 200;
   const backend: FileBackend = process.argv.includes('--mock') ? 'mock' : 'real';
 
-  console.log('Steady-state benchmark using FBNodeStorage (disk-based) + BPlusTree');
-  console.log(`Each size tested ${totalRuns} times`);
-  console.log(`Backend: ${backend} (real backend uses fresh temp files per run)`);
-  console.log(`Commit checkpoint every ${commitEvery} operations`);
-  console.log(`Cool-down between kept runs: ${coolDownMs}ms`);
-  console.log('Recommended V8 flags: --expose-gc --max-old-space-size=4096 --initial-old-space-size=4096');
-  const hasMaxOld = process.execArgv.some((arg) => arg.startsWith('--max-old-space-size='));
-  const hasInitialOld = process.execArgv.some((arg) => arg.startsWith('--initial-old-space-size='));
-  if (typeof global.gc !== 'function' || !hasMaxOld || !hasInitialOld) {
-    console.warn('warning: recommended flags not fully enabled; variance may remain higher than desired.');
-  }
-  console.log(
-    'Per run: prefill tree to n, then perform n times: 1 insert + 1 search(existing random) + 1 delete(existing random)',
-  );
-
   console.log('Mode: random prefill order');
   await runSizes(sizes, 'random', { totalRuns, discardRuns, summary, commitEvery, coolDownMs, backend });
 
-  console.log('\nMode: sequential prefill order');
-  await runSizes(sizes, 'sequential', { totalRuns, discardRuns, summary, commitEvery, coolDownMs, backend });
+  //console.log('\nMode: sequential prefill order');
+  //await runSizes(sizes, 'sequential', { totalRuns, discardRuns, summary, commitEvery, coolDownMs, backend });
 
   console.log('\nDone.');
 }
