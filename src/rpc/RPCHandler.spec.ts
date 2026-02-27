@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RPCHandler } from "./RPCHandler";
 import { RPCMessage } from "./RPCTypes";
 import { RPCHandlerError, NetworkError } from "../util/Error";
-import { MockTransport } from "../transport/Transport";
+import { MockTransport } from "../transport/MockTransport";
 import { Logger } from "../util/Logger";
 import { Clock } from "../timing/Clock";
 import { SeededRandom } from "../util/Random";

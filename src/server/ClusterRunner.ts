@@ -5,7 +5,7 @@ import { Command } from "../log/LogEntry";
 import { InMemoryStorage } from "../storage/Storage";
 import { SystemClock } from "../timing/Clock";
 import { TimerConfig } from "../timing/TimerManager";
-import { MockTransport } from "../transport/Transport";
+import { MockTransport } from "../transport/MockTransport";
 import { SystemRandom } from "../util/Random";
 
 

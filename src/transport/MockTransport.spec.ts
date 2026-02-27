@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { MockTransport } from "./Transport";
+import { MockTransport } from "./MockTransport";
 import { NetworkError } from "../util/Error";
 import { SeededRandom } from "../util/Random";
 import { RPCMessage } from "../rpc/RPCTypes";

@@ -1,3 +1,4 @@
+import { LogEntry } from "../log/LogEntry";
 import { StorageError } from "../util/Error";
 
 export interface StorageOperation {
@@ -171,5 +172,27 @@ export class StorageCodec {
         } catch (error) {
             throw new StorageError(`Failed to decode JSON: ${(error as Error).message}`); // idem
         }
+    }
+
+    static serializeLogEntry(entry: LogEntry): object {
+        return {
+            term: entry.term,
+            index: entry.index,
+            command: {
+                type: entry.command.type,
+                payload: Buffer.from(JSON.stringify(entry.command.payload)),
+            },
+        };
+    }
+
+    static deserializeLogEntry(raw: any): LogEntry {
+        return {
+            term: raw.term,
+            index: raw.index,
+            command: {
+                type: raw.command.type,
+                payload: JSON.parse(raw.command.payload.toString()),
+            },
+        };
     }
 }

@@ -10,7 +10,7 @@ import { RequestVoteRequest,
          validateRPCMessage,
          RPCMessage
         } from "./RPCTypes";
-import { Transport } from "../transport/Transport";
+import { Transport } from "../transport/MockTransport";
 import { Logger } from "../util/Logger";
 import { Clock, TimerHandle } from "../timing/Clock";
 import { RPCHandlerError, NetworkError } from "../util/Error";
