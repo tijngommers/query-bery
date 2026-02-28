@@ -19,7 +19,7 @@ const packageDefinition = protoLoader.loadSync(protoPath, {
 
 const proto = grpc.loadPackageDefinition(packageDefinition) as any;
 
-function rpcMessageToGrpc(message: RPCMessage): { method: string, payload: object} {
+export function rpcMessageToGrpc(message: RPCMessage): { method: string, payload: object} {
     if (message.type === "RequestVote" && message.direction === "request") {
         return {
             method: "RequestVote",
@@ -38,7 +38,7 @@ function rpcMessageToGrpc(message: RPCMessage): { method: string, payload: objec
     throw new NetworkError(`Unsupported message type or direction: ${message.type} ${message.direction}`);
 }
 
-function grpcToRpcMessage(method: string, raw: any): RPCMessage {
+export function grpcToRpcMessage(method: string, raw: any): RPCMessage {
     if (method === "RequestVote") {
         return {
             type: "RequestVote",
@@ -65,7 +65,7 @@ function grpcToRpcMessage(method: string, raw: any): RPCMessage {
     };
 }
 
-function serializeAppendEntriesResponse(response: AppendEntriesResponse): object {
+export function serializeAppendEntriesResponse(response: AppendEntriesResponse): object {
     return {
         term: response.term,
         success: response.success,
