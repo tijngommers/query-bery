@@ -679,7 +679,12 @@ export class FBInternalNode<Keystype, ValuesType>
   }
 
   private hasFullyMaterializedChildren(): boolean {
-    return this.children.length === this.childBlockIds.length;
+    if (this.children.length !== this.childBlockIds.length) return false;
+    for (let i = 0; i < this.childBlockIds.length; i++) {
+      if (!(i in this.children)) return false;
+      if (!this.children[i]) return false;
+    }
+    return true;
   }
 
   private clearChildrenCache(): void {
