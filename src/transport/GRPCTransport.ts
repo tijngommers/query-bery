@@ -92,7 +92,7 @@ export class GrpcTransport implements Transport {
         private readonly nodeId: NodeId,
         private readonly port: number,
         private readonly peers: Record<NodeId, string>,
-        private readonly certPaths: {
+        private readonly certPaths?: {
             caCert: string,
             nodeCert: string;
             nodeKey: string;
@@ -112,21 +112,34 @@ export class GrpcTransport implements Transport {
         this.server = new grpc.Server();
         this.server.addService(proto.raft.RaftService.service, this.buildServiceImplementation());
 
-        const caCert = await fs.readFile(this.certPaths.caCert);
-        const nodeCert = await fs.readFile(this.certPaths.nodeCert);
-        const nodeKey = await fs.readFile(this.certPaths.nodeKey);
+        let serverCredentials: grpc.ServerCredentials;
+        let clientCredentials: grpc.ChannelCredentials;
+
+        if (this.certPaths) {
+
+            const caCert = await fs.readFile(this.certPaths.caCert);
+            const nodeCert = await fs.readFile(this.certPaths.nodeCert);
+            const nodeKey = await fs.readFile(this.certPaths.nodeKey);
+
+            serverCredentials = grpc.ServerCredentials.createSsl(
+                caCert,
+                [{
+                    cert_chain: nodeCert,
+                    private_key: nodeKey
+                }],
+                true
+            );
+
+            clientCredentials = grpc.credentials.createSsl(caCert, nodeKey, nodeCert);
+        } else {
+            serverCredentials = grpc.ServerCredentials.createInsecure();
+            clientCredentials = grpc.credentials.createInsecure();
+        }
 
         return new Promise((resolve, reject) => {
             this.server!.bindAsync(
                 `0.0.0.0:${this.port}`,
-                grpc.ServerCredentials.createSsl(
-                    caCert,
-                    [{
-                        cert_chain: nodeCert,
-                        private_key: nodeKey
-                    }],
-                    true
-                ),
+                serverCredentials,
                 (err) => {
                     if (err) {
                         reject(new NetworkError(`Failed to bind gRPC server: ${err.message}`));
@@ -135,7 +148,7 @@ export class GrpcTransport implements Transport {
                     for (const [peerId, address] of Object.entries(this.peers)) {
                         this.clients.set(
                             peerId,
-                            new proto.raft.RaftService(address, grpc.credentials.createSsl(caCert, nodeKey, nodeCert), { 'grpc.enable_retries': 0 })
+                            new proto.raft.RaftService(address, clientCredentials, { 'grpc.enable_retries': 0 })
                         );
                     }
 
