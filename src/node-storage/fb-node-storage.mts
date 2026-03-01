@@ -80,6 +80,24 @@ function lowerBound<Keystype>(
   return lo;
 }
 
+function upperBound<Keystype>(
+  keys: Keystype[],
+  key: Keystype,
+  compareKeys: (a: Keystype, b: Keystype) => number,
+): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (compareKeys(keys[mid], key) <= 0) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
 /**
  * FBNodeStorage is a NodeStorage implementation that uses FreeBlockFile for storage.
  *
@@ -644,10 +662,7 @@ export class FBInternalNode<Keystype, ValuesType>
     cursor: ChildCursor<Keystype, ValuesType, FBLeafNode<Keystype, ValuesType>, FBInternalNode<Keystype, ValuesType>>;
     isAtKey: boolean;
   }> {
-    let index = lowerBound(this.keys, key, this.storage.compareKeys);
-    while (index < this.keys.length && this.storage.compareKeys(key, this.keys[index]) >= 0) {
-      index++;
-    }
+    const index = upperBound(this.keys, key, this.storage.compareKeys);
     const cursor = new FBChildCursor<Keystype, ValuesType>(this);
     cursor.setPosition(index);
     const isAtKey = index > 0 && this.storage.compareKeys(key, this.keys[index - 1]) === 0;
