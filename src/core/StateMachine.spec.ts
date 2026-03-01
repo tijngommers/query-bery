@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StateMachine, RaftState } from './StateMachine';
 import { RaftError } from '../util/Error';
+import { snapshot } from 'node:test';
+import { SnapshotManager } from '../snapshot/SnapshotManager';
 
 describe('StateMachine.ts, StateMachine', () => {
 
@@ -28,6 +30,20 @@ describe('StateMachine.ts, StateMachine', () => {
         getConflictInfo: ReturnType<typeof vi.fn>,
         calculateCommitIndex: ReturnType<typeof vi.fn>
     };
+
+    let snapshotManager: {
+        saveSnapshot: ReturnType<typeof vi.fn>,
+        loadSnapshot: ReturnType<typeof vi.fn>,
+        hasSnapshot: ReturnType<typeof vi.fn>,
+        getSnapshotMetaData: ReturnType<typeof vi.fn>,
+    };
+
+    let applicationStateMachine: {
+        apply: ReturnType<typeof vi.fn>,
+        getState: ReturnType<typeof vi.fn>,
+        takeSnapshot: ReturnType<typeof vi.fn>,
+        installSnapshot: ReturnType<typeof vi.fn>,
+    }
 
     let rpcHandler: {
         sendRequestVote: ReturnType<typeof vi.fn>,
@@ -94,6 +110,20 @@ describe('StateMachine.ts, StateMachine', () => {
             calculateCommitIndex: vi.fn().mockReturnValue(0),
         };
 
+        snapshotManager = {
+            saveSnapshot: vi.fn().mockResolvedValue(undefined),
+            loadSnapshot: vi.fn().mockResolvedValue(null),
+            hasSnapshot: vi.fn().mockReturnValue(false),
+            getSnapshotMetaData: vi.fn().mockReturnValue(null),
+        };
+
+        applicationStateMachine = {
+            apply: vi.fn().mockResolvedValue(undefined),
+            getState: vi.fn().mockReturnValue({}),
+            takeSnapshot: vi.fn().mockResolvedValue(Buffer.alloc(0)),
+            installSnapshot: vi.fn().mockResolvedValue(undefined),
+        };
+
         rpcHandler = {
             sendRequestVote: vi.fn().mockResolvedValue({ term: 1, voteGranted: true }),
             sendAppendEntries: vi.fn().mockResolvedValue({ term: 1, success: true, matchIndex: 0 }),
@@ -125,6 +155,8 @@ describe('StateMachine.ts, StateMachine', () => {
             persistentState as any,
             volatileState as any,
             logManager as any,
+            snapshotManager as any,
+            applicationStateMachine as any,
             rpcHandler as any,
             timerManager as any,
             logger as any,
@@ -228,6 +260,8 @@ describe('StateMachine.ts, StateMachine', () => {
             persistentState as any,
             volatileState as any,
             logManager as any,
+            snapshotManager as any,
+            applicationStateMachine as any,
             rpcHandler as any,
             timerManager as any,
             logger as any,
@@ -777,6 +811,8 @@ describe('StateMachine.ts, StateMachine', () => {
             persistentState as any,
             volatileState as any,
             logManager as any,
+            snapshotManager as any,
+            applicationStateMachine as any,
             rpcHandler as any,
             timerManager as any,
             logger as any,
