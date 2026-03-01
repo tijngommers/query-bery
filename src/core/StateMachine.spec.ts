@@ -35,7 +35,7 @@ describe('StateMachine.ts, StateMachine', () => {
         saveSnapshot: ReturnType<typeof vi.fn>,
         loadSnapshot: ReturnType<typeof vi.fn>,
         hasSnapshot: ReturnType<typeof vi.fn>,
-        getSnapshotMetaData: ReturnType<typeof vi.fn>,
+        getSnapshotMetadata: ReturnType<typeof vi.fn>,
     };
 
     let applicationStateMachine: {
@@ -114,7 +114,7 @@ describe('StateMachine.ts, StateMachine', () => {
             saveSnapshot: vi.fn().mockResolvedValue(undefined),
             loadSnapshot: vi.fn().mockResolvedValue(null),
             hasSnapshot: vi.fn().mockReturnValue(false),
-            getSnapshotMetaData: vi.fn().mockReturnValue(null),
+            getSnapshotMetadata: vi.fn().mockReturnValue(null),
         };
 
         applicationStateMachine = {
