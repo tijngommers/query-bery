@@ -26,6 +26,10 @@ function xorshift32(seed: number) {
   };
 }
 
+function getWarmupCount(n: number): number {
+  return Math.min(50, Math.floor(n * 0.01));
+}
+
 function shuffle<T>(arr: T[], seed = 42) {
   const rnd = xorshift32(seed);
   for (let i = arr.length - 1; i > 0; i--) {
@@ -111,11 +115,11 @@ async function timeDelete(tree: BenchTree, fbFile: FreeBlockFile, keys: number[]
   return t1 - t0;
 }
 
-function printRow(n: number, insMs: number, srchMs: number, delMs: number) {
+function printRow(n: number, insMs: number, srchMs: number, delMs: number, measuredOps: number) {
   const log2n = Math.log2(n);
-  const insUs = (insMs / n) * 1000;
-  const srchUs = (srchMs / n) * 1000;
-  const delUs = (delMs / n) * 1000;
+  const insUs = (insMs / measuredOps) * 1000;
+  const srchUs = (srchMs / measuredOps) * 1000;
+  const delUs = (delMs / measuredOps) * 1000;
   console.log(
     `${n}\tlog2(n)=${log2n.toFixed(2)}\tinsert_total_ms=${insMs.toFixed(2)}\tinsert_us/op=${insUs.toFixed(
       3,
@@ -139,20 +143,20 @@ async function runOnce(n: number, opts: { mode: 'random' | 'sequential'; order?:
       shuffle(keys, 12345);
     }
 
-    const warmup = Math.min(50, Math.floor(n * 0.01));
+    const warmup = getWarmupCount(n);
     for (let i = 0; i < warmup; i++) {
       await tree.insert(keys[i], keys[i]);
     }
 
-    const insertKeys = keys.slice(warmup);
-    const insertMs = await timeInsert(tree, fbFile, insertKeys);
+    const measuredKeys = keys.slice(warmup);
+    const insertMs = await timeInsert(tree, fbFile, measuredKeys);
     await storage.commitAndReclaim();
 
-    const searchKeys = keys.slice();
+    const searchKeys = measuredKeys.slice();
     shuffle(searchKeys, 9999);
     const srchMs = await timeSearch(tree, searchKeys);
 
-    const delMs = await timeDelete(tree, fbFile, keys);
+    const delMs = await timeDelete(tree, fbFile, measuredKeys);
     await storage.commitAndReclaim();
 
     return { n, insertMs, srchMs, delMs };
@@ -190,6 +194,7 @@ async function runSizes(
 
   for (const n of sizes) {
     try {
+      const insertOps = n - getWarmupCount(n);
       const insertArr: number[] = [];
       const searchArr: number[] = [];
       const deleteArr: number[] = [];
@@ -205,7 +210,7 @@ async function runSizes(
         deleteArr.push(res.delMs);
       }
 
-      printRow(n, summarize(insertArr), summarize(searchArr), summarize(deleteArr));
+      printRow(n, summarize(insertArr), summarize(searchArr), summarize(deleteArr), insertOps);
     } catch (err) {
       console.error('error running size', n, err);
       break;
