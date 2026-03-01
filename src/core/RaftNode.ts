@@ -67,7 +67,7 @@ export class RaftNode implements RaftNodeInterface {
 
     private commitWaiters: Map<number, Array<(Commited: boolean) => void>> = new Map();
 
-    private snapshotTreshold: number = 100;
+    private snapshotTreshold: number = 10;
     private snapshotManager: SnapshotManager;
 
     constructor(
@@ -136,6 +136,8 @@ export class RaftNode implements RaftNodeInterface {
             throw new RaftError(`Node ${this.config.nodeId} is already started`, 'NodeAlreadyStarted');
         }
 
+        this.volatileState.reset();
+
         this.logger.info(`Starting Raft node ${this.config.nodeId}`);
 
         try {
@@ -164,8 +166,8 @@ export class RaftNode implements RaftNodeInterface {
 
             if (snapshot) {
                 await this.applicationStateMachine.installSnapshot(snapshot.data);
-                this.volatileState.setLastApplied(snapshot.lastIncludedIndex);
                 this.volatileState.setCommitIndex(snapshot.lastIncludedIndex);
+                this.volatileState.setLastApplied(snapshot.lastIncludedIndex);
                 this.logger.info(`Node ${this.config.nodeId} loaded snapshot with last included index ${snapshot.lastIncludedIndex} and term ${snapshot.lastIncludedTerm}`);
             }
 
@@ -526,6 +528,17 @@ export class RaftNode implements RaftNodeInterface {
         await this.logManager.discardEntriesUpTo(snapshotIndex, snapshotTerm);
 
         this.logger.info(`Took snapshot at index ${snapshotIndex} and term ${snapshotTerm}, discarded log entries up to index ${snapshotIndex}`);
+
+        this.bus.emit({
+            eventId: crypto.randomUUID(),
+            timestamp: performance.now(),
+            wallTime: Date.now(),
+            nodeId: this.config.nodeId,
+            type: "SnapshotTaken",
+            lastIncludedIndex: snapshotIndex,
+            lastIncludedTerm: snapshotTerm,
+            snapshotSizeBytes: data.length
+        });
     }
 }
 

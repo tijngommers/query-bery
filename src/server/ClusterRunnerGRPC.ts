@@ -19,6 +19,8 @@ export interface ClusterRunnerOptions {
 class NoOpStateMachine {
     async apply(command: Command): Promise<void> {}
     getState(): null { return null; }
+    async takeSnapshot(): Promise<Buffer> { return Buffer.alloc(0); }
+    async installSnapshot(snapshot: Buffer): Promise<void> {}
 }
 
 export class ClusterRunnerGRPC {

@@ -5,6 +5,8 @@ import {
     RequestVoteResponse,
     AppendEntriesRequest,
     AppendEntriesResponse,
+    InstallSnapshotResponse,
+    InstallSnapshotRequest,
 } from "../rpc/RPCTypes";
 import { RaftState } from "../core/StateMachine";
 
@@ -108,7 +110,9 @@ export type MessageType =
     | "RequestVote"
     | "RequestVoteResponse"
     | "AppendEntries"
-    | "AppendEntriesResponse";
+    | "AppendEntriesResponse"
+    | "InstallSnapshotRequest"
+    | "InstallSnapshotResponse";
 
 interface BaseMessageEvent extends BaseEvent {
     messageId: string;
@@ -143,8 +147,21 @@ export interface AppendEntriesReceivedEvent extends BaseMessageEvent {
     latencyMs: number;
 }
 
-export type MessageSentEvent = RequestVoteSentEvent | AppendEntriesSentEvent;
-export type MessageReceivedEvent = RequestVoteReceivedEvent | AppendEntriesReceivedEvent;
+export interface InstallSnapshotRequestEvent extends BaseMessageEvent {
+    type: "MessageSent";
+    messageType: "InstallSnapshotRequest";
+    payload: InstallSnapshotRequest;
+}
+
+export interface InstallSnapshotResponseEvent extends BaseMessageEvent {
+    type: "MessageReceived";
+    messageType: "InstallSnapshotResponse";
+    payload: InstallSnapshotResponse;
+    latencyMs: number;
+}
+
+export type MessageSentEvent = RequestVoteSentEvent | AppendEntriesSentEvent | InstallSnapshotRequestEvent;
+export type MessageReceivedEvent = RequestVoteReceivedEvent | AppendEntriesReceivedEvent | InstallSnapshotResponseEvent;
 
 export interface MessageDroppedEvent extends BaseMessageEvent {
     type: "MessageDropped";
@@ -192,6 +209,20 @@ export interface AllLinksHealedEvent {
     type: "AllLinksHealed";
 }
 
+export interface SnapshotTakenEvent extends BaseEvent {
+    type: "SnapshotTaken";
+    lastIncludedIndex: number;
+    lastIncludedTerm: number;
+    snapshotSizeBytes: number;
+}
+
+export interface SnapshotInstalledEvent extends BaseEvent {
+    type: "SnapshotInstalled";
+    lastIncludedIndex: number;
+    lastIncludedTerm: number;
+    senderId: NodeId;
+}
+
 export type RaftEvent =
     | NodeStateChangedEvent
     | TermChangedEvent
@@ -213,7 +244,9 @@ export type RaftEvent =
     | PartitionHealedEvent
     | LinkCutEvent
     | LinkHealedEvent
-    | AllLinksHealedEvent;
+    | AllLinksHealedEvent
+    | SnapshotTakenEvent
+    | SnapshotInstalledEvent;
 
 export interface RaftEventBus {
     emit(event: RaftEvent): void;

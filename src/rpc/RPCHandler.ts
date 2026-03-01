@@ -201,6 +201,23 @@ export class RPCHandler implements RPCHandlerInterface {
 
         validateRPCMessage(message);
 
+        const messageId = crypto.randomUUID();
+        const sentAt = performance.now();
+
+        this.eventBus.emit({
+            eventId: crypto.randomUUID(),
+            timestamp: sentAt,
+            wallTime: Date.now(),
+            nodeId: this.nodeId,
+            type: "MessageSent",
+            messageType: "InstallSnapshotRequest",
+            messageId: messageId,
+            fromNodeId: this.nodeId,
+            toNodeId: peerId,
+            term: request.term,
+            payload: request
+        });
+
         this.logger.debug(`Node ${this.nodeId} sending InstallSnapshot to ${peerId}: ${JSON.stringify(request)}`);
 
         try {
@@ -212,9 +229,39 @@ export class RPCHandler implements RPCHandlerInterface {
 
             this.logger.debug(`Node ${this.nodeId} received InstallSnapshotResponse from ${peerId}: ${JSON.stringify(response.payload)}`);
 
+            this.eventBus.emit({
+                eventId: crypto.randomUUID(),
+                timestamp: performance.now(),
+                wallTime: Date.now(),
+                nodeId: this.nodeId,
+                type: "MessageReceived",
+                messageType: "InstallSnapshotResponse",
+                messageId: messageId,
+                fromNodeId: peerId,
+                toNodeId: this.nodeId,
+                term: response.payload.term,
+                payload: response.payload,
+                latencyMs: performance.now() - sentAt
+            });
+
             return response.payload;
         } catch (error) {
             this.logger.warn(`Failed to send InstallSnapshot to ${peerId}`, { error });
+
+            this.eventBus.emit({
+                eventId: crypto.randomUUID(),
+                timestamp: performance.now(),
+                wallTime: Date.now(),
+                nodeId: this.nodeId,
+                type: "MessageDropped",
+                messageType: "InstallSnapshotRequest",
+                messageId: messageId,
+                fromNodeId: this.nodeId,
+                toNodeId: peerId,
+                term: request.term,
+                reason: error instanceof RPCHandlerError ? "timeout" : "peer down"
+            });
+
             throw error;
         }
     }

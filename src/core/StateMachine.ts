@@ -330,6 +330,17 @@ export class StateMachine implements StateMachineInterface {
 
             this.logger.info(`Installed snapshot from leader ${from} with last included index ${request.lastIncludedIndex} and term ${request.lastIncludedTerm}`);
 
+            this.eventBus.emit({
+                eventId: crypto.randomUUID(),
+                timestamp: performance.now(),
+                wallTime: Date.now(),
+                nodeId: this.nodeId,
+                type: "SnapshotInstalled",
+                lastIncludedIndex: request.lastIncludedIndex,
+                lastIncludedTerm: request.lastIncludedTerm,
+                senderId: from,
+            });
+
             return { term: this.persistentState.getCurrentTerm(), success: true };
         });
     }
