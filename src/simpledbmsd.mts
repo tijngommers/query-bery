@@ -71,36 +71,28 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /**
  * @swagger
- * /db/{collection}:
- *   post:
- *     summary: Insert a document into a collection
- *     parameters:
- *       - in: path
- *         name: collection
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
+ * /db:
+ *   get:
+ *     summary: List all collections in the database
  *     responses:
- *       201:
- *         description: Created
+ *       200:
+ *         description: A list of collection names
  *         content:
  *           application/json:
  *             schema:
  *               type: object
+ *               properties:
+ *                 collections:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *               example:
+ *                 collections: ["users", "products", "orders"]
  */
-app.post('/db/:collection', async (req, res) => {
+app.get('/db', async (_req, res) => {
   try {
-    const collectionName = req.params.collection;
-    const doc = req.body as Omit<import('./simpledbms.mjs').Document, 'id'> & { id?: string };
-    const collection = await db.getCollection(collectionName);
-    const newDoc = await collection.insert(doc);
-    res.status(201).json(newDoc);
+    const collections = db.getCollectionNames();
+    res.json({ collections });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -121,7 +113,7 @@ app.post('/db/:collection', async (req, res) => {
  *         name: filter
  *         schema:
  *           type: string
- *         description: JSON string for filter (not fully implemented in query parser yet)
+ *         description: 'JSON string for filter (e.g., {"age": {"$gt": 20}})'
  *     responses:
  *       200:
  *         description: List of documents
@@ -129,9 +121,51 @@ app.post('/db/:collection', async (req, res) => {
 app.get('/db/:collection', async (req, res) => {
   try {
     const collectionName = req.params.collection;
+    const filterQuery = req.query['filter'];
+
+    let filterOps = undefined;
+    if (typeof filterQuery === 'string') {
+      try {
+        filterOps = JSON.parse(filterQuery);
+      } catch (e) {
+        res.status(400).json({ error: 'Invalid JSON in filter query parameter' });
+        return;
+      }
+    }
+
     const collection = await db.getCollection(collectionName);
-    const docs = await collection.find();
+    const docs = await collection.find({ filterOps });
     res.json(docs);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Comparison operators')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * @swagger
+ * /db/{collection}/indexes:
+ *   get:
+ *     summary: List all indexes for a collection
+ *     parameters:
+ *       - in: path
+ *         name: collection
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of indexed fields
+ */
+app.get('/db/:collection/indexes', async (req, res) => {
+  try {
+    const collectionName = req.params.collection;
+    const collection = await db.getCollection(collectionName);
+    const indexes = collection.getIndexedFields();
+    res.json({ indexes });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -177,17 +211,71 @@ app.get('/db/:collection/:id', async (req, res) => {
 
 /**
  * @swagger
- * /db/{collection}/{id}:
- *   put:
- *     summary: Update a document
+ * /db:
+ *   post:
+ *     summary: Create a new collection
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: The name of the new collection
+ *             example:
+ *               name: "new_collection"
+ *     responses:
+ *       201:
+ *         description: Collection created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 collection:
+ *                   type: string
+ *               example:
+ *                 message: "Collection 'new_collection' created"
+ *                 collection: "new_collection"
+ *       400:
+ *         description: Bad request (missing name)
+ */
+app.post('/db', async (req, res) => {
+  try {
+    const { name } = req.body as { name?: string };
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'Collection name is required and must be a string' });
+      return;
+    }
+
+    // Checking if it already exists to avoid silently overwriting (though getCollection should be able to handle this, just tob e sure)
+    const existingCollections = db.getCollectionNames();
+    if (existingCollections.includes(name)) {
+      res.status(400).json({ error: `Collection '${name}' already exists` });
+      return;
+    }
+    await db.createCollection(name);
+
+    res.status(201).json({ message: `Collection '${name}' created`, collection: name });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * @swagger
+ * /db/{collection}:
+ *   post:
+ *     summary: Insert a document into a collection
  *     parameters:
  *       - in: path
  *         name: collection
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: id
  *         required: true
  *         schema:
  *           type: string
@@ -197,88 +285,25 @@ app.get('/db/:collection/:id', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             example:
+ *               name: "John Doe"
+ *               age: 25
+ *               isActive: true
  *     responses:
- *       200:
- *         description: Updated document
- *       404:
- *         description: Not found
+ *       201:
+ *         description: Created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
  */
-app.put('/db/:collection/:id', async (req, res) => {
+app.post('/db/:collection', async (req, res) => {
   try {
     const collectionName = req.params.collection;
-    const id = req.params.id;
-    const updates = req.body as Partial<import('./simpledbms.mjs').Document>;
+    const doc = req.body as Omit<import('./simpledbms.mjs').Document, 'id'> & { id?: string };
     const collection = await db.getCollection(collectionName);
-    const updated = await collection.update(id, updates);
-    if (updated) {
-      res.json(updated);
-    } else {
-      res.status(404).json({ error: 'Document not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * @swagger
- * /db/{collection}/{id}:
- *   delete:
- *     summary: Delete a document
- *     parameters:
- *       - in: path
- *         name: collection
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Deleted
- *       404:
- *         description: Not found
- */
-app.delete('/db/:collection/:id', async (req, res) => {
-  try {
-    const collectionName = req.params.collection;
-    const id = req.params.id;
-    const collection = await db.getCollection(collectionName);
-    const deleted = await collection.delete(id);
-    if (deleted) {
-      res.json({ success: true });
-    } else {
-      res.status(404).json({ error: 'Document not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * @swagger
- * /db/{collection}/indexes:
- *   get:
- *     summary: List all indexes for a collection
- *     parameters:
- *       - in: path
- *         name: collection
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: List of indexed fields
- */
-app.get('/db/:collection/indexes', async (req, res) => {
-  try {
-    const collectionName = req.params.collection;
-    const collection = await db.getCollection(collectionName);
-    const indexes = collection.getIndexedFields();
-    res.json({ indexes });
+    const newDoc = await collection.insert(doc);
+    res.status(201).json(newDoc);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -328,38 +353,6 @@ app.post('/db/:collection/indexes/:field', async (req, res) => {
 
 /**
  * @swagger
- * /db/{collection}/indexes/{field}:
- *   delete:
- *     summary: Drop an index from a field
- *     parameters:
- *       - in: path
- *         name: collection
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: field
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Index dropped
- */
-app.delete('/db/:collection/indexes/:field', async (req, res) => {
-  try {
-    const collectionName = req.params.collection;
-    const field = req.params.field;
-    const collection = await db.getCollection(collectionName);
-    await collection.dropIndex(field);
-    res.json({ success: true, field, message: `Index dropped from field '${field}'` });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * @swagger
  * /db/{collection}/aggregate:
  *   post:
  *     summary: Perform aggregation on a collection
@@ -375,6 +368,13 @@ app.delete('/db/:collection/indexes/:field', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             example:
+ *               groupBy: "age"
+ *               operations:
+ *                 count: "totalUsers"
+ *                 avg:
+ *                   - field: "score"
+ *                     as: "averageScore"
  *     responses:
  *       200:
  *         description: Aggregation results
@@ -382,11 +382,11 @@ app.delete('/db/:collection/indexes/:field', async (req, res) => {
 app.post('/db/:collection/aggregate', async (req, res) => {
   try {
     const collectionName = req.params.collection;
-    const body = req.body as { groupBy?: string; operations?: import('./simpledbms.mjs').AggregateQuery['operations'] };
+    const body = req.body as { groupBy?: string | null; operations: import('./simpledbms.mjs').AggregateQuery['operations'] };
     const { groupBy, operations } = body;
 
-    if (!groupBy || !operations) {
-      res.status(400).json({ error: 'groupBy and operations are required' });
+    if (!operations) {
+      res.status(400).json({ error: 'operations are required' });
       return;
     }
 
@@ -415,6 +415,18 @@ app.post('/db/:collection/aggregate', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             example:
+ *               operations:
+ *                 - type: "insert"
+ *                   document:
+ *                     name: "Alice"
+ *                     age: 30
+ *                 - type: "update"
+ *                   id: "123e4567-e89b-12d3-a456-426614174000"
+ *                   updates:
+ *                     age: 31
+ *                 - type: "delete"
+ *                   id: "987fcdeb-51a2-43d7-9012-3456789abcde"
  *     responses:
  *       200:
  *         description: Bulk operation results
@@ -488,6 +500,10 @@ app.post('/db/:collection/bulk', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             example:
+ *               collection: "departments"
+ *               on: "departmentId"
+ *               type: "inner"
  *     responses:
  *       200:
  *         description: Join results
@@ -511,6 +527,124 @@ app.post('/db/:collection/join', async (req, res) => {
     });
 
     res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * @swagger
+ * /db/{collection}/{id}:
+ *   put:
+ *     summary: Update a document
+ *     parameters:
+ *       - in: path
+ *         name: collection
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             example:
+ *               age: 26
+ *               isActive: false
+ *     responses:
+ *       200:
+ *         description: Updated document
+ *       404:
+ *         description: Not found
+ */
+app.put('/db/:collection/:id', async (req, res) => {
+  try {
+    const collectionName = req.params.collection;
+    const id = req.params.id;
+    const updates = req.body as Partial<import('./simpledbms.mjs').Document>;
+    const collection = await db.getCollection(collectionName);
+    const updated = await collection.update(id, updates);
+    if (updated) {
+      res.json(updated);
+    } else {
+      res.status(404).json({ error: 'Document not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * @swagger
+ * /db/{collection}/{id}:
+ *   delete:
+ *     summary: Delete a document
+ *     parameters:
+ *       - in: path
+ *         name: collection
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *       404:
+ *         description: Not found
+ */
+app.delete('/db/:collection/:id', async (req, res) => {
+  try {
+    const collectionName = req.params.collection;
+    const id = req.params.id;
+    const collection = await db.getCollection(collectionName);
+    const deleted = await collection.delete(id);
+    if (deleted) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Document not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * @swagger
+ * /db/{collection}/indexes/{field}:
+ *   delete:
+ *     summary: Drop an index from a field
+ *     parameters:
+ *       - in: path
+ *         name: collection
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: field
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Index dropped
+ */
+app.delete('/db/:collection/indexes/:field', async (req, res) => {
+  try {
+    const collectionName = req.params.collection;
+    const field = req.params.field;
+    const collection = await db.getCollection(collectionName);
+    await collection.dropIndex(field);
+    res.json({ success: true, field, message: `Index dropped from field '${field}'` });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

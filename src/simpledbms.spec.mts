@@ -24,7 +24,7 @@ describe('Collection', () => {
     dbFile = new MockFile(512);
     walFile = new MockFile(512);
     db = await SimpleDBMS.create(dbFile, walFile);
-    collection = await db.getCollection('users');
+    collection = await db.createCollection('users');
   });
 
   afterEach(async () => {
@@ -254,14 +254,14 @@ describe('SimpleDBMS', () => {
 
   it('create a new database and collection', async () => {
     const db = await SimpleDBMS.create(dbFile, walFile);
-    const collection = await db.getCollection('users');
+    const collection = await db.createCollection('users');
     expect(collection).toBeDefined();
     await db.close();
   });
 
   it('insert and find documents', async () => {
     const db = await SimpleDBMS.create(dbFile, walFile);
-    const collection = await db.getCollection('users');
+    const collection = await db.createCollection('users');
 
     const doc = await collection.insert({ name: 'maarten', age: 25 });
     expect(doc.id).toBeDefined();
@@ -279,7 +279,7 @@ describe('SimpleDBMS', () => {
 
   it('update documents', async () => {
     const db = await SimpleDBMS.create(dbFile, walFile);
-    const collection = await db.getCollection('users');
+    const collection = await db.createCollection('users');
 
     const doc = await collection.insert({ name: 'random', age: 25 });
     const updated = await collection.update(doc.id, { age: 26 });
@@ -295,7 +295,7 @@ describe('SimpleDBMS', () => {
 
   it('ddelete documents', async () => {
     const db = await SimpleDBMS.create(dbFile, walFile);
-    const collection = await db.getCollection('users');
+    const collection = await db.createCollection('users');
 
     const doc = await collection.insert({ name: 'random', age: 25 });
     const deleted = await collection.delete(doc.id);
@@ -310,7 +310,7 @@ describe('SimpleDBMS', () => {
   it('should persist data across close/open', async () => {
     // Create and populate
     let db = await SimpleDBMS.create(dbFile, walFile);
-    let collection = await db.getCollection('users');
+    let collection = await db.createCollection('users');
     await collection.insert({ id: 'user1', name: 'random' });
     await db.close();
 
@@ -325,8 +325,8 @@ describe('SimpleDBMS', () => {
 
   it('should handle multiple collections', async () => {
     let db = await SimpleDBMS.create(dbFile, walFile);
-    const users = await db.getCollection('users');
-    const posts = await db.getCollection('posts');
+    const users = await db.createCollection('users');
+    const posts = await db.createCollection('posts');
 
     await users.insert({ id: 'u1', name: 'random' });
     await posts.insert({ id: 'p1', title: 'randomtitle' });

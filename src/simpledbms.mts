@@ -4,7 +4,7 @@
 
 import { BPlusTree } from './b-plus-tree.mjs';
 import { FBNodeStorage, FBLeafNode, FBInternalNode } from './node-storage/fb-node-storage.mjs';
-import { FreeBlockFile, DEFAULT_BLOCK_SIZE } from './freeblockfile.mjs';
+import { FreeBlockFile, DEFAULT_BLOCK_SIZE, NO_BLOCK } from './freeblockfile.mjs';
 import { AtomicFileImpl } from './atomic-operations/atomic-file.mjs';
 import { WALManagerImpl } from './atomic-operations/wal-manager.mjs';
 import { type File } from './file/file.mjs';
@@ -39,6 +39,7 @@ export interface FilterOperators {
     $lte?: DocumentValue;
     $in?: DocumentValue[];
     $nin?: DocumentValue[];
+    $includes?: string;
   };
 }
 
@@ -196,14 +197,20 @@ export class Collection {
     BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>
   > = new Map();
 
-  private onChangeCallback?: () => Promise<void>; //TODO: What does this do?
+  private onChangeCallback?: () => Promise<void>;
+  private createIndexStorage?: () => FBNodeStorage<string, string>;
+  private onIndexCreated?: (fieldName: string, rootBlockId: number) => Promise<void>;
 
   constructor(
     primaryTree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>,
     onChangeCallback?: () => Promise<void>,
+    createIndexStorage?: () => FBNodeStorage<string, string>,
+    onIndexCreated?: (fieldName: string, rootBlockId: number) => Promise<void>,
   ) {
     this.primaryTree = primaryTree;
     this.onChangeCallback = onChangeCallback;
+    this.createIndexStorage = createIndexStorage;
+    this.onIndexCreated = onIndexCreated;
   }
 
   //TODO: check if nodestorage changes affected this function.
@@ -238,6 +245,18 @@ export class Collection {
     }
 
     this.secondaryIndexes.set(fieldName, indexTree);
+
+    if (this.onIndexCreated) {
+      const root = indexTree.getRoot();
+      if (root.blockId === undefined || root.blockId === NO_BLOCK) {
+        if (root.isLeaf) {
+          await storage.persistLeaf(root);
+        } else {
+          await storage.persistInternal(root);
+        }
+      }
+      await this.onIndexCreated(fieldName, root.blockId!);
+    }
 
     if (this.onChangeCallback) {
       await this.onChangeCallback();
@@ -291,14 +310,29 @@ export class Collection {
    */
   //TODO: is the omit really needed? Can't you just get it form the Document input itself?
   async insert(doc: Omit<Document, 'id'> & { id?: string }): Promise<Document> {
-    const id = doc.id ?? randomUUID();
+    const id = doc.id || randomUUID();
     const newDoc: Document = structuredClone({ ...doc, id });
 
     // Insert into primary index
     await this.primaryTree.insert(id, newDoc);
 
-    // Update all secondary indexes
+    const newlyCreatedIndexes = new Set<string>();
+
+    for (const [key, value] of Object.entries(newDoc)) {
+      if (value !== undefined && value !== null) {
+        if (isIndexableField(key) && !this.secondaryIndexes.has(key)) {
+          if (this.createIndexStorage) {
+            await this.createIndex(key, this.createIndexStorage());
+            newlyCreatedIndexes.add(key);
+          }
+        }
+      }
+    }
+
+    // Update all secondary indexes that were NOT just completely rebuilt
     for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
+      if (newlyCreatedIndexes.has(fieldName)) continue;
+
       const fieldValue = newDoc[fieldName];
       if (fieldValue !== undefined && fieldValue !== null) {
         const indexKey = serializeFieldValue(fieldValue) + ':' + id;
@@ -366,7 +400,7 @@ export class Collection {
     const collectInitialIds = async (
       indexTree: BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>,
       ops: FilterOperators[string],
-    ): Promise<Set<string>> => {
+    ): Promise<Set<string> | null> => {
       const ids = new Set<string>();
 
       if (ops.$eq !== undefined) {
@@ -426,6 +460,9 @@ export class Collection {
 
           if (valueIndex >= sortedValues.length) break;
         }
+      } else if (ops.$includes !== undefined && Object.keys(ops).length === 1) {
+        // If $includes is the only operator, index scan is useless, skip index use for this field
+        return null;
       }
 
       return ids;
@@ -435,6 +472,7 @@ export class Collection {
     const firstIndex = this.secondaryIndexes.get(first.field)!;
     let resultSet = await collectInitialIds(firstIndex, first.ops);
 
+    if (resultSet === null) return null;
     if (resultSet.size === 0) return resultSet;
 
     const docCache = new Map<string, Document | null>();
@@ -459,7 +497,7 @@ export class Collection {
       resultSet = nextSet;
       if (resultSet.size === 0) break;
 
-      if (resultSet.size / previousSize < 0.9) break;
+      if (previousSize > 0 && resultSet.size / previousSize < 0.9) break;
     }
 
     return resultSet;
@@ -492,34 +530,43 @@ export class Collection {
                 if (ops.$ne !== undefined && value === ops.$ne) matches = false;
                 if (
                   ops.$gt !== undefined &&
-                  ops.$gt !== null &&
-                  value !== null &&
-                  !((value as unknown as number) > (ops.$gt as unknown as number))
-                )
-                  matches = false;
+                  ops.$gt !== null
+                ) {
+                  if (typeof ops.$gt === 'string' || typeof value === 'string') {
+                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  }
+                  if (value !== null && !((value as unknown as number) > (ops.$gt as unknown as number))) matches = false;
+                }
                 if (
                   ops.$gte !== undefined &&
-                  ops.$gte !== null &&
-                  value !== null &&
-                  !((value as unknown as number) >= (ops.$gte as unknown as number))
-                )
-                  matches = false;
+                  ops.$gte !== null
+                ) {
+                  if (typeof ops.$gte === 'string' || typeof value === 'string') {
+                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  }
+                  if (value !== null && !((value as unknown as number) >= (ops.$gte as unknown as number))) matches = false;
+                }
                 if (
                   ops.$lt !== undefined &&
-                  ops.$lt !== null &&
-                  value !== null &&
-                  !((value as unknown as number) < (ops.$lt as unknown as number))
-                )
-                  matches = false;
+                  ops.$lt !== null
+                ) {
+                  if (typeof ops.$lt === 'string' || typeof value === 'string') {
+                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  }
+                  if (value !== null && !((value as unknown as number) < (ops.$lt as unknown as number))) matches = false;
+                }
                 if (
                   ops.$lte !== undefined &&
-                  ops.$lte !== null &&
-                  value !== null &&
-                  !((value as unknown as number) <= (ops.$lte as unknown as number))
-                )
-                  matches = false;
+                  ops.$lte !== null
+                ) {
+                  if (typeof ops.$lte === 'string' || typeof value === 'string') {
+                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  }
+                  if (value !== null && !((value as unknown as number) <= (ops.$lte as unknown as number))) matches = false;
+                }
                 if (ops.$in !== undefined && !ops.$in.includes(value)) matches = false;
                 if (ops.$nin !== undefined && ops.$nin.includes(value)) matches = false;
+                if (ops.$includes !== undefined && (typeof value !== 'string' || !value.includes(ops.$includes))) matches = false;
               }
 
               if (matches && (!query.filter || query.filter(doc))) {
@@ -538,34 +585,43 @@ export class Collection {
               if (ops.$ne !== undefined && value === ops.$ne) matches = false;
               if (
                 ops.$gt !== undefined &&
-                ops.$gt !== null &&
-                value !== null &&
-                !((value as unknown as number) > (ops.$gt as unknown as number))
-              )
-                matches = false;
+                ops.$gt !== null
+              ) {
+                if (typeof ops.$gt === 'string' || typeof value === 'string') {
+                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                }
+                if (value !== null && !((value as unknown as number) > (ops.$gt as unknown as number))) matches = false;
+              }
               if (
                 ops.$gte !== undefined &&
-                ops.$gte !== null &&
-                value !== null &&
-                !((value as unknown as number) >= (ops.$gte as unknown as number))
-              )
-                matches = false;
+                ops.$gte !== null
+              ) {
+                if (typeof ops.$gte === 'string' || typeof value === 'string') {
+                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                }
+                if (value !== null && !((value as unknown as number) >= (ops.$gte as unknown as number))) matches = false;
+              }
               if (
                 ops.$lt !== undefined &&
-                ops.$lt !== null &&
-                value !== null &&
-                !((value as unknown as number) < (ops.$lt as unknown as number))
-              )
-                matches = false;
+                ops.$lt !== null
+              ) {
+                if (typeof ops.$lt === 'string' || typeof value === 'string') {
+                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                }
+                if (value !== null && !((value as unknown as number) < (ops.$lt as unknown as number))) matches = false;
+              }
               if (
                 ops.$lte !== undefined &&
-                ops.$lte !== null &&
-                value !== null &&
-                !((value as unknown as number) <= (ops.$lte as unknown as number))
-              )
-                matches = false;
+                ops.$lte !== null
+              ) {
+                if (typeof ops.$lte === 'string' || typeof value === 'string') {
+                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                }
+                if (value !== null && !((value as unknown as number) <= (ops.$lte as unknown as number))) matches = false;
+              }
               if (ops.$in !== undefined && !ops.$in.includes(value)) matches = false;
               if (ops.$nin !== undefined && ops.$nin.includes(value)) matches = false;
+              if (ops.$includes !== undefined && (typeof value !== 'string' || !value.includes(ops.$includes))) matches = false;
             }
 
             if (matches && (!query.filter || query.filter(doc))) {
@@ -661,6 +717,59 @@ export class Collection {
       if (query.filter && !query.filter(value)) {
         continue;
       }
+
+      if (query.filterOps) {
+        let matches = true;
+        for (const [field, ops] of Object.entries(query.filterOps)) {
+          const docValue = value[field] as number | string | boolean | null;
+          if (ops.$eq !== undefined && docValue !== ops.$eq) matches = false;
+          if (ops.$ne !== undefined && docValue === ops.$ne) matches = false;
+          if (
+            ops.$gt !== undefined &&
+            ops.$gt !== null
+          ) {
+            if (typeof ops.$gt === 'string' || typeof docValue === 'string') {
+              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+            }
+            if (docValue !== null && !((docValue as number) > (ops.$gt as unknown as number))) matches = false;
+          }
+          if (
+            ops.$gte !== undefined &&
+            ops.$gte !== null
+          ) {
+            if (typeof ops.$gte === 'string' || typeof docValue === 'string') {
+              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+            }
+            if (docValue !== null && !((docValue as number) >= (ops.$gte as unknown as number))) matches = false;
+          }
+          if (
+            ops.$lt !== undefined &&
+            ops.$lt !== null
+          ) {
+            if (typeof ops.$lt === 'string' || typeof docValue === 'string') {
+              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+            }
+            if (docValue !== null && !((docValue as number) < (ops.$lt as unknown as number))) matches = false;
+          }
+          if (
+            ops.$lte !== undefined &&
+            ops.$lte !== null
+          ) {
+            if (typeof ops.$lte === 'string' || typeof docValue === 'string') {
+              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+            }
+            if (docValue !== null && !((docValue as number) <= (ops.$lte as unknown as number))) matches = false;
+          }
+          if (ops.$in !== undefined && !ops.$in.includes(docValue as Exclude<DocumentValue, object>)) matches = false;
+          if (ops.$nin !== undefined && ops.$nin.includes(docValue as Exclude<DocumentValue, object>)) matches = false;
+          if (ops.$includes !== undefined && (typeof docValue !== 'string' || !docValue.includes(ops.$includes))) matches = false;
+        }
+
+        if (!matches) {
+          continue;
+        }
+      }
+
       results.push(value);
     }
 
@@ -684,7 +793,7 @@ export class Collection {
    * @returns {Promise<Document[]>} The aggregation results.
    */
   async aggregate(options: {
-    groupBy: string;
+    groupBy?: string | null;
     operations: {
       count?: string;
       sum?: Array<{ field: string; as: string }>;
@@ -700,7 +809,7 @@ export class Collection {
     // Use secondary index if available fr grouping
     let iterator: AsyncIterable<{ key: string; value: Document | string }>;
 
-    if (this.secondaryIndexes.has(groupBy)) {
+    if (groupBy && this.secondaryIndexes.has(groupBy)) {
       const indexTree = this.secondaryIndexes.get(groupBy)!;
       iterator = indexTree.entries();
 
@@ -719,7 +828,7 @@ export class Collection {
       for await (const { value: doc } of this.primaryTree.entries()) {
         if (filter && !filter(doc)) continue;
 
-        const groupValue = doc[groupBy];
+        const groupValue = groupBy ? doc[groupBy] : '_all_';
         if (!groups.has(groupValue)) {
           groups.set(groupValue, []);
         }
@@ -732,7 +841,10 @@ export class Collection {
     for (const [groupValue, docs] of groups.entries()) {
       const groupValueStr =
         typeof groupValue === 'object' && groupValue !== null ? JSON.stringify(groupValue) : String(groupValue);
-      const result: Document = { id: `group_${groupValueStr}`, [groupBy]: groupValue };
+
+      const result: Document = groupBy
+        ? { id: `group_${groupValueStr}`, [groupBy]: groupValue }
+        : { id: `group_all` };
 
       if (operations.count) {
         result[operations.count] = docs.length;
@@ -1025,16 +1137,22 @@ export class SimpleDBMS {
   }
 
   /**
-   * Gets a collection.
-   * @param {string} name The name of the collection.
-   * @returns {Promise<Collection>} The collection.
+   * Gets a list of all existing collection names.
+   * @returns {string[]} An array of collection names.
    */
-  async getCollection(name: string): Promise<Collection> {
-    if (this.collections.has(name)) {
-      return this.collections.get(name)!;
-    }
+  getCollectionNames(): string[] {
+    return Object.keys(this.dbHeader.collections);
+  }
 
-    const rootBlockId = await this.catalogTree.search(name);
+  /**
+   * Creates a new collection.
+   * @param {string} name The name of the collection to create.
+   * @returns {Promise<Collection>} The newly created collection.
+   */
+  async createCollection(name: string): Promise<Collection> {
+    if (this.collections.has(name) || (await this.catalogTree.search(name)) !== null) {
+      throw new Error(`Collection '${name}' already exists`);
+    }
 
     const storage = new FBNodeStorage<string, Document>(
       (a, b) => (a < b ? -1 : a > b ? 1 : 0),
@@ -1047,17 +1165,76 @@ export class SimpleDBMS {
       50,
     );
 
-    if (rootBlockId !== null) {
-      const rootNode = await storage.loadNode(rootBlockId);
-      tree.load(rootNode);
-    } else {
-      await tree.init();
-      await this.saveCollectionRoot(name, tree, storage);
+    await tree.init();
+    await this.saveCollectionRoot(name, tree, storage);
+
+    const collection = new Collection(
+      tree,
+      async () => {
+        await this.saveCollectionRoot(name, tree, storage);
+      },
+      () =>
+        new FBNodeStorage<string, string>(
+          (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+          () => 1024,
+          this.fbFile,
+          4096,
+        ),
+      async (fieldName: string, rootBlockId: number) => {
+        await this.saveIndexMetadata(name, fieldName, rootBlockId);
+      },
+    );
+
+    this.collections.set(name, collection);
+    return collection;
+  }
+
+  /**
+   * Gets a collection.
+   * @param {string} name The name of the collection.
+   * @returns {Promise<Collection>} The collection.
+   */
+  async getCollection(name: string): Promise<Collection> {
+    if (this.collections.has(name)) {
+      return this.collections.get(name)!;
     }
 
-    const collection = new Collection(tree, async () => {
-      await this.saveCollectionRoot(name, tree, storage);
-    });
+    const rootBlockId = await this.catalogTree.search(name);
+
+    if (rootBlockId === null) {
+      throw new Error(`Collection '${name}' not found`);
+    }
+
+    const storage = new FBNodeStorage<string, Document>(
+      (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+      (key) => key.length,
+      this.fbFile,
+      4096,
+    );
+    const tree = new BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>(
+      storage,
+      50,
+    );
+
+    const rootNode = await storage.loadNode(rootBlockId);
+    tree.load(rootNode);
+
+    const collection = new Collection(
+      tree,
+      async () => {
+        await this.saveCollectionRoot(name, tree, storage);
+      },
+      () =>
+        new FBNodeStorage<string, string>(
+          (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+          () => 1024,
+          this.fbFile,
+          4096,
+        ),
+      async (fieldName: string, rootBlockId: number) => {
+        await this.saveIndexMetadata(name, fieldName, rootBlockId);
+      },
+    );
 
     const collectionMeta = this.dbHeader.collections[name];
     if (collectionMeta?.indexes) {
@@ -1176,6 +1353,12 @@ export class SimpleDBMS {
     } else {
       await storage.persistInternal(root);
       rootId = root.blockId!;
+    }
+
+    if (!this.dbHeader.collections[name]) {
+      this.dbHeader.collections[name] = { rootBlockId: rootId, indexes: {} };
+    } else {
+      this.dbHeader.collections[name].rootBlockId = rootId;
     }
 
     await this.catalogTree.insert(name, rootId);

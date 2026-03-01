@@ -25,6 +25,10 @@ describe('SimpleDBMS Daemon API', () => {
   });
 
   describe('Core REST API', () => {
+    beforeAll(async () => {
+      await request(app).post('/db').send({ name: 'users' });
+    });
+
     it('create a document', async () => {
       const res = await request(app).post('/db/users').send({ name: 'maarten', age: 22 });
 
