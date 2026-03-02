@@ -5,7 +5,7 @@ import 'dotenv/config';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
-import { SimpleDBMS, type Document, type AggregateQuery } from './simpledbms.mjs';
+import { SimpleDBMS, type Document, type AggregateQuery, type FilterOperators } from './simpledbms.mjs';
 import { RealFile } from './file/file.mjs';
 import { FBNodeStorage } from './node-storage/fb-node-storage.mjs';
 
@@ -90,7 +90,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
  *               example:
  *                 collections: ["users", "products", "orders"]
  */
-app.get('/db', async (_req, res) => {
+app.get('/db', (_req, res) => {
   try {
     const collections = db.getCollectionNames();
     res.json({ collections });
@@ -124,11 +124,11 @@ app.get('/db/:collection', async (req, res) => {
     const collectionName = req.params.collection;
     const filterQuery = req.query['filter'];
 
-    let filterOps = undefined;
+    let filterOps: FilterOperators | undefined = undefined;
     if (typeof filterQuery === 'string') {
       try {
-        filterOps = JSON.parse(filterQuery);
-      } catch (e) {
+        filterOps = JSON.parse(filterQuery) as FilterOperators;
+      } catch {
         res.status(400).json({ error: 'Invalid JSON in filter query parameter' });
         return;
       }
