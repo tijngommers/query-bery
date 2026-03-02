@@ -227,7 +227,7 @@ export class Collection {
     }
 
     if (this.secondaryIndexes.has(fieldName)) {
-      return;
+      throw new Error(`Index already exists for field: ${fieldName}`);
     }
 
     const indexTree = new BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>(
@@ -269,6 +269,9 @@ export class Collection {
    * @returns {Promise<void>} A promise that resolves when the index is dropped
    */
   async dropIndex(fieldName: string): Promise<void> {
+    if (!this.secondaryIndexes.has(fieldName)) {
+      throw new Error(`Index does not exist for field: ${fieldName}`);
+    }
     this.secondaryIndexes.delete(fieldName);
 
     if (this.onChangeCallback) {

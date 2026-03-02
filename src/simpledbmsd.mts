@@ -347,6 +347,10 @@ app.post('/db/:collection/indexes/:field', async (req, res) => {
     await collection.createIndex(field, indexStorage);
     res.status(201).json({ success: true, field, message: `Index created on field '${field}'` });
   } catch (error) {
+    if (error instanceof Error && (error.message.startsWith('Index already exists') || error.message.startsWith('Field'))) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -640,12 +644,15 @@ app.delete('/db/:collection/:id', async (req, res) => {
  */
 app.delete('/db/:collection/indexes/:field', async (req, res) => {
   try {
-    const collectionName = req.params.collection;
-    const field = req.params.field;
+    const { collection: collectionName, field } = req.params;
     const collection = await db.getCollection(collectionName);
     await collection.dropIndex(field);
-    res.json({ success: true, field, message: `Index dropped from field '${field}'` });
+    res.json({ success: true, field, message: `Index dropped for field '${field}'` });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Index does not exist')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: (error as Error).message });
   }
 });

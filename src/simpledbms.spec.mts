@@ -115,6 +115,8 @@ describe('Collection', () => {
     await collection.insert({ id: 'u2', name: 'bob', age: 25 });
     await collection.insert({ id: 'u3', name: 'charlie', age: 30 });
 
+    await collection.dropIndex('age');
+
     const storage = createIndexStorage();
     await collection.createIndex('age', storage);
 
@@ -123,12 +125,12 @@ describe('Collection', () => {
     expect(results.map((d) => d.id).sort()).toEqual(['u1', 'u3']);
   });
 
-  it('should handle createIndex idempotency', async () => {
+  it('should handle createIndex idempotency by throwing', async () => {
     const storage1 = createIndexStorage();
     const storage2 = createIndexStorage();
 
     await collection.createIndex('age', storage1);
-    await collection.createIndex('age', storage2);
+    await expect(collection.createIndex('age', storage2)).rejects.toThrow('Index already exists');
 
     await collection.insert({ name: 'test', age: 40 });
     const results = await collection.find({ filterOps: { age: { $eq: 40 } } });
