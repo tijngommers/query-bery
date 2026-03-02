@@ -531,45 +531,46 @@ export class Collection {
                 const value = doc[field];
                 if (ops.$eq !== undefined && value !== ops.$eq) matches = false;
                 if (ops.$ne !== undefined && value === ops.$ne) matches = false;
-                if (
-                  ops.$gt !== undefined &&
-                  ops.$gt !== null
-                ) {
+                if (ops.$gt !== undefined && ops.$gt !== null) {
                   if (typeof ops.$gt === 'string' || typeof value === 'string') {
-                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                    throw new Error(
+                      `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                    );
                   }
-                  if (value !== null && !((value as unknown as number) > (ops.$gt as unknown as number))) matches = false;
+                  if (value !== null && !((value as unknown as number) > (ops.$gt as unknown as number)))
+                    matches = false;
                 }
-                if (
-                  ops.$gte !== undefined &&
-                  ops.$gte !== null
-                ) {
+                if (ops.$gte !== undefined && ops.$gte !== null) {
                   if (typeof ops.$gte === 'string' || typeof value === 'string') {
-                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                    throw new Error(
+                      `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                    );
                   }
-                  if (value !== null && !((value as unknown as number) >= (ops.$gte as unknown as number))) matches = false;
+                  if (value !== null && !((value as unknown as number) >= (ops.$gte as unknown as number)))
+                    matches = false;
                 }
-                if (
-                  ops.$lt !== undefined &&
-                  ops.$lt !== null
-                ) {
+                if (ops.$lt !== undefined && ops.$lt !== null) {
                   if (typeof ops.$lt === 'string' || typeof value === 'string') {
-                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                    throw new Error(
+                      `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                    );
                   }
-                  if (value !== null && !((value as unknown as number) < (ops.$lt as unknown as number))) matches = false;
+                  if (value !== null && !((value as unknown as number) < (ops.$lt as unknown as number)))
+                    matches = false;
                 }
-                if (
-                  ops.$lte !== undefined &&
-                  ops.$lte !== null
-                ) {
+                if (ops.$lte !== undefined && ops.$lte !== null) {
                   if (typeof ops.$lte === 'string' || typeof value === 'string') {
-                    throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                    throw new Error(
+                      `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                    );
                   }
-                  if (value !== null && !((value as unknown as number) <= (ops.$lte as unknown as number))) matches = false;
+                  if (value !== null && !((value as unknown as number) <= (ops.$lte as unknown as number)))
+                    matches = false;
                 }
                 if (ops.$in !== undefined && !ops.$in.includes(value)) matches = false;
                 if (ops.$nin !== undefined && ops.$nin.includes(value)) matches = false;
-                if (ops.$includes !== undefined && (typeof value !== 'string' || !value.includes(ops.$includes))) matches = false;
+                if (ops.$includes !== undefined && (typeof value !== 'string' || !value.includes(ops.$includes)))
+                  matches = false;
               }
 
               if (matches && (!query.filter || query.filter(doc))) {
@@ -586,45 +587,44 @@ export class Collection {
               const value = doc[field];
               if (ops.$eq !== undefined && value !== ops.$eq) matches = false;
               if (ops.$ne !== undefined && value === ops.$ne) matches = false;
-              if (
-                ops.$gt !== undefined &&
-                ops.$gt !== null
-              ) {
+              if (ops.$gt !== undefined && ops.$gt !== null) {
                 if (typeof ops.$gt === 'string' || typeof value === 'string') {
-                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  throw new Error(
+                    `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                  );
                 }
                 if (value !== null && !((value as unknown as number) > (ops.$gt as unknown as number))) matches = false;
               }
-              if (
-                ops.$gte !== undefined &&
-                ops.$gte !== null
-              ) {
+              if (ops.$gte !== undefined && ops.$gte !== null) {
                 if (typeof ops.$gte === 'string' || typeof value === 'string') {
-                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  throw new Error(
+                    `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                  );
                 }
-                if (value !== null && !((value as unknown as number) >= (ops.$gte as unknown as number))) matches = false;
+                if (value !== null && !((value as unknown as number) >= (ops.$gte as unknown as number)))
+                  matches = false;
               }
-              if (
-                ops.$lt !== undefined &&
-                ops.$lt !== null
-              ) {
+              if (ops.$lt !== undefined && ops.$lt !== null) {
                 if (typeof ops.$lt === 'string' || typeof value === 'string') {
-                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  throw new Error(
+                    `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                  );
                 }
                 if (value !== null && !((value as unknown as number) < (ops.$lt as unknown as number))) matches = false;
               }
-              if (
-                ops.$lte !== undefined &&
-                ops.$lte !== null
-              ) {
+              if (ops.$lte !== undefined && ops.$lte !== null) {
                 if (typeof ops.$lte === 'string' || typeof value === 'string') {
-                  throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+                  throw new Error(
+                    `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+                  );
                 }
-                if (value !== null && !((value as unknown as number) <= (ops.$lte as unknown as number))) matches = false;
+                if (value !== null && !((value as unknown as number) <= (ops.$lte as unknown as number)))
+                  matches = false;
               }
               if (ops.$in !== undefined && !ops.$in.includes(value)) matches = false;
               if (ops.$nin !== undefined && ops.$nin.includes(value)) matches = false;
-              if (ops.$includes !== undefined && (typeof value !== 'string' || !value.includes(ops.$includes))) matches = false;
+              if (ops.$includes !== undefined && (typeof value !== 'string' || !value.includes(ops.$includes)))
+                matches = false;
             }
 
             if (matches && (!query.filter || query.filter(doc))) {
@@ -727,45 +727,42 @@ export class Collection {
           const docValue = value[field] as number | string | boolean | null;
           if (ops.$eq !== undefined && docValue !== ops.$eq) matches = false;
           if (ops.$ne !== undefined && docValue === ops.$ne) matches = false;
-          if (
-            ops.$gt !== undefined &&
-            ops.$gt !== null
-          ) {
+          if (ops.$gt !== undefined && ops.$gt !== null) {
             if (typeof ops.$gt === 'string' || typeof docValue === 'string') {
-              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+              throw new Error(
+                `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+              );
             }
             if (docValue !== null && !((docValue as number) > (ops.$gt as unknown as number))) matches = false;
           }
-          if (
-            ops.$gte !== undefined &&
-            ops.$gte !== null
-          ) {
+          if (ops.$gte !== undefined && ops.$gte !== null) {
             if (typeof ops.$gte === 'string' || typeof docValue === 'string') {
-              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+              throw new Error(
+                `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+              );
             }
             if (docValue !== null && !((docValue as number) >= (ops.$gte as unknown as number))) matches = false;
           }
-          if (
-            ops.$lt !== undefined &&
-            ops.$lt !== null
-          ) {
+          if (ops.$lt !== undefined && ops.$lt !== null) {
             if (typeof ops.$lt === 'string' || typeof docValue === 'string') {
-              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+              throw new Error(
+                `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+              );
             }
             if (docValue !== null && !((docValue as number) < (ops.$lt as unknown as number))) matches = false;
           }
-          if (
-            ops.$lte !== undefined &&
-            ops.$lte !== null
-          ) {
+          if (ops.$lte !== undefined && ops.$lte !== null) {
             if (typeof ops.$lte === 'string' || typeof docValue === 'string') {
-              throw new Error(`Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`);
+              throw new Error(
+                `Comparison operators ($gt, $lt, etc.) are only supported for numbers. Attempted to compare string.`,
+              );
             }
             if (docValue !== null && !((docValue as number) <= (ops.$lte as unknown as number))) matches = false;
           }
           if (ops.$in !== undefined && !ops.$in.includes(docValue as Exclude<DocumentValue, object>)) matches = false;
           if (ops.$nin !== undefined && ops.$nin.includes(docValue as Exclude<DocumentValue, object>)) matches = false;
-          if (ops.$includes !== undefined && (typeof docValue !== 'string' || !docValue.includes(ops.$includes))) matches = false;
+          if (ops.$includes !== undefined && (typeof docValue !== 'string' || !docValue.includes(ops.$includes)))
+            matches = false;
         }
 
         if (!matches) {
@@ -845,9 +842,7 @@ export class Collection {
       const groupValueStr =
         typeof groupValue === 'object' && groupValue !== null ? JSON.stringify(groupValue) : String(groupValue);
 
-      const result: Document = groupBy
-        ? { id: `group_${groupValueStr}`, [groupBy]: groupValue }
-        : { id: `group_all` };
+      const result: Document = groupBy ? { id: `group_${groupValueStr}`, [groupBy]: groupValue } : { id: `group_all` };
 
       if (operations.count) {
         result[operations.count] = docs.length;

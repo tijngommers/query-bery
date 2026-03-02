@@ -347,7 +347,10 @@ app.post('/db/:collection/indexes/:field', async (req, res) => {
     await collection.createIndex(field, indexStorage);
     res.status(201).json({ success: true, field, message: `Index created on field '${field}'` });
   } catch (error) {
-    if (error instanceof Error && (error.message.startsWith('Index already exists') || error.message.startsWith('Field'))) {
+    if (
+      error instanceof Error &&
+      (error.message.startsWith('Index already exists') || error.message.startsWith('Field'))
+    ) {
       res.status(400).json({ error: error.message });
       return;
     }
@@ -460,15 +463,10 @@ app.post('/db/:collection/bulk', async (req, res) => {
       try {
         const operation = op as { type: string; document?: unknown; id?: string; updates?: unknown };
         if (operation.type === 'insert') {
-          const doc = await collection.insert(
-            operation.document as Omit<Document, 'id'> & { id?: string },
-          );
+          const doc = await collection.insert(operation.document as Omit<Document, 'id'> & { id?: string });
           results.push({ success: true, type: 'insert', id: doc.id });
         } else if (operation.type === 'update') {
-          const doc = await collection.update(
-            operation.id as string,
-            operation.updates as Partial<Document>,
-          );
+          const doc = await collection.update(operation.id as string, operation.updates as Partial<Document>);
           results.push({ success: true, type: 'update', id: operation.id, found: !!doc });
         } else if (operation.type === 'delete') {
           const deleted = await collection.delete(operation.id as string);
