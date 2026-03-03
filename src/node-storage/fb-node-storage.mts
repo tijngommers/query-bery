@@ -10,6 +10,7 @@ import type {
   ChildCursor,
 } from './node-storage.mjs';
 import { FreeBlockFile, NO_BLOCK } from '../freeblockfile.mjs';
+import { CompressionService } from '../compression/compression.mjs';
 
 type SerializedKey =
   | { type: 'string'; value: string }
@@ -107,8 +108,10 @@ function upperBound<Keystype>(
 export class FBNodeStorage<Keystype, ValuesType>
   implements NodeStorage<Keystype, ValuesType, FBLeafNode<Keystype, ValuesType>, FBInternalNode<Keystype, ValuesType>>
 {
+  private static readonly COMPRESSED_NODE_MAGIC = Buffer.from('ZST1');
   private cache = new Map<number, FBLeafNode<Keystype, ValuesType> | FBInternalNode<Keystype, ValuesType>>();
   private reclaimQueue = new Set<number>();
+  private readonly compressionService = new CompressionService({ algorithm: 'zstd' });
 
   constructor(
     public compareKeys: (a: Keystype, b: Keystype) => number,
@@ -119,6 +122,45 @@ export class FBNodeStorage<Keystype, ValuesType>
 
   getMaxKeySize(): number {
     return this.maxKeySize;
+  }
+
+  private encodeNodePayload(payload: unknown): Buffer {
+    const jsonBuffer = Buffer.from(JSON.stringify(payload), 'utf-8');
+    const compressed = this.compressionService.compress(jsonBuffer);
+
+    const header = Buffer.alloc(12);
+    FBNodeStorage.COMPRESSED_NODE_MAGIC.copy(header, 0);
+    header.writeUInt32LE(compressed.originalSize, 4);
+    header.writeUInt32LE(compressed.compressedSize, 8);
+
+    return Buffer.concat([header, compressed.payload]);
+  }
+
+  private decodeNodePayload(buffer: Buffer): Buffer {
+    if (buffer.length < 12) {
+      return buffer;
+    }
+
+    if (!buffer.subarray(0, 4).equals(FBNodeStorage.COMPRESSED_NODE_MAGIC)) {
+      return buffer;
+    }
+
+    const originalSize = buffer.readUInt32LE(4);
+    const compressedSize = buffer.readUInt32LE(8);
+    const start = 12;
+    const end = start + compressedSize;
+
+    if (end > buffer.length) {
+      throw new Error('Compressed node payload is corrupted');
+    }
+
+    const payload = buffer.subarray(start, end);
+    return this.compressionService.decompress({
+      algorithm: 'zstd',
+      originalSize,
+      compressedSize,
+      payload,
+    });
   }
 
   async createTree(): Promise<FBLeafNode<Keystype, ValuesType>> {
@@ -193,7 +235,7 @@ export class FBNodeStorage<Keystype, ValuesType>
       prevBlockId: node.prevBlockId ?? NO_BLOCK,
       version: 1,
     };
-    const buffer = Buffer.from(JSON.stringify(payload), 'utf-8');
+    const buffer = this.encodeNodePayload(payload);
 
     // In-place update: if node already has a blockId, overwrite it
     if (node.blockId !== undefined && node.blockId !== NO_BLOCK) {
@@ -216,7 +258,7 @@ export class FBNodeStorage<Keystype, ValuesType>
       childBlockIds: node.childBlockIds.slice(),
       version: 1,
     };
-    const buffer = Buffer.from(JSON.stringify(payload), 'utf-8');
+    const buffer = this.encodeNodePayload(payload);
 
     if (node.blockId !== undefined && node.blockId !== NO_BLOCK) {
       await this.FBfile.overwriteBlock(node.blockId, buffer);
@@ -345,7 +387,8 @@ export class FBNodeStorage<Keystype, ValuesType>
       throw new Error(`Block with id ${blockId} not found`);
     }
 
-    const raw = JSON.parse(buffer.toString('utf-8')) as unknown;
+    const decodedPayload = this.decodeNodePayload(buffer);
+    const raw = JSON.parse(decodedPayload.toString('utf-8')) as unknown;
 
     type LeafPayload = {
       type: 'leaf';
