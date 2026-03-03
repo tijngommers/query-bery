@@ -126,6 +126,7 @@ export class RaftNode implements RaftNodeInterface {
             this.rpcHandler,
             this.timerManager,
             this.logger,
+            this.applyLock,
             (newCommitIndex) => this.notifyCommitWaiters(newCommitIndex),
             this.bus
         );
@@ -392,43 +393,50 @@ export class RaftNode implements RaftNodeInterface {
     private async applyCommittedEntries(): Promise<void> {
         await this.applyLock.runExclusive(async () => {
             while (true) {
-            const lastApplied = this.volatileState.getLastApplied();
-            const commitIndex = this.volatileState.getCommitIndex();
+                const lastApplied = this.volatileState.getLastApplied();
+                const commitIndex = this.volatileState.getCommitIndex();
 
-            if (lastApplied >= commitIndex) {
-                break;
-            }
-
-            const nextIndex = lastApplied + 1;
-
-            const entry = await this.logManager.getEntry(nextIndex);
-            if (!entry) {
-                this.logger.error(`Failed to retrieve log entry at index ${nextIndex} for application`);
-                break;
-            }
-
-            if (entry.index !== nextIndex) {
-                this.logger.error(`Log entry index mismatch at index ${nextIndex}. Expected ${nextIndex} but got ${entry.index}`);
-                break;
-            }
-
-            try {
-                const result = await this.applicationStateMachine.apply(entry.command);
-                this.logger.info(`Applied log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}, result: ${JSON.stringify(result)}`);
-                this.volatileState.setLastApplied(nextIndex);
-
-                const currentLastApplied = this.volatileState.getLastApplied();
-                const lastSnapshotIndex = this.snapshotManager.getSnapshotMetadata()?.lastIncludedIndex ?? 0;
-
-                if (currentLastApplied - lastSnapshotIndex >= this.snapshotTreshold) {
-                    await this.takeSnapshot();
+                if (lastApplied >= commitIndex) {
+                    break;
                 }
 
-            } catch (error) {
-                this.logger.error(`Error applying log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}`, error as Error);
-                
-                throw new RaftError(`Failed to apply log entry at index ${nextIndex}: ${(error as Error).message}`, 'ApplyEntryFailed');
-            }
+                const nextIndex = lastApplied + 1;
+
+                const snapshotIndex = this.logManager.getSnapshotIndex();
+                if (nextIndex <= snapshotIndex) {
+                    this.volatileState.setLastApplied(snapshotIndex);
+                    this.logger.info(`Skipping applying log entries up to index ${snapshotIndex} since they are included in the snapshot`);
+                    continue;
+                }
+
+                const entry = await this.logManager.getEntry(nextIndex);
+                if (!entry) {
+                    this.logger.error(`Failed to retrieve log entry at index ${nextIndex} for application`);
+                    break;
+                }
+
+                if (entry.index !== nextIndex) {
+                    this.logger.error(`Log entry index mismatch at index ${nextIndex}. Expected ${nextIndex} but got ${entry.index}`);
+                    break;
+                }
+
+                try {
+                    const result = await this.applicationStateMachine.apply(entry.command);
+                    this.logger.info(`Applied log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}, result: ${JSON.stringify(result)}`);
+                    this.volatileState.setLastApplied(nextIndex);
+
+                    const currentLastApplied = this.volatileState.getLastApplied();
+                    const lastSnapshotIndex = this.snapshotManager.getSnapshotMetadata()?.lastIncludedIndex ?? 0;
+
+                    if (currentLastApplied - lastSnapshotIndex >= this.snapshotTreshold) {
+                        await this.takeSnapshot();
+                    }
+
+                } catch (error) {
+                    this.logger.error(`Error applying log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}`, error as Error);
+                    
+                    throw new RaftError(`Failed to apply log entry at index ${nextIndex}: ${(error as Error).message}`, 'ApplyEntryFailed');
+                }
             }
         });
     }

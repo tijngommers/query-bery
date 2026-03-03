@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StateMachine, RaftState } from './StateMachine';
 import { RaftError } from '../util/Error';
-import { snapshot } from 'node:test';
-import { SnapshotManager } from '../snapshot/SnapshotManager';
+import { AsyncLock } from '../lock/AsyncLock';
 
 describe('StateMachine.ts, StateMachine', () => {
 
@@ -160,6 +159,7 @@ describe('StateMachine.ts, StateMachine', () => {
             rpcHandler as any,
             timerManager as any,
             logger as any,
+            new AsyncLock(),
             onCommitIndexAdvanced as any
         );
     });
@@ -265,6 +265,7 @@ describe('StateMachine.ts, StateMachine', () => {
             rpcHandler as any,
             timerManager as any,
             logger as any,
+            new AsyncLock(),
             onCommitIndexAdvanced as any
         );
         await emptyPeersStateMachine.becomeCandidate();
@@ -816,6 +817,7 @@ describe('StateMachine.ts, StateMachine', () => {
             rpcHandler as any,
             timerManager as any,
             logger as any,
+            new AsyncLock(),
             onCommitIndexAdvanced as any
         );
 

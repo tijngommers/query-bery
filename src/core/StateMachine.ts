@@ -67,6 +67,7 @@ export class StateMachine implements StateMachineInterface {
         private rpcHandler: RPCHandler,
         private timerManager: TimerManager,
         private logger: Logger,
+        private applyLock: AsyncLock,
         private onCommitIndexAdvanced?: (newCommitIndex: number) => void,
         private eventBus: RaftEventBus = new NoOpEventBus()
     ) {}
@@ -315,16 +316,18 @@ export class StateMachine implements StateMachineInterface {
                 data: request.data
             });
 
-            if (request.lastIncludedIndex <= this.logManager.getLastIndex()) {
-                await this.logManager.discardEntriesUpTo(request.lastIncludedIndex, request.lastIncludedTerm);
-            } else {
-                await this.logManager.resetToSnapshot(request.lastIncludedIndex, request.lastIncludedTerm);
-            }
+            await this.applyLock.runExclusive(async () => {
+                if (request.lastIncludedIndex <= this.logManager.getLastIndex()) {
+                    await this.logManager.discardEntriesUpTo(request.lastIncludedIndex, request.lastIncludedTerm);
+                } else {
+                    await this.logManager.resetToSnapshot(request.lastIncludedIndex, request.lastIncludedTerm);
+                }
 
-            await this.applicationStateMachine.installSnapshot(request.data);
+                await this.applicationStateMachine.installSnapshot(request.data);
 
-            this.volatileState.setLastApplied(request.lastIncludedIndex);
-            this.volatileState.setCommitIndex(request.lastIncludedIndex);
+                this.volatileState.setLastApplied(request.lastIncludedIndex);
+                this.volatileState.setCommitIndex(request.lastIncludedIndex);
+            });
 
             await this.becomeFollowerUnlocked(request.term, request.leaderId);
 
