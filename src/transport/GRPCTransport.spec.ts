@@ -3,6 +3,7 @@ import { RPCMessage } from "../rpc/RPCTypes";
 import { GrpcTransport, rpcMessageToGrpc, grpcToRpcMessage, serializeAppendEntriesResponse } from "./GRPCTransport";
 import { LogEntry } from "../log/LogEntry";
 import { NetworkError } from "../util/Error";
+import path from "path";
 
 let portCounter = 52000;
 
@@ -53,6 +54,27 @@ const appendEntriesRequest: RPCMessage = {
 
 const appendEntriesResponse: RPCMessage = {
     type: "AppendEntries",
+    direction: "response",
+    payload: {
+        term: 1,
+        success: true
+    }
+};
+
+const installSnapshotRequest: RPCMessage = {
+    type: "InstallSnapshot",
+    direction: "request",
+    payload: {
+        term: 1,
+        leaderId: "nodeA",
+        lastIncludedIndex: 0,
+        lastIncludedTerm: 0,
+        data: Buffer.from("snapshot data")
+    }
+};
+
+const installSnapshotResponse: RPCMessage = {
+    type: "InstallSnapshot",
     direction: "response",
     payload: {
         term: 1,
@@ -179,6 +201,12 @@ describe('GRPCTransport.ts, rpcMessageToGrpc', () => {
         };
         expect(() => rpcMessageToGrpc(invalidMessage)).toThrowError("Unsupported message type or direction: UnknownType request");
     });
+
+    it('should map an install snapshot request correctly', () => {
+        const result = rpcMessageToGrpc(installSnapshotRequest);
+        expect(result.method).toBe("InstallSnapshot");
+        expect(result.payload).toEqual(installSnapshotRequest.payload);
+    });
 });
 
 describe('GRPCTransport.ts, grpcToRpcMessage', () => {
@@ -298,6 +326,24 @@ describe('GRPCTransport.ts, grpcToRpcMessage', () => {
             conflictIndex: undefined,
             conflictTerm: 2
         });
+    });
+
+    it('should map an install snapshot response correctly', () => {
+        const raw = {
+            term: 1,
+            success: true
+        };
+        const result = grpcToRpcMessage("InstallSnapshot", raw);
+        expect(result.type).toBe("InstallSnapshot");
+        expect(result.direction).toBe("response");
+        expect(result.payload).toEqual(raw);
+    });
+
+    it('should throw for an unsupported message type', () => {
+        const raw = {
+            term: 1
+        };
+        expect(() => grpcToRpcMessage("UnknownType", raw)).toThrowError("Unsupported gRPC method: UnknownType");
     });
 });
 
@@ -734,6 +780,24 @@ describe('GRPCTransport.ts, GrpcTransport', () => {
         await transportB.stop();
     });
 
+    it('should throw when no handler registered for installSnapshot response', async () => {
+        const { transportA, transportB } = makePair();
+
+        await transportB.start();
+        await transportA.start();
+        await expect(transportA.send("nodeB", {
+            type: "InstallSnapshot",
+            direction: "response",
+            payload: {
+                term: 1,
+                success: true
+            }
+        })).rejects.toThrowError(NetworkError);
+
+        await transportA.stop();
+        await transportB.stop();
+    });
+
     it('should throw when requestvote handler returns wrong message type', async () => {
         const { transportA, transportB } = makePair();
         transportB.onMessage(async () => appendEntriesResponse);
@@ -753,6 +817,17 @@ describe('GRPCTransport.ts, GrpcTransport', () => {
         await transportB.start();
         await transportA.start();
         await expect(transportA.send("nodeB", appendEntriesRequest)).rejects.toThrowError(NetworkError);
+        await transportA.stop();
+        await transportB.stop();
+    });
+
+    it('should throw when installSnapshot handler returns wrong message type', async () => {
+        const { transportA, transportB } = makePair();
+        transportB.onMessage(async () => requestVoteResponse);
+
+        await transportB.start();
+        await transportA.start();
+        await expect(transportA.send("nodeB", installSnapshotRequest)).rejects.toThrowError(NetworkError);
         await transportA.stop();
         await transportB.stop();
     });
@@ -785,12 +860,83 @@ describe('GRPCTransport.ts, GrpcTransport', () => {
         await transportB.stop();
      });
 
+     it('should throw when installSnapshot handler throws an error', async () => {
+        const { transportA, transportB } = makePair();
+
+        transportB.onMessage(async () => {
+            throw new Error("Handler error");
+        });
+
+        await transportB.start();
+        await transportA.start();
+        await expect(transportA.send("nodeB", installSnapshotRequest)).rejects.toThrowError(NetworkError);
+        await transportA.stop();
+        await transportB.stop();
+     });
+
      it('should throw when no handler registered for appendEntries request', async () => {
         const { transportA, transportB } = makePair();
 
         await transportB.start();
         await transportA.start();
         await expect(transportA.send("nodeB", appendEntriesRequest)).rejects.toThrowError(NetworkError);
+        await transportA.stop();
+        await transportB.stop();
+    });
+
+    it('should throw when no handler registered for installSnapshot request', async () => {
+        const { transportA, transportB } = makePair();
+
+        await transportB.start();
+        await transportA.start();
+        await expect(transportA.send("nodeB", installSnapshotRequest)).rejects.toThrowError(NetworkError);
+        await transportA.stop();
+        await transportB.stop();
+    });
+
+    it('should round trip an installSnapshot request', async () => {
+        const { transportA, transportB } = makePair();
+
+        transportB.onMessage(async (from, message) => {
+            expect(message).toEqual(installSnapshotRequest);
+            return installSnapshotResponse;
+        });
+
+        await transportB.start();
+        await transportA.start();
+        const response = await transportA.send("nodeB", installSnapshotRequest);
+        expect(response).toEqual(installSnapshotResponse);
+
+        await transportA.stop();
+        await transportB.stop();
+    });
+
+    it('should start with real TLS certs', async () => {
+        const portA = nextPort();
+        const portB = nextPort();
+
+        const certBase = path.join(__dirname, '../../certs');
+
+        const transportA = new GrpcTransport("node1", portA, { node2: `localhost:${portB}` }, {
+            caCert: path.join(certBase, 'ca/ca.crt'),
+            nodeCert: path.join(certBase, 'node1/node1.crt'),
+            nodeKey: path.join(certBase, 'node1/node1.key'),
+        });
+
+        const transportB = new GrpcTransport("node2", portB, { node1: `localhost:${portA}` }, {
+            caCert: path.join(certBase, 'ca/ca.crt'),
+            nodeCert: path.join(certBase, 'node2/node2.crt'),
+            nodeKey: path.join(certBase, 'node2/node2.key'),
+        });
+
+        transportB.onMessage(async () => requestVoteResponse);
+
+        await transportB.start();
+        await transportA.start();
+
+        const response = await transportA.send("node2", requestVoteRequest);
+        expect(response).toEqual(requestVoteResponse);
+
         await transportA.stop();
         await transportB.stop();
     });

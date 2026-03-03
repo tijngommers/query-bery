@@ -161,4 +161,107 @@ describe("MockTransport.ts, MockTransport", () => {
         expect(nodes).toContain("A");
         expect(nodes).toContain("B");
     });
+
+    it('should be able to cut a link and restore it', async () => {
+        await transportA.start();
+        await transportB.start();
+        MockTransport.cutLink("A", "B");
+        await expect(transportA.send("B", validMessage)).rejects.toThrow(NetworkError);
+        MockTransport.healLink("A", "B");
+        let handlerCalled = false;
+        transportB.onMessage(async (from, message) => {
+            expect(from).toBe("A");
+            expect(message).toEqual(validMessage);
+            handlerCalled = true;
+            return {
+                type: 'RequestVote',
+                direction: 'response',
+                payload: {
+                    term: 1,
+                    voteGranted: true
+                }
+            }
+        });
+        await transportA.send("B", validMessage);
+        expect(handlerCalled).toBe(true);
+    });
+
+    it('should be able to cut multiple links and restore them', async () => {
+        const transportC = new MockTransport("C", random);
+        await transportA.start();
+        await transportB.start();
+        await transportC.start();
+
+        MockTransport.cutLink("A", "B");
+        MockTransport.cutLink("B", "C");
+        MockTransport.cutLink("A", "C");
+
+        await expect(transportA.send("B", validMessage)).rejects.toThrow(NetworkError);
+        await expect(transportB.send("C", validMessage)).rejects.toThrow(NetworkError);
+        await expect(transportA.send("C", validMessage)).rejects.toThrow(NetworkError);
+
+        MockTransport.healAllLinks();
+
+        let handlerCalled = false;
+        transportB.onMessage(async (from, message) => {
+            expect(from).toBe("A");
+            expect(message).toEqual(validMessage);
+            handlerCalled = true;
+            return {
+                type: 'RequestVote',
+                direction: 'response',
+                payload: {
+                    term: 1,
+                    voteGranted: true
+                }
+            }
+        });
+        await transportA.send("B", validMessage);
+        expect(handlerCalled).toBe(true);
+        handlerCalled = false;
+        transportC.onMessage(async (from, message) => {
+            expect(from).toBe("B");
+            expect(message).toEqual(validMessage);
+            handlerCalled = true;
+            return {
+                type: 'RequestVote',
+                direction: 'response',
+                payload: {
+                    term: 1,
+                    voteGranted: true
+                }
+            }
+        });
+        await transportB.send("C", validMessage);
+        expect(handlerCalled).toBe(true);
+        handlerCalled = false;
+        transportC.onMessage(async (from, message) => {
+            expect(from).toBe("A");
+            expect(message).toEqual(validMessage);
+            handlerCalled = true;
+            return {
+                type: 'RequestVote',
+                direction: 'response',
+                payload: {
+                    term: 1,
+                    voteGranted: true
+                }
+            }
+        });
+        await transportA.send("C", validMessage);
+        expect(handlerCalled).toBe(true);
+    });
+
+    it('should set the drop rate with the static setdroprate method', async () => {
+        await transportA.start();
+        await transportB.start();
+
+        MockTransport.setDropRate("A",0.5);
+        expect(transportA.getDropRate()).toBe(0.5);
+        expect(transportB.getDropRate()).toBe(0);
+    });
+
+    it('should return early when setting droprate for a node that does not exist', async () => {
+        expect(() => MockTransport.setDropRate("C", 0.5)).not.toThrow();
+    });
 });
