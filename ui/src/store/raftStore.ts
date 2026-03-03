@@ -90,6 +90,9 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
             }
             case "MessageSent": {
 
+                const targetNode = get().nodes[event.toNodeId];
+                const isCrashedTarget = targetNode?.crashed ?? false;
+
                 const isHeartbeat: boolean = event.messageType === "AppendEntries" && (event.payload as { entries: unknown[] })?.entries?.length === 0;
 
                 const arrow: MessageArrow = {
@@ -97,11 +100,17 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
                     fromNodeId: event.fromNodeId,
                     toNodeId: event.toNodeId,
                     messageType: event.messageType,
-                    status: "inFlight",
+                    status: isCrashedTarget ? "dropped" : "inFlight",
                     createdAt: Date.now(),
                     isHeartbeat: isHeartbeat,
                 };
                 set(state => ({ arrows: [...state.arrows, arrow] }));
+
+                if (isCrashedTarget) {
+                    setTimeout(() => {
+                        set(s => ({ arrows: s.arrows.filter(a => a.id !== event.messageId) }));
+                    }, 600);
+                }
                 break;
             }
 

@@ -647,6 +647,13 @@ export class StateMachine implements StateMachineInterface {
             } else {
                 this.logger.error(`Node ${this.nodeId} error sending AppendEntries to ${peer}: ${String(err)}`);
             }
+
+            await this.stateLock.runExclusive(async () => {
+                if (this.leaderState) {
+                    this.leaderState.decrementNextIndex(peer);
+                    this.logger.debug(`Node ${this.nodeId} decremented nextIndex for ${peer} to ${this.leaderState.getNextIndex(peer)} after failed AppendEntries`);
+                }
+            });
         }
     }
     
