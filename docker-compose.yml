@@ -12,7 +12,6 @@ services:
       - "3000"
     restart: unless-stopped
     volumes:
-      # Mount the data files so databases persist across container restarts
       - ./mydb.db:/app/mydb.db
       - ./mydb.wal:/app/mydb.wal
 
