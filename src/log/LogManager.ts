@@ -25,8 +25,8 @@ export interface LogManagerInterface {
 const LOG_ENTRY_PREFIX = "raft:log:";
 const LAST_INDEX_KEY = "raft:log:lastIndex";
 const LAST_TERM_KEY = "raft:log:lastTerm";
-const SNAPSHOT_INDEX_KEY = "raft:log:snapshot:index";
-const SNAPSHOT_TERM_KEY = "raft:log:snapshot:term";
+export const SNAPSHOT_INDEX_KEY = "raft:log:snapshot:index";
+export const SNAPSHOT_TERM_KEY = "raft:log:snapshot:term";
 
 export class LogManager implements LogManagerInterface {
 
