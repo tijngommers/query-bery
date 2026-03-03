@@ -8,7 +8,7 @@
 // 1. compactDatabase — Streaming rebuild (similar to SQLite's VACUUM)
 //    Creates a new database on temporary files, streams documents one-by-one
 //    from old DB → new DB (O(1) memory), recreates secondary indexes, then
-//    swaps temp files into the original location. Requires 2× disk space.
+//    swaps temp files into the original location. Requires 2× disk space, so for 1TB DB, you need 1TB free to compact. Safe and robust, suitable for large databases.
 //
 // 2. defragDatabase — In-place block defragmentation
 //    Moves live blocks into free slots at the raw block level, then truncates
@@ -123,80 +123,98 @@ export async function compactDatabase(
   // If using same files, we need to stream into memory first for that collection,
   // so we use temp files when available. When not available (MockFile tests),
   // we close old DB first, then rebuild.
-  let newDb: SimpleDBMS;
+  let newDb: SimpleDBMS | undefined;
   let totalDocuments = 0;
 
   if (useTempFiles) {
     // Streaming mode: old DB stays open while we write to temp files
     newDb = await SimpleDBMS.create(targetDbFile, targetWalFile);
 
-    for (const meta of metas) {
-      const oldCollection = await db.getCollection(meta.name);
-      const newCollection = await newDb.getCollection(meta.name);
+    try {
+      for (const meta of metas) {
+        const oldCollection = await db.getCollection(meta.name);
+        const newCollection = await newDb.getCollection(meta.name);
 
-      // Stream documents one at a time — O(1) memory
-      for await (const { value: doc } of oldCollection.entries()) {
-        await newCollection.insert(doc);
-        totalDocuments++;
+        // Stream documents one at a time — O(1) memory
+        if (oldCollection && typeof oldCollection.entries === 'function') {
+          for await (const { value: doc } of oldCollection.entries()) {
+            await newCollection.insert(doc);
+            totalDocuments++;
+          }
+        }
+
+        // Recreate secondary indexes (createIndex already streams internally)
+        for (const field of meta.indexedFields) {
+          const blockSize = db.getFreeBlockFile().blockSize;
+          const pageSize = () => db.getFreeBlockFile().payloadSize;
+          const indexStorage = new FBNodeStorage<string, string>(
+            (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+            pageSize,
+            newDb.getFreeBlockFile(),
+            blockSize,
+          );
+          await newCollection.createIndex(field, indexStorage);
+        }
       }
 
-      // Recreate secondary indexes (createIndex already streams internally)
-      for (const field of meta.indexedFields) {
-        const indexStorage = new FBNodeStorage<string, string>(
-          (a, b) => (a < b ? -1 : a > b ? 1 : 0),
-          () => 1024,
-          newDb.getFreeBlockFile(),
-          4096,
-        );
-        await newCollection.createIndex(field, indexStorage);
-      }
+      // Close old database
+      await db.close();
+    } catch (error) {
+      await newDb.close();
+      throw error;
     }
-
-    // Close old database
-    await db.close();
   } else {
     // Fallback for same-file mode (MockFile tests):
     // We must collect documents per-collection since we can't read and write
     // the same file simultaneously. We still stream collection-by-collection
     // to limit peak memory to the largest single collection.
-    const collectionDocs: { meta: CollectionMeta; docs: import('./simpledbms.mjs').Document[] }[] = [];
+    try {
+      const collectionDocs: { meta: CollectionMeta; docs: import('./simpledbms.mjs').Document[] }[] = [];
 
-    for (const meta of metas) {
-      const oldCollection = await db.getCollection(meta.name);
-      const docs: import('./simpledbms.mjs').Document[] = [];
-      for await (const { value: doc } of oldCollection.entries()) {
-        docs.push(doc);
-      }
-      collectionDocs.push({ meta, docs });
-    }
-
-    // Close old DB and reset files
-    await db.close();
-    await dbFile.create();
-    await dbFile.close();
-    await walFile.create();
-    await walFile.close();
-
-    // Rebuild
-    newDb = await SimpleDBMS.create(dbFile, walFile);
-
-    for (const { meta, docs } of collectionDocs) {
-      const newCollection = await newDb.getCollection(meta.name);
-
-      for (const doc of docs) {
-        await newCollection.insert(doc);
-        totalDocuments++;
+      for (const meta of metas) {
+        const oldCollection = await db.getCollection(meta.name);
+        const docs: import('./simpledbms.mjs').Document[] = [];
+        for await (const { value: doc } of oldCollection.entries()) {
+          docs.push(doc);
+        }
+        collectionDocs.push({ meta, docs });
       }
 
-      for (const field of meta.indexedFields) {
-        const indexStorage = new FBNodeStorage<string, string>(
-          (a, b) => (a < b ? -1 : a > b ? 1 : 0),
-          () => 1024,
-          newDb.getFreeBlockFile(),
-          4096,
-        );
-        await newCollection.createIndex(field, indexStorage);
+      // Close old DB and reset files
+      await db.close();
+      await dbFile.create();
+      await dbFile.close();
+      await walFile.create();
+      await walFile.close();
+
+      // Rebuild
+      newDb = await SimpleDBMS.create(dbFile, walFile);
+
+      for (const { meta, docs } of collectionDocs) {
+        const newCollection = await newDb.getCollection(meta.name);
+
+        for (const doc of docs) {
+          await newCollection.insert(doc);
+          totalDocuments++;
+        }
+
+        for (const field of meta.indexedFields) {
+          const blockSize = db.getFreeBlockFile().blockSize;
+          const pageSize = () => db.getFreeBlockFile().payloadSize;
+          const indexStorage = new FBNodeStorage<string, string>(
+            (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+            pageSize,
+            newDb.getFreeBlockFile(),
+            blockSize,
+          );
+          await newCollection.createIndex(field, indexStorage);
+        }
       }
+    } catch (error) {
+      if (newDb) {
+        await newDb.close();
+      }
+      throw error;
     }
   }
 
