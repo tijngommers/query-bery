@@ -1,5 +1,6 @@
 import { NodeId } from "../core/Config";
 import { LogEntry } from "../log/LogEntry";
+import { ClusterConfig } from "../config/ClusterConfig";
 
 export interface RequestVoteRequest {
     term: number;
@@ -36,6 +37,7 @@ export interface InstallSnapshotRequest {
     lastIncludedIndex: number;
     lastIncludedTerm: number;
     data: Buffer;
+    config: ClusterConfig;
 }
 
 export interface InstallSnapshotResponse {
@@ -210,6 +212,14 @@ export function validateInstallSnapshotRequest(request: InstallSnapshotRequest):
 
     if (!Buffer.isBuffer(request.data)) {
         throw new Error(`Invalid data: ${request.data}. data must be a Buffer.`);
+    }
+
+    if (!request.config || typeof request.config !== 'object') {
+        throw new Error(`Invalid config: ${request.config}. config must be an object.`);
+    }
+
+    if (!Array.isArray(request.config.voters) || !Array.isArray(request.config.learners)) {
+        throw new Error(`Invalid config: ${request.config}. voters and learners must be arrays.`);
     }
 }
 

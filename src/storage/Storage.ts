@@ -87,13 +87,15 @@ export class StorageCodec {
             return {
                 term: entry.term,
                 index: entry.index,
-                config: entry.config
+                type: entry.type,
+                config: JSON.stringify(entry.config)
             };
         }
 
         return {
             term: entry.term,
             index: entry.index,
+            type: entry.type,
             command: {
                 type: entry.command!.type,
                 payload: Buffer.from(JSON.stringify(entry.command!.payload)),
@@ -107,7 +109,7 @@ export class StorageCodec {
                 term: raw.term,
                 index: raw.index,
                 type: LogEntryType.CONFIG,
-                config: raw.config
+                config: typeof raw.config === "string" ? JSON.parse(raw.config) : raw.config
             };
         }
 
