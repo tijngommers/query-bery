@@ -620,6 +620,13 @@ export class StateMachine implements StateMachineInterface {
         const allPeers = this.configManager.getAllPeers(this.nodeId);
 
         for (const peer of allPeers) {
+            if (!this.leaderState.getPeers().includes(peer)) {
+                this.leaderState.addPeer(peer, this.logManager.getLastIndex());
+                this.logger.info(`Node ${this.nodeId} added new peer ${peer} to LeaderState with nextIndex ${this.leaderState.getNextIndex(peer)}`);
+            }
+        }
+
+        for (const peer of allPeers) {
             this.sendAppendEntries(peer);
         }
     }
@@ -846,6 +853,13 @@ export class StateMachine implements StateMachineInterface {
                 if (entry && entry.type === LogEntryType.CONFIG && entry.config) {
                     await this.configManager.commitConfig(entry.config);
                     this.logger.info(`Node ${this.nodeId} committed configuration entry at index ${i} while advancing commit index, new config: ${JSON.stringify(entry.config)}`);
+
+                    if (this.leaderState) {
+                        const allPeers = this.configManager.getAllPeers(this.nodeId);
+                        for (const peer of allPeers) {
+                            this.leaderState.addPeer(peer, this.logManager.getLastIndex());
+                        }
+                    }
                 }
             }
 

@@ -218,6 +218,16 @@ export class LeaderState implements LeaderStateInterface {
         }
     }
 
+    addPeer(peerId: NodeId, lastLogIndex: number): void {
+        if (this.peers.includes(peerId)) {
+            return
+        }
+
+        this.peers.push(peerId);
+        this.nextIndex.set(peerId, lastLogIndex + 1);
+        this.matchIndex.set(peerId, 0);
+    }
+
     private async findLastIndexOfTerm(term: number, logManager: LogManager): Promise<number | null> {
         const lastIndex = logManager.getLastIndex();
 
