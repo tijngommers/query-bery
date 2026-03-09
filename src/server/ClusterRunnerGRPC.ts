@@ -206,6 +206,12 @@ export class ClusterRunnerGRPC {
 
         await node.start();
 
+        for (const [existingId, existingNode] of this.nodes) {
+            if (existingId !== nodeId && existingNode.isStarted()) {
+                await existingNode.registerPeer(nodeId, address);
+            }
+        }
+
         const leader = Array.from(this.nodes.values()).find(n => n.isStarted() && n.isLeader());
         if (!leader) {
             this.nodes.delete(nodeId);

@@ -57,6 +57,8 @@ export class StateMachine implements StateMachineInterface {
 
     private stateLock = new AsyncLock();
 
+    private onPeerDiscovered?: (peerId: NodeId, lastLogIndex: number) => void;
+
     constructor(
         private nodeId: NodeId,
         private configManager: ConfigManager,
@@ -71,8 +73,11 @@ export class StateMachine implements StateMachineInterface {
         private logger: Logger,
         private applyLock: AsyncLock,
         private onCommitIndexAdvanced?: (newCommitIndex: number) => void,
-        private eventBus: RaftEventBus = new NoOpEventBus()
-    ) {}
+        private eventBus: RaftEventBus = new NoOpEventBus(),
+        onPeerDiscovered?: (peerId: NodeId, lastLogIndex: number) => void
+    ) {
+        this.onPeerDiscovered = onPeerDiscovered;
+    }
 
     async start(): Promise<void> {
         this.logger.info(`Node ${this.nodeId} starting as ${this.currentState}`);
@@ -622,6 +627,7 @@ export class StateMachine implements StateMachineInterface {
         for (const peer of allPeers) {
             if (!this.leaderState.getPeers().includes(peer)) {
                 this.leaderState.addPeer(peer, this.logManager.getLastIndex());
+                this.onPeerDiscovered?.(peer, this.logManager.getLastIndex());
                 this.logger.info(`Node ${this.nodeId} added new peer ${peer} to LeaderState with nextIndex ${this.leaderState.getNextIndex(peer)}`);
             }
         }

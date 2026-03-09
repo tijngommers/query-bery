@@ -75,6 +75,8 @@ export class RaftNode implements RaftNodeInterface {
 
     private configManager: ConfigManager;
 
+    private peerAddresses: Map<NodeId, string> = new Map();
+
     constructor(
         private config: RaftConfig,
         private storage: Storage,
@@ -140,7 +142,10 @@ export class RaftNode implements RaftNodeInterface {
             this.logger,
             this.applyLock,
             (newCommitIndex) => this.notifyCommitWaiters(newCommitIndex),
-            this.bus
+            this.bus,
+            (peerId, lastLogIndex) => {
+                this.transport.addPeer?.(peerId, this.peerAddresses.get(peerId)!)
+            }
         );
     }
 
@@ -501,6 +506,8 @@ export class RaftNode implements RaftNodeInterface {
             return false;
         }
 
+        this.peerAddresses.set(nodeId, address);
+
         await this.transport.addPeer?.(nodeId, address);
 
         const newConfig: ClusterConfig = asLearner
@@ -631,6 +638,11 @@ export class RaftNode implements RaftNodeInterface {
             });
         }
         return result;
+    }
+
+    async registerPeer(nodeId: NodeId, address: string): Promise<void> {
+        this.peerAddresses.set(nodeId, address);
+        await this.transport.addPeer?.(nodeId, address);
     }
 
     private async submitConfigChange(newConfig: ClusterConfig): Promise<boolean> {
