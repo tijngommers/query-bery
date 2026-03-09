@@ -253,34 +253,39 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
             }
 
             case "NodeCrashed": {
-                set(state => ({
-                    nodes: {
-                        ...state.nodes,
-                        [event.nodeId]: {
-                            ...state.nodes[event.nodeId],
-                            crashed: true,
+                set(state => {
+                    const existingNode = state.nodes[event.nodeId];
+                    if (!existingNode) return state;
+                    return {
+                        nodes: {
+                            ...state.nodes,
+                            [event.nodeId]: { ...existingNode, crashed: true },
                         },
-                    },
-                    arrows: state.arrows.filter(a =>
-                        a.fromNodeId !== event.nodeId && a.toNodeId !== event.nodeId
-                    ),
-                }));
+                        arrows: state.arrows.filter(a =>
+                            a.fromNodeId !== event.nodeId && a.toNodeId !== event.nodeId
+                        ),
+                    };
+                });
                 break;
             }
 
             case "NodeRecovered": {
-                set(state => ({
-                    nodes: {
-                        ...state.nodes,
-                        [event.nodeId]: {
-                            ...state.nodes[event.nodeId],
-                            crashed: false,
-                            term: event.term,
-                            commitIndex: event.commitIndex,
-                            snapshotIndex: event.snapshotIndex,
+                set(state => {
+                    const existingNode = state.nodes[event.nodeId];
+                    const base = existingNode ?? makeNode(event.nodeId, false);
+                    return {
+                        nodes: {
+                            ...state.nodes,
+                            [event.nodeId]: {
+                                ...base,
+                                crashed: false,
+                                term: event.term,
+                                commitIndex: event.commitIndex,
+                                snapshotIndex: event.snapshotIndex,
+                            },
                         },
-                    },
-                }));
+                    };
+                });
                 break;
             }
 
