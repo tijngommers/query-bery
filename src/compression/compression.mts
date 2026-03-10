@@ -61,10 +61,14 @@ export function getCompressionAlgorithmId(algorithm: CompressionAlgorithm): numb
  * Resolves a numeric envelope ID to a compression algorithm.
  *
  * @param {number} id - The numeric algorithm ID stored in an envelope header.
- * @returns {CompressionAlgorithm | null} The mapped algorithm, or null if unknown.
+ * @returns {CompressionAlgorithm} The mapped algorithm.
+ * @throws {Error} If the algorithm ID is unknown.
  */
-export function getCompressionAlgorithmById(id: number): CompressionAlgorithm | null {
-  return COMPRESSION_ID_ALGORITHM_MAP[id] ?? null;
+export function getCompressionAlgorithmById(id: number): CompressionAlgorithm {
+  if (!COMPRESSION_ID_ALGORITHM_MAP[id]) {
+    throw new Error(`Unknown compression algorithm ID '${id}' in envelope header`);
+  }
+  return COMPRESSION_ID_ALGORITHM_MAP[id];
 }
 
 /**

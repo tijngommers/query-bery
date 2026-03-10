@@ -49,6 +49,20 @@ describe('Compression Envelope', () => {
     expect(decoded).toBeNull();
   });
 
+  it('returns null for unknown algorithm id in v1 envelope', () => {
+    const service = new CompressionService({ algorithm: 'zstd' });
+    const original = Buffer.from('unknown-algo-id', 'utf-8');
+    const compressed = service.compress(original);
+
+    const magic = Buffer.from('TRN1', 'ascii');
+    const encoded = serializeCompressionEnvelope(magic, compressed);
+    const tampered = Buffer.from(encoded);
+    tampered.writeUInt8(255, 4);
+
+    const decoded = deserializeCompressionEnvelope(tampered, magic);
+    expect(decoded).toBeNull();
+  });
+
   it('deserializes legacy v0 envelope correctly', () => {
     const service = new CompressionService({ algorithm: 'zstd' });
     const original = Buffer.from('legacy-v0-payload', 'utf-8');

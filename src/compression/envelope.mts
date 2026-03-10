@@ -81,8 +81,10 @@ export function deserializeCompressionEnvelope(payload: Buffer, expectedMagic: B
   }
 
   const algorithmId = payload.readUInt8(COMPRESSION_ENVELOPE_ALGORITHM_ID_OFFSET);
-  const algorithm = getCompressionAlgorithmById(algorithmId);
-  if (algorithm === null) {
+  let algorithm: CompressionAlgorithm;
+  try {
+    algorithm = getCompressionAlgorithmById(algorithmId);
+  } catch {
     return null;
   }
 
