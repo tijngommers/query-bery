@@ -1,7 +1,7 @@
 import { NodeId } from "../core/Config";
 import { Storage, StorageCodec } from "../storage/Storage";
 import { StorageError } from "../util/Error";
-import { ClusterConfig, clusterConfigsEqual, getQuorumSize, isLearner, isVoter } from "./ClusterConfig";
+import { ClusterConfig, clusterConfigsEqual, ClusterMember, getQuorumSize, isLearner, isVoter } from "./ClusterConfig";
 
 export const CONFIG_VOTERS_KEY = "raft:config:voters";
 export const CONFIG_LEARNERS_KEY = "raft:config:learners";
@@ -46,8 +46,8 @@ export class ConfigManager implements ConfigManagerInterface {
             return null;
         }
 
-        const voters = StorageCodec.decodeJSON<NodeId[]>(votersBuffer);
-        const learners = StorageCodec.decodeJSON<NodeId[]>(learnersBuffer);
+        const voters = StorageCodec.decodeJSON<ClusterMember[]>(votersBuffer);
+        const learners = StorageCodec.decodeJSON<ClusterMember[]>(learnersBuffer);
 
         const persistedConfig: ClusterConfig = { voters, learners };
         this.activeConfig = persistedConfig;
@@ -93,17 +93,31 @@ export class ConfigManager implements ConfigManagerInterface {
 
     getVoters(): NodeId[] {
         this.ensureInitialized();
-        return this.activeConfig.voters;
+        return this.activeConfig.voters.map(v => v.id);
     }
 
     getLearners(): NodeId[] {
         this.ensureInitialized();
-        return this.activeConfig.learners;
+        return this.activeConfig.learners.map(l => l.id);
     }
 
     getAllPeers(selfId: NodeId): NodeId[] {
         this.ensureInitialized();
-        return [...this.activeConfig.voters, ...this.activeConfig.learners].filter(id => id !== selfId);
+        return [...this.activeConfig.voters, ...this.activeConfig.learners]
+            .map(m => m.id)
+            .filter(id => id !== selfId);
+    }
+
+    getMemberAddress(nodeId: NodeId): string | null {
+        this.ensureInitialized();
+        const member = [...this.activeConfig.voters, ...this.activeConfig.learners]
+            .find(m => m.id === nodeId);
+        return member?.address ?? null;
+    }
+
+    getAllMembers(): ClusterMember[] {
+        this.ensureInitialized();
+        return [...this.activeConfig.voters, ...this.activeConfig.learners];
     }
 
     getQuorumSize(): number {

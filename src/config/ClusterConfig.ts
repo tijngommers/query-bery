@@ -1,23 +1,28 @@
 import { NodeId } from "../core/Config";
 
+export interface ClusterMember {
+    id: NodeId;
+    address: string;
+}
+
 export interface ClusterConfig {
-    voters: NodeId[];
-    learners: NodeId[];
+    voters: ClusterMember[];
+    learners: ClusterMember[];
 }
 
 export function clusterConfigsEqual(a: ClusterConfig, b: ClusterConfig): boolean {
     if (a.voters.length !== b.voters.length) return false;
     if (a.learners.length !== b.learners.length) return false;
 
-    const aVoters = [...a.voters].sort();
-    const bVoters = [...b.voters].sort();
+    const aVoters = [...a.voters].map(m => m.id).sort();
+    const bVoters = [...b.voters].map(m => m.id).sort();
 
     for (let i = 0; i < aVoters.length; i++) {
         if (aVoters[i] !== bVoters[i]) return false;
     }
 
-    const aLearners = [...a.learners].sort();
-    const bLearners = [...b.learners].sort();
+    const aLearners = [...a.learners].map(m => m.id).sort();
+    const bLearners = [...b.learners].map(m => m.id).sort();
 
     for (let i = 0; i < aLearners.length; i++) {
         if (aLearners[i] !== bLearners[i]) return false;
@@ -26,11 +31,11 @@ export function clusterConfigsEqual(a: ClusterConfig, b: ClusterConfig): boolean
 }
 
 export function isVoter(config: ClusterConfig, nodeId: NodeId): boolean {
-    return config.voters.includes(nodeId);
+    return config.voters.some(m => m.id === nodeId);
 }
 
 export function isLearner(config: ClusterConfig, nodeId: NodeId): boolean {
-    return config.learners.includes(nodeId);
+    return config.learners.some(m => m.id === nodeId);
 }
 
 export function isNodeInCluster(config: ClusterConfig, nodeId: NodeId): boolean {

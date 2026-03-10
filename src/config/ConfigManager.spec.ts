@@ -11,7 +11,11 @@ describe('ConfigManager.ts, ConfigManager', () => {
     const allVoters = [nodeId1, ...peers];
 
     const initialConfig: ClusterConfig = {
-        voters: allVoters,
+        voters: [
+            { id: nodeId1, address: 'address1' },
+            { id: 'node2', address: 'address2' },
+            { id: 'node3', address: 'address3' }
+        ],
         learners: []
     };
 
@@ -32,15 +36,15 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should return persisted config on initialization', async () => {
-        await configManager.commitConfig({ voters: ['node1', 'node2'], learners: ['node3'] });
+        await configManager.commitConfig({ voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node3', address: 'address3' }] });
 
         const fresh = new ConfigManager(storage, initialConfig);
         const result = await fresh.initialize();
-        expect(result).toEqual({ voters: ['node1', 'node2'], learners: ['node3'] });
+        expect(result).toEqual({ voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node3', address: 'address3' }] });
     });
 
     it('should restore activeConfig from storage', async () => {
-        const savedConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node3'] };
+        const savedConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node3', address: 'address3' }] };
         await configManager.commitConfig(savedConfig);
 
         const fresh = new ConfigManager(storage, initialConfig);
@@ -49,7 +53,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should restore committedConfig from storage', async () => {
-        const savedConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node3'] };
+        const savedConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node3', address: 'address3' }] };
         await configManager.commitConfig(savedConfig);
 
         const fresh = new ConfigManager(storage, initialConfig);
@@ -73,13 +77,13 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should update activeConfig', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.getActiveConfig()).toEqual(newConfig);
     });
 
     it('should not update commitedConfig', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.getCommittedConfig()).toEqual(initialConfig);
     });
@@ -90,13 +94,13 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should update commitedConfig on commit', async () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         await configManager.commitConfig(newConfig);
         expect(configManager.getCommittedConfig()).toEqual(newConfig);
     });
 
     it('should persist config on commit', async () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         await configManager.commitConfig(newConfig);
 
         const fresh = new ConfigManager(storage, initialConfig);
@@ -128,7 +132,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should reflect changes after applying new config entry', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.getVoters()).toEqual(['node1', 'node2']);
     });
@@ -143,7 +147,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should reflect changes after applying new config entry', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.getLearners()).toEqual(['node4']);
     });
@@ -159,7 +163,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should include learners in peer list', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         const selfId = 'node1';
         expect(configManager.getAllPeers(selfId)).toEqual(['node2', 'node4']);
@@ -180,7 +184,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should reflect changes in quorum size after applying new config entry', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2', 'node3', 'node4', 'node5'], learners: ['node6'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' }, { id: 'node3', address: 'address3' }, { id: 'node4', address: 'address4' }, { id: 'node5', address: 'address5' } ], learners: [{ id: 'node6', address: 'address6' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.getQuorumSize()).toBe(3);
     });
@@ -204,7 +208,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should return true for a learner node', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.isLearner('node4')).toBe(true);
     });
@@ -223,13 +227,13 @@ describe('ConfigManager.ts, ConfigManager', () => {
     });
 
     it('should return true when active and committed configs differ', () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         expect(configManager.hasPendingChange()).toBe(true);
     });
 
     it('should return false after committing a new config', async () => {
-        const newConfig: ClusterConfig = { voters: ['node1', 'node2'], learners: ['node4'] };
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
         configManager.applyConfigEntry(newConfig);
         await configManager.commitConfig(newConfig);
         expect(configManager.hasPendingChange()).toBe(false);
@@ -238,5 +242,57 @@ describe('ConfigManager.ts, ConfigManager', () => {
     it('should throw if not initialized when checking for pending changes', () => {
         const fresh = new ConfigManager(storage, initialConfig);
         expect(() => fresh.hasPendingChange()).toThrow(StorageError);
+    });
+
+    it('should return the address of a voter node', () => {
+        expect(configManager.getMemberAddress('node1')).toBe('address1');
+    });
+
+    it('should return the address of a learner node', () => {
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
+        configManager.applyConfigEntry(newConfig);
+        expect(configManager.getMemberAddress('node4')).toBe('address4');
+    });
+
+    it('should return null for a node not in the cluster', () => {
+        expect(configManager.getMemberAddress('node5')).toBeNull();
+    });
+
+    it('should throw if not initialized when getting member address', () => {
+        const fresh = new ConfigManager(storage, initialConfig);
+        expect(() => fresh.getMemberAddress('node1')).toThrow(StorageError);
+    });
+
+    it('should return all members with their addresses', () => {
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
+        configManager.applyConfigEntry(newConfig);
+        expect(configManager.getAllMembers()).toEqual([
+            { id: 'node1', address: 'address1' },
+            { id: 'node2', address: 'address2' },
+            { id: 'node4', address: 'address4' }
+        ]);
+    });
+
+    it('should only return voters when there are no learners', () => {
+        expect(configManager.getAllMembers()).toEqual([
+            { id: 'node1', address: 'address1' },
+            { id: 'node2', address: 'address2' },
+            { id: 'node3', address: 'address3' }
+        ]);
+    });
+
+    it('should reflect changes after applying new config entry', () => {
+        const newConfig: ClusterConfig = { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [{ id: 'node4', address: 'address4' }] };
+        configManager.applyConfigEntry(newConfig);
+        expect(configManager.getAllMembers()).toEqual([
+            { id: 'node1', address: 'address1' },
+            { id: 'node2', address: 'address2' },
+            { id: 'node4', address: 'address4' }
+        ]);
+    });
+
+    it('should throw if not initialized when getting all members', () => {
+        const fresh = new ConfigManager(storage, initialConfig);
+        expect(() => fresh.getAllMembers()).toThrow(StorageError);
     });
 });
