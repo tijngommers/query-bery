@@ -37,8 +37,9 @@ interface RaftStore {
 const wsRef = { current: null as WebSocket | null };
 export const setStoreWebSocket = (ws: WebSocket | null ) => { wsRef.current = ws; };
 
-const makeNode = (nodeId: string, isLearner: boolean): NodeUIState => ({
+const makeNode = (nodeId: string, isLearner: boolean, address = ''): NodeUIState => ({
     nodeId,
+    address,
     role: "Follower",
     term: 0,
     commitIndex: 0,
@@ -58,7 +59,9 @@ function applyConfig(nodes: Record<string, NodeUIState>, config: ClusterConfig):
     const newNodes = { ...nodes };
     for (const nodeId of Object.keys(newNodes)) {
         const isLearner = config.learners.some(m => m.id === nodeId);
-        newNodes[nodeId] = { ...newNodes[nodeId], isLearner };
+        const member = [...config.voters, ...config.learners].find(m => m.id === nodeId);
+        const address = member?.address ?? newNodes[nodeId].address;
+        newNodes[nodeId] = { ...newNodes[nodeId], isLearner, address };
     }
     return newNodes;
 }
@@ -89,7 +92,8 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
         const configToApply = config ?? { voters: ids.map(id => ({ id, address: '' })), learners: [] };
         const nodes: Record<string, NodeUIState> = {};
         for (const id of ids) {
-            nodes[id] = makeNode(id, configToApply.learners.some(m => m.id === id));
+            const member = [...configToApply.voters, ...configToApply.learners].find(m => m.id === id);
+            nodes[id] = makeNode(id, configToApply.learners.some(m => m.id === id), member?.address ?? '');
         }
         set({ nodeIds: ids, nodes, clusterConfig: configToApply, pendingConfigChange: false });
     },
@@ -400,9 +404,10 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
                 const newConfig = event.config;
                 set(state => {
                     const existingNodes = state.nodes[event.addedNodeId];
+                    const addedMember = [...newConfig.voters, ...newConfig.learners].find(m => m.id === event.addedNodeId);
                     const newNode = existingNodes
-                        ? { ...existingNodes, isLearner: event.asLearner }
-                        : makeNode(event.addedNodeId, event.asLearner);
+                        ? { ...existingNodes, isLearner: event.asLearner, address: addedMember?.address ?? existingNodes.address }
+                        : makeNode(event.addedNodeId, event.asLearner, addedMember?.address ?? '');
                     const newNodes = state.nodeIds.includes(event.addedNodeId)
                         ? state.nodeIds
                         : [...state.nodeIds, event.addedNodeId];

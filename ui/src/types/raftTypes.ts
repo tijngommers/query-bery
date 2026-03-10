@@ -292,6 +292,7 @@ export type ClientCommand =
 
 export interface NodeUIState {
     nodeId: string;
+    address: string;
     role: RaftRole;
     term: number;
     commitIndex: number;
