@@ -33,11 +33,15 @@
 
 import { type File } from './file/file.mjs';
 import {
+  COMPRESSION_ALGORITHM_ENV_VAR,
+  DEFAULT_COMPRESSION_ALGORITHM,
   CompressionService,
   type CompressionResult,
-  COMPRESSION_ALGORITHM_ZSTD_ID,
   COMPRESSION_ENVELOPE_HEADER_SIZE,
   FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC,
+  getCompressionAlgorithmById,
+  getCompressionAlgorithmId,
+  parseCompressionAlgorithm,
 } from './compression/compression.mjs';
 
 /**
@@ -108,7 +112,9 @@ export class FreeBlockFile {
   private cachedHeaderBuf: Buffer = Buffer.alloc(0);
 
   private opened = false;
-  private readonly compressionService = new CompressionService({ algorithm: 'zstd' });
+  private readonly compressionService = new CompressionService({
+    algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+  });
 
   private ensureOpened(): void {
     if (!this.opened) throw new Error('FreeBlockFile is not open');
@@ -409,7 +415,7 @@ export class FreeBlockFile {
 
   private serializeCompressedPayload(result: CompressionResult): Buffer {
     const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-    const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+    const algorithmId = getCompressionAlgorithmId(result.algorithm);
     const envelopeMagic = FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC;
 
     const meta = Buffer.alloc(envelopeHeaderSize);
@@ -422,7 +428,6 @@ export class FreeBlockFile {
 
   private tryDeserializeCompressedPayload(payload: Buffer): CompressionResult | null {
     const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-    const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
     const envelopeMagic = FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC;
 
     if (payload.length < envelopeHeaderSize) {
@@ -435,7 +440,8 @@ export class FreeBlockFile {
     }
 
     const payloadAlgorithmId = payload.readUInt8(4);
-    if (payloadAlgorithmId !== algorithmId) {
+    const algorithm = getCompressionAlgorithmById(payloadAlgorithmId);
+    if (algorithm === null) {
       return null;
     }
 
@@ -448,7 +454,7 @@ export class FreeBlockFile {
     const compressedPayload = payload.subarray(envelopeHeaderSize, envelopeHeaderSize + compressedSize);
 
     return {
-      algorithm: 'zstd',
+      algorithm,
       originalSize,
       compressedSize,
       payload: Buffer.from(compressedPayload),

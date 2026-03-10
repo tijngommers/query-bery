@@ -9,19 +9,25 @@ import { AtomicFileImpl } from './atomic-operations/atomic-file.mjs';
 import { WALManagerImpl } from './atomic-operations/wal-manager.mjs';
 import { type File } from './file/file.mjs';
 import {
-  COMPRESSION_ALGORITHM_ZSTD_ID,
+  COMPRESSION_ALGORITHM_ENV_VAR,
   COMPRESSION_ENVELOPE_HEADER_SIZE,
   CompressionService,
+  DEFAULT_COMPRESSION_ALGORITHM,
   type CompressionResult,
+  getCompressionAlgorithmById,
+  getCompressionAlgorithmId,
+  parseCompressionAlgorithm,
 } from './compression/compression.mjs';
 import { randomUUID } from 'crypto';
 
 const HEADER_COMPRESSED_PAYLOAD_MAGIC = Buffer.from('DBH1', 'ascii');
-const headerCompressionService = new CompressionService({ algorithm: 'zstd' });
+const headerCompressionService = new CompressionService({
+  algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+});
 
 function serializeCompressedHeaderPayload(result: CompressionResult): Buffer {
   const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+  const algorithmId = getCompressionAlgorithmId(result.algorithm);
   const metadata = Buffer.alloc(envelopeHeaderSize);
 
   HEADER_COMPRESSED_PAYLOAD_MAGIC.copy(metadata, 0);
@@ -34,7 +40,6 @@ function serializeCompressedHeaderPayload(result: CompressionResult): Buffer {
 
 function tryDeserializeCompressedHeaderPayload(payload: Buffer): CompressionResult | null {
   const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
 
   if (payload.length < envelopeHeaderSize) {
     return null;
@@ -45,7 +50,8 @@ function tryDeserializeCompressedHeaderPayload(payload: Buffer): CompressionResu
   }
 
   const payloadAlgorithmId = payload.readUInt8(4);
-  if (payloadAlgorithmId !== algorithmId) {
+  const algorithm = getCompressionAlgorithmById(payloadAlgorithmId);
+  if (algorithm === null) {
     return null;
   }
 
@@ -59,7 +65,7 @@ function tryDeserializeCompressedHeaderPayload(payload: Buffer): CompressionResu
   }
 
   return {
-    algorithm: 'zstd',
+    algorithm,
     originalSize,
     compressedSize,
     payload: Buffer.from(payload.subarray(payloadStart, payloadEnd)),

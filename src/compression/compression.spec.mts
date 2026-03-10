@@ -21,6 +21,17 @@ describe('CompressionService', () => {
     expect(decompressed.equals(original)).toBe(true);
   });
 
+  it('compresses and decompresses with gzip', () => {
+    const service = new CompressionService({ algorithm: 'gzip' });
+    const original = Buffer.from('hello world hello world hello world hello world', 'utf-8');
+
+    const compressed = service.compress(original);
+    const decompressed = service.decompress(compressed);
+
+    expect(compressed.algorithm).toBe('gzip');
+    expect(decompressed.equals(original)).toBe(true);
+  });
+
   it('throws when trying to decompress invalid zstd payload', () => {
     const service = new CompressionService({ algorithm: 'zstd' });
 

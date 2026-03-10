@@ -11,9 +11,14 @@ import type {
 } from './node-storage.mjs';
 import { FreeBlockFile, NO_BLOCK } from '../freeblockfile.mjs';
 import {
+  COMPRESSION_ALGORITHM_ENV_VAR,
   CompressionService,
   COMPRESSION_ENVELOPE_HEADER_SIZE,
+  DEFAULT_COMPRESSION_ALGORITHM,
   NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC,
+  getCompressionAlgorithmById,
+  getCompressionAlgorithmId,
+  parseCompressionAlgorithm,
 } from '../compression/compression.mjs';
 
 type SerializedKey =
@@ -114,7 +119,9 @@ export class FBNodeStorage<Keystype, ValuesType>
 {
   private cache = new Map<number, FBLeafNode<Keystype, ValuesType> | FBInternalNode<Keystype, ValuesType>>();
   private reclaimQueue = new Set<number>();
-  private readonly compressionService = new CompressionService({ algorithm: 'zstd' });
+  private readonly compressionService = new CompressionService({
+    algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+  });
 
   constructor(
     public compareKeys: (a: Keystype, b: Keystype) => number,
@@ -130,11 +137,13 @@ export class FBNodeStorage<Keystype, ValuesType>
   private encodeNodePayload(payload: unknown): Buffer {
     const jsonBuffer = Buffer.from(JSON.stringify(payload), 'utf-8');
     const compressed = this.compressionService.compress(jsonBuffer);
+    const algorithmId = getCompressionAlgorithmId(compressed.algorithm);
 
     const header = Buffer.alloc(COMPRESSION_ENVELOPE_HEADER_SIZE);
     NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC.copy(header, 0);
-    header.writeUInt32LE(compressed.originalSize, 4);
-    header.writeUInt32LE(compressed.compressedSize, 8);
+    header.writeUInt8(algorithmId, 4);
+    header.writeUInt32LE(compressed.originalSize, 5);
+    header.writeUInt32LE(compressed.compressedSize, 9);
 
     return Buffer.concat([header, compressed.payload]);
   }
@@ -151,21 +160,45 @@ export class FBNodeStorage<Keystype, ValuesType>
       return buffer;
     }
 
-    const originalSize = buffer.readUInt32LE(4);
-    const compressedSize = buffer.readUInt32LE(8);
-    const start = envelopeHeaderSize;
-    const end = start + compressedSize;
+    const payloadAlgorithmId = buffer.readUInt8(4);
+    const mappedAlgorithm = getCompressionAlgorithmById(payloadAlgorithmId);
 
-    if (end > buffer.length) {
+    if (mappedAlgorithm !== null) {
+      const originalSize = buffer.readUInt32LE(5);
+      const compressedSize = buffer.readUInt32LE(9);
+      const start = envelopeHeaderSize;
+      const end = start + compressedSize;
+
+      if (end <= buffer.length) {
+        const payload = buffer.subarray(start, end);
+        try {
+          return this.compressionService.decompress({
+            algorithm: mappedAlgorithm,
+            originalSize,
+            compressedSize,
+            payload,
+          });
+        } catch {
+          // Fall back to legacy format below
+        }
+      }
+    }
+
+    const legacyOriginalSize = buffer.readUInt32LE(4);
+    const legacyCompressedSize = buffer.readUInt32LE(8);
+    const legacyStart = envelopeHeaderSize;
+    const legacyEnd = legacyStart + legacyCompressedSize;
+
+    if (legacyEnd > buffer.length) {
       throw new Error('Compressed node payload is corrupted');
     }
 
-    const payload = buffer.subarray(start, end);
+    const legacyPayload = buffer.subarray(legacyStart, legacyEnd);
     return this.compressionService.decompress({
       algorithm: 'zstd',
-      originalSize,
-      compressedSize,
-      payload,
+      originalSize: legacyOriginalSize,
+      compressedSize: legacyCompressedSize,
+      payload: legacyPayload,
     });
   }
 

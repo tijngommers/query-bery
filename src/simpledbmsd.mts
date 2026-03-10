@@ -9,10 +9,14 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import cors from 'cors';
 import { EncryptionService } from './encryption-service.mjs';
 import {
-  COMPRESSION_ALGORITHM_ZSTD_ID,
+  COMPRESSION_ALGORITHM_ENV_VAR,
   COMPRESSION_ENVELOPE_HEADER_SIZE,
   CompressionService,
+  DEFAULT_COMPRESSION_ALGORITHM,
   type CompressionResult,
+  getCompressionAlgorithmById,
+  getCompressionAlgorithmId,
+  parseCompressionAlgorithm,
 } from './compression/compression.mjs';
 import { SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
 import { RealFile } from './file/file.mjs';
@@ -35,12 +39,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
 const passwordHasher = new PasswordHasher();
-const contentCompressionService = new CompressionService({ algorithm: 'zstd' });
+const contentCompressionService = new CompressionService({
+  algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+});
 const DOCUMENT_COMPRESSED_PAYLOAD_MAGIC = Buffer.from('DOC1', 'ascii');
 
 function serializeCompressedDocumentPayload(result: CompressionResult): Buffer {
   const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+  const algorithmId = getCompressionAlgorithmId(result.algorithm);
   const metadata = Buffer.alloc(envelopeHeaderSize);
 
   DOCUMENT_COMPRESSED_PAYLOAD_MAGIC.copy(metadata, 0);
@@ -53,7 +59,6 @@ function serializeCompressedDocumentPayload(result: CompressionResult): Buffer {
 
 function tryDeserializeCompressedDocumentPayload(payload: Buffer): CompressionResult | null {
   const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
 
   if (payload.length < envelopeHeaderSize) {
     return null;
@@ -64,7 +69,8 @@ function tryDeserializeCompressedDocumentPayload(payload: Buffer): CompressionRe
   }
 
   const payloadAlgorithmId = payload.readUInt8(4);
-  if (payloadAlgorithmId !== algorithmId) {
+  const algorithm = getCompressionAlgorithmById(payloadAlgorithmId);
+  if (algorithm === null) {
     return null;
   }
 
@@ -78,7 +84,7 @@ function tryDeserializeCompressedDocumentPayload(payload: Buffer): CompressionRe
   }
 
   return {
-    algorithm: 'zstd',
+    algorithm,
     originalSize,
     compressedSize,
     payload: Buffer.from(payload.subarray(payloadStart, payloadEnd)),
