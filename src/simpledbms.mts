@@ -8,7 +8,83 @@ import { FreeBlockFile, DEFAULT_BLOCK_SIZE } from './freeblockfile.mjs';
 import { AtomicFileImpl } from './atomic-operations/atomic-file.mjs';
 import { WALManagerImpl } from './atomic-operations/wal-manager.mjs';
 import { type File } from './file/file.mjs';
+import {
+  COMPRESSION_ALGORITHM_ZSTD_ID,
+  COMPRESSION_ENVELOPE_HEADER_SIZE,
+  CompressionService,
+  type CompressionResult,
+} from './compression/compression.mjs';
 import { randomUUID } from 'crypto';
+
+const HEADER_COMPRESSED_PAYLOAD_MAGIC = Buffer.from('DBH1', 'ascii');
+const headerCompressionService = new CompressionService({ algorithm: 'zstd' });
+
+function serializeCompressedHeaderPayload(result: CompressionResult): Buffer {
+  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
+  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+  const metadata = Buffer.alloc(envelopeHeaderSize);
+
+  HEADER_COMPRESSED_PAYLOAD_MAGIC.copy(metadata, 0);
+  metadata.writeUInt8(algorithmId, 4);
+  metadata.writeUInt32LE(result.originalSize >>> 0, 5);
+  metadata.writeUInt32LE(result.compressedSize >>> 0, 9);
+
+  return Buffer.concat([metadata, result.payload]);
+}
+
+function tryDeserializeCompressedHeaderPayload(payload: Buffer): CompressionResult | null {
+  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
+  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+
+  if (payload.length < envelopeHeaderSize) {
+    return null;
+  }
+
+  if (!payload.subarray(0, 4).equals(HEADER_COMPRESSED_PAYLOAD_MAGIC)) {
+    return null;
+  }
+
+  const payloadAlgorithmId = payload.readUInt8(4);
+  if (payloadAlgorithmId !== algorithmId) {
+    return null;
+  }
+
+  const originalSize = payload.readUInt32LE(5);
+  const compressedSize = payload.readUInt32LE(9);
+  const payloadStart = envelopeHeaderSize;
+  const payloadEnd = payloadStart + compressedSize;
+
+  if (payloadEnd > payload.length) {
+    return null;
+  }
+
+  return {
+    algorithm: 'zstd',
+    originalSize,
+    compressedSize,
+    payload: Buffer.from(payload.subarray(payloadStart, payloadEnd)),
+  };
+}
+
+function encodeHeaderForStorage(header: Record<string, unknown>): Buffer {
+  const jsonBuffer = Buffer.from(JSON.stringify(header));
+  const compressed = headerCompressionService.compress(jsonBuffer);
+
+  if (compressed.compressedSize >= compressed.originalSize) {
+    return jsonBuffer;
+  }
+
+  return serializeCompressedHeaderPayload(compressed);
+}
+
+function decodeHeaderFromStorage(payload: Buffer): string {
+  const compressed = tryDeserializeCompressedHeaderPayload(payload);
+  if (compressed === null) {
+    return payload.toString();
+  }
+
+  return headerCompressionService.decompress(compressed).toString();
+}
 
 // Document interface
 export type DocumentValue =
@@ -866,7 +942,8 @@ export class SimpleDBMS {
         await this.saveCatalogRoot();
       } else {
         try {
-          this.dbHeader = JSON.parse(headerBuf.toString()) as typeof this.dbHeader;
+          const decodedHeader = decodeHeaderFromStorage(headerBuf);
+          this.dbHeader = JSON.parse(decodedHeader) as typeof this.dbHeader;
           const rootNode = await this.catalogStorage.loadNode(this.dbHeader.catalogRootBlockId);
           this.catalogTree.load(rootNode);
         } catch {
@@ -893,7 +970,7 @@ export class SimpleDBMS {
 
     this.dbHeader.catalogRootBlockId = rootId;
 
-    const headerBuf = Buffer.from(JSON.stringify(this.dbHeader));
+    const headerBuf = encodeHeaderForStorage(this.dbHeader as unknown as Record<string, unknown>);
     await this.fbFile.writeHeader(headerBuf);
     await this.fbFile.commit();
   }
