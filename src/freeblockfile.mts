@@ -33,16 +33,11 @@
 
 import { type File } from './file/file.mjs';
 import {
-  COMPRESSION_ALGORITHM_ENV_VAR,
-  DEFAULT_COMPRESSION_ALGORITHM,
   CompressionService,
-  type CompressionResult,
-  COMPRESSION_ENVELOPE_HEADER_SIZE,
   FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC,
-  getCompressionAlgorithmById,
-  getCompressionAlgorithmId,
-  parseCompressionAlgorithm,
+  resolveCompressionAlgorithmFromEnvironment,
 } from './compression/compression.mjs';
+import { deserializeCompressionEnvelope, serializeCompressionEnvelope } from './compression/envelope.mjs';
 
 /**
  * Test interface for atomic file operations used by FreeBlockFile.
@@ -113,7 +108,7 @@ export class FreeBlockFile {
 
   private opened = false;
   private readonly compressionService = new CompressionService({
-    algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+    algorithm: resolveCompressionAlgorithmFromEnvironment(),
   });
 
   private ensureOpened(): void {
@@ -397,11 +392,11 @@ export class FreeBlockFile {
       return Buffer.from(data);
     }
 
-    return this.serializeCompressedPayload(compressed);
+    return serializeCompressionEnvelope(FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC, compressed);
   }
 
   private decodePayload(payload: Buffer): Buffer {
-    const decoded = this.tryDeserializeCompressedPayload(payload);
+    const decoded = deserializeCompressionEnvelope(payload, FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC);
     if (decoded === null) {
       return Buffer.from(payload);
     }
@@ -411,54 +406,6 @@ export class FreeBlockFile {
     } catch {
       return Buffer.from(payload);
     }
-  }
-
-  private serializeCompressedPayload(result: CompressionResult): Buffer {
-    const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-    const algorithmId = getCompressionAlgorithmId(result.algorithm);
-    const envelopeMagic = FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC;
-
-    const meta = Buffer.alloc(envelopeHeaderSize);
-    envelopeMagic.copy(meta, 0);
-    meta.writeUInt8(algorithmId, 4);
-    meta.writeUInt32LE(result.originalSize >>> 0, 5);
-    meta.writeUInt32LE(result.compressedSize >>> 0, 9);
-    return Buffer.concat([meta, result.payload]);
-  }
-
-  private tryDeserializeCompressedPayload(payload: Buffer): CompressionResult | null {
-    const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-    const envelopeMagic = FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC;
-
-    if (payload.length < envelopeHeaderSize) {
-      return null;
-    }
-
-    const magic = payload.subarray(0, 4);
-    if (!magic.equals(envelopeMagic)) {
-      return null;
-    }
-
-    const payloadAlgorithmId = payload.readUInt8(4);
-    const algorithm = getCompressionAlgorithmById(payloadAlgorithmId);
-    if (algorithm === null) {
-      return null;
-    }
-
-    const originalSize = payload.readUInt32LE(5);
-    const compressedSize = payload.readUInt32LE(9);
-    if (payload.length < envelopeHeaderSize + compressedSize) {
-      return null;
-    }
-
-    const compressedPayload = payload.subarray(envelopeHeaderSize, envelopeHeaderSize + compressedSize);
-
-    return {
-      algorithm,
-      originalSize,
-      compressedSize,
-      payload: Buffer.from(compressedPayload),
-    };
   }
 
   private async readRawBlock(blockId: number): Promise<Buffer> {

@@ -156,4 +156,44 @@ describe('SimpleDBMS', () => {
     expect(found!['value']).toBe('ok');
     await db.close();
   });
+
+  it('should reopen with legacy plain JSON header', async () => {
+    let db = await SimpleDBMS.create(dbFile, walFile);
+
+    const users = await db.getCollection('users');
+    await users.insert({ id: 'legacy-user', name: 'legacy' });
+
+    const freeBlockFile = db.getFreeBlockFile();
+    const header = await freeBlockFile.readHeader();
+
+    let parsedHeader: unknown;
+    if (header.subarray(0, 4).equals(Buffer.from('DBH1', 'ascii'))) {
+      const compressedSize = header.readUInt32LE(9);
+      const payload = header.subarray(
+        COMPRESSION_ENVELOPE_HEADER_SIZE,
+        COMPRESSION_ENVELOPE_HEADER_SIZE + compressedSize,
+      );
+      const service = new CompressionService({ algorithm: 'zstd' });
+      const decoded = service.decompress({
+        algorithm: 'zstd',
+        originalSize: header.readUInt32LE(5),
+        compressedSize,
+        payload: Buffer.from(payload),
+      });
+      parsedHeader = JSON.parse(decoded.toString());
+    } else {
+      parsedHeader = JSON.parse(header.toString());
+    }
+
+    await freeBlockFile.writeHeader(Buffer.from(JSON.stringify(parsedHeader)));
+    await freeBlockFile.commit();
+    await db.close();
+
+    db = await SimpleDBMS.open(dbFile, walFile);
+    const reopenedUsers = await db.getCollection('users');
+    const found = await reopenedUsers.findById('legacy-user');
+    expect(found).toBeDefined();
+    expect(found!['name']).toBe('legacy');
+    await db.close();
+  });
 });

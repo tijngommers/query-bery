@@ -11,15 +11,15 @@ import type {
 } from './node-storage.mjs';
 import { FreeBlockFile, NO_BLOCK } from '../freeblockfile.mjs';
 import {
-  COMPRESSION_ALGORITHM_ENV_VAR,
   CompressionService,
-  COMPRESSION_ENVELOPE_HEADER_SIZE,
-  DEFAULT_COMPRESSION_ALGORITHM,
   NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC,
-  getCompressionAlgorithmById,
-  getCompressionAlgorithmId,
-  parseCompressionAlgorithm,
+  resolveCompressionAlgorithmFromEnvironment,
 } from '../compression/compression.mjs';
+import {
+  deserializeCompressionEnvelope,
+  deserializeLegacyCompressionEnvelopeV0,
+  serializeCompressionEnvelope,
+} from '../compression/envelope.mjs';
 
 type SerializedKey =
   | { type: 'string'; value: string }
@@ -120,7 +120,7 @@ export class FBNodeStorage<Keystype, ValuesType>
   private cache = new Map<number, FBLeafNode<Keystype, ValuesType> | FBInternalNode<Keystype, ValuesType>>();
   private reclaimQueue = new Set<number>();
   private readonly compressionService = new CompressionService({
-    algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+    algorithm: resolveCompressionAlgorithmFromEnvironment(),
   });
 
   constructor(
@@ -137,69 +137,22 @@ export class FBNodeStorage<Keystype, ValuesType>
   private encodeNodePayload(payload: unknown): Buffer {
     const jsonBuffer = Buffer.from(JSON.stringify(payload), 'utf-8');
     const compressed = this.compressionService.compress(jsonBuffer);
-    const algorithmId = getCompressionAlgorithmId(compressed.algorithm);
 
-    const header = Buffer.alloc(COMPRESSION_ENVELOPE_HEADER_SIZE);
-    NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC.copy(header, 0);
-    header.writeUInt8(algorithmId, 4);
-    header.writeUInt32LE(compressed.originalSize, 5);
-    header.writeUInt32LE(compressed.compressedSize, 9);
-
-    return Buffer.concat([header, compressed.payload]);
+    return serializeCompressionEnvelope(NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC, compressed);
   }
 
   private decodeNodePayload(buffer: Buffer): Buffer {
-    if (buffer.length < COMPRESSION_ENVELOPE_HEADER_SIZE) {
-      return buffer;
+    const decoded = deserializeCompressionEnvelope(buffer, NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC);
+    if (decoded !== null) {
+      return this.compressionService.decompress(decoded);
     }
 
-    const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-    const envelopeMagic = NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC;
-
-    if (!buffer.subarray(0, 4).equals(envelopeMagic)) {
-      return buffer;
+    const legacy = deserializeLegacyCompressionEnvelopeV0(buffer, NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC, 'zstd');
+    if (legacy !== null) {
+      return this.compressionService.decompress(legacy);
     }
 
-    const payloadAlgorithmId = buffer.readUInt8(4);
-    const mappedAlgorithm = getCompressionAlgorithmById(payloadAlgorithmId);
-
-    if (mappedAlgorithm !== null) {
-      const originalSize = buffer.readUInt32LE(5);
-      const compressedSize = buffer.readUInt32LE(9);
-      const start = envelopeHeaderSize;
-      const end = start + compressedSize;
-
-      if (end <= buffer.length) {
-        const payload = buffer.subarray(start, end);
-        try {
-          return this.compressionService.decompress({
-            algorithm: mappedAlgorithm,
-            originalSize,
-            compressedSize,
-            payload,
-          });
-        } catch {
-          // Fall back to legacy format below
-        }
-      }
-    }
-
-    const legacyOriginalSize = buffer.readUInt32LE(4);
-    const legacyCompressedSize = buffer.readUInt32LE(8);
-    const legacyStart = envelopeHeaderSize;
-    const legacyEnd = legacyStart + legacyCompressedSize;
-
-    if (legacyEnd > buffer.length) {
-      throw new Error('Compressed node payload is corrupted');
-    }
-
-    const legacyPayload = buffer.subarray(legacyStart, legacyEnd);
-    return this.compressionService.decompress({
-      algorithm: 'zstd',
-      originalSize: legacyOriginalSize,
-      compressedSize: legacyCompressedSize,
-      payload: legacyPayload,
-    });
+    return buffer;
   }
 
   async createTree(): Promise<FBLeafNode<Keystype, ValuesType>> {

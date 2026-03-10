@@ -8,16 +8,8 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import cors from 'cors';
 import { EncryptionService } from './encryption-service.mjs';
-import {
-  COMPRESSION_ALGORITHM_ENV_VAR,
-  COMPRESSION_ENVELOPE_HEADER_SIZE,
-  CompressionService,
-  DEFAULT_COMPRESSION_ALGORITHM,
-  type CompressionResult,
-  getCompressionAlgorithmById,
-  getCompressionAlgorithmId,
-  parseCompressionAlgorithm,
-} from './compression/compression.mjs';
+import { CompressionService, resolveCompressionAlgorithmFromEnvironment } from './compression/compression.mjs';
+import { deserializeCompressionEnvelope, serializeCompressionEnvelope } from './compression/envelope.mjs';
 import { SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
 import { RealFile } from './file/file.mjs';
 import path from 'path';
@@ -40,56 +32,9 @@ const app = express();
 const port = 3000;
 const passwordHasher = new PasswordHasher();
 const contentCompressionService = new CompressionService({
-  algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+  algorithm: resolveCompressionAlgorithmFromEnvironment(),
 });
 const DOCUMENT_COMPRESSED_PAYLOAD_MAGIC = Buffer.from('DOC1', 'ascii');
-
-function serializeCompressedDocumentPayload(result: CompressionResult): Buffer {
-  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-  const algorithmId = getCompressionAlgorithmId(result.algorithm);
-  const metadata = Buffer.alloc(envelopeHeaderSize);
-
-  DOCUMENT_COMPRESSED_PAYLOAD_MAGIC.copy(metadata, 0);
-  metadata.writeUInt8(algorithmId, 4);
-  metadata.writeUInt32LE(result.originalSize >>> 0, 5);
-  metadata.writeUInt32LE(result.compressedSize >>> 0, 9);
-
-  return Buffer.concat([metadata, result.payload]);
-}
-
-function tryDeserializeCompressedDocumentPayload(payload: Buffer): CompressionResult | null {
-  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-
-  if (payload.length < envelopeHeaderSize) {
-    return null;
-  }
-
-  if (!payload.subarray(0, 4).equals(DOCUMENT_COMPRESSED_PAYLOAD_MAGIC)) {
-    return null;
-  }
-
-  const payloadAlgorithmId = payload.readUInt8(4);
-  const algorithm = getCompressionAlgorithmById(payloadAlgorithmId);
-  if (algorithm === null) {
-    return null;
-  }
-
-  const originalSize = payload.readUInt32LE(5);
-  const compressedSize = payload.readUInt32LE(9);
-  const payloadStart = envelopeHeaderSize;
-  const payloadEnd = payloadStart + compressedSize;
-
-  if (payloadEnd > payload.length) {
-    return null;
-  }
-
-  return {
-    algorithm,
-    originalSize,
-    compressedSize,
-    payload: Buffer.from(payload.subarray(payloadStart, payloadEnd)),
-  };
-}
 
 function encodeContentForStorage(content: Record<string, unknown>): Buffer {
   const jsonBuffer = Buffer.from(JSON.stringify(content));
@@ -99,11 +44,11 @@ function encodeContentForStorage(content: Record<string, unknown>): Buffer {
     return jsonBuffer;
   }
 
-  return serializeCompressedDocumentPayload(compressed);
+  return serializeCompressionEnvelope(DOCUMENT_COMPRESSED_PAYLOAD_MAGIC, compressed);
 }
 
 function decodeContentFromStorage(payload: Buffer): Record<string, unknown> {
-  const compressed = tryDeserializeCompressedDocumentPayload(payload);
+  const compressed = deserializeCompressionEnvelope(payload, DOCUMENT_COMPRESSED_PAYLOAD_MAGIC);
   if (compressed === null) {
     return JSON.parse(payload.toString()) as Record<string, unknown>;
   }

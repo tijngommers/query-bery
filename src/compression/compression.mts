@@ -31,6 +31,7 @@ export const FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC: Buffer = Buffer.from('FBC1', 'a
 export const NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC: Buffer = Buffer.from('ZST1', 'ascii');
 export const DEFAULT_COMPRESSION_ALGORITHM: CompressionAlgorithm = 'zstd';
 export const COMPRESSION_ALGORITHM_ENV_VAR = 'COMPRESSION_ALGO';
+let hasLoggedCompressionAlgorithmSelection = false;
 
 const COMPRESSION_ALGORITHM_ID_MAP: Record<CompressionAlgorithm, number> = {
   zstd: COMPRESSION_ALGORITHM_ZSTD_ID,
@@ -87,6 +88,29 @@ export function parseCompressionAlgorithm(
   }
 
   return fallback;
+}
+
+/**
+ * Resolves the compression algorithm from environment configuration and logs the
+ * selected value once per process.
+ *
+ * @param {NodeJS.ProcessEnv} env - Environment variables to read from.
+ * @returns {CompressionAlgorithm} The selected compression algorithm.
+ */
+export function resolveCompressionAlgorithmFromEnvironment(env: NodeJS.ProcessEnv = process.env): CompressionAlgorithm {
+  const raw = env[COMPRESSION_ALGORITHM_ENV_VAR];
+  const selected = parseCompressionAlgorithm(raw, DEFAULT_COMPRESSION_ALGORITHM);
+
+  if (!hasLoggedCompressionAlgorithmSelection) {
+    const normalized = raw?.trim().toLowerCase();
+    if (raw && normalized !== selected) {
+      console.warn(`[compression] Invalid ${COMPRESSION_ALGORITHM_ENV_VAR}='${raw}'. Falling back to '${selected}'.`);
+    }
+    console.info(`[compression] Active algorithm: '${selected}'`);
+    hasLoggedCompressionAlgorithmSelection = true;
+  }
+
+  return selected;
 }
 
 export interface CompressionOptions {

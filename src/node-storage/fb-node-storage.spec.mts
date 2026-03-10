@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FBChildCursor, FBNodeStorage } from './fb-node-storage.mjs';
 import { FreeBlockFile, NO_BLOCK } from '../freeblockfile.mjs';
 import { MockFile } from '../file/mockfile.mjs';
+import {
+  COMPRESSION_ENVELOPE_HEADER_SIZE,
+  CompressionService,
+  NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC,
+} from '../compression/compression.mjs';
 
 /**
  * Small TestAtomicFile wrapper used by FreeBlockFile in your test harness.
@@ -80,6 +85,33 @@ describe('FBNodeStorage', () => {
     if (loaded.isLeaf) {
       expect(loaded.keys).toEqual([5, 10, 20]);
       expect(loaded.values).toEqual(['v5', 'v10', 'v20']);
+    }
+  });
+
+  it('loads legacy node-storage envelope (v0 without algorithm id)', async () => {
+    const service = new CompressionService({ algorithm: 'zstd' });
+    const legacyPayload = {
+      type: 'leaf',
+      keys: [{ type: 'number', value: 42 }],
+      values: [{ t: 'json', value: JSON.stringify('legacy') }],
+    };
+    const json = Buffer.from(JSON.stringify(legacyPayload), 'utf-8');
+    const compressed = service.compress(json);
+
+    const legacyMeta = Buffer.alloc(COMPRESSION_ENVELOPE_HEADER_SIZE);
+    NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC.copy(legacyMeta, 0);
+    legacyMeta.writeUInt32LE(compressed.originalSize, 4);
+    legacyMeta.writeUInt32LE(compressed.compressedSize, 8);
+    const legacyBuffer = Buffer.concat([legacyMeta, compressed.payload]);
+
+    const blockId = await fb.allocateAndWrite(legacyBuffer);
+    await fb.commit();
+
+    const loaded = await storage.loadNode(blockId);
+    expect(loaded.isLeaf).toBe(true);
+    if (loaded.isLeaf) {
+      expect(loaded.keys).toEqual([42]);
+      expect(loaded.values).toEqual(['legacy']);
     }
   });
 

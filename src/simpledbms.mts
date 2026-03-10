@@ -8,69 +8,14 @@ import { FreeBlockFile, DEFAULT_BLOCK_SIZE } from './freeblockfile.mjs';
 import { AtomicFileImpl } from './atomic-operations/atomic-file.mjs';
 import { WALManagerImpl } from './atomic-operations/wal-manager.mjs';
 import { type File } from './file/file.mjs';
-import {
-  COMPRESSION_ALGORITHM_ENV_VAR,
-  COMPRESSION_ENVELOPE_HEADER_SIZE,
-  CompressionService,
-  DEFAULT_COMPRESSION_ALGORITHM,
-  type CompressionResult,
-  getCompressionAlgorithmById,
-  getCompressionAlgorithmId,
-  parseCompressionAlgorithm,
-} from './compression/compression.mjs';
+import { CompressionService, resolveCompressionAlgorithmFromEnvironment } from './compression/compression.mjs';
+import { deserializeCompressionEnvelope, serializeCompressionEnvelope } from './compression/envelope.mjs';
 import { randomUUID } from 'crypto';
 
 const HEADER_COMPRESSED_PAYLOAD_MAGIC = Buffer.from('DBH1', 'ascii');
 const headerCompressionService = new CompressionService({
-  algorithm: parseCompressionAlgorithm(process.env[COMPRESSION_ALGORITHM_ENV_VAR], DEFAULT_COMPRESSION_ALGORITHM),
+  algorithm: resolveCompressionAlgorithmFromEnvironment(),
 });
-
-function serializeCompressedHeaderPayload(result: CompressionResult): Buffer {
-  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-  const algorithmId = getCompressionAlgorithmId(result.algorithm);
-  const metadata = Buffer.alloc(envelopeHeaderSize);
-
-  HEADER_COMPRESSED_PAYLOAD_MAGIC.copy(metadata, 0);
-  metadata.writeUInt8(algorithmId, 4);
-  metadata.writeUInt32LE(result.originalSize >>> 0, 5);
-  metadata.writeUInt32LE(result.compressedSize >>> 0, 9);
-
-  return Buffer.concat([metadata, result.payload]);
-}
-
-function tryDeserializeCompressedHeaderPayload(payload: Buffer): CompressionResult | null {
-  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
-
-  if (payload.length < envelopeHeaderSize) {
-    return null;
-  }
-
-  if (!payload.subarray(0, 4).equals(HEADER_COMPRESSED_PAYLOAD_MAGIC)) {
-    return null;
-  }
-
-  const payloadAlgorithmId = payload.readUInt8(4);
-  const algorithm = getCompressionAlgorithmById(payloadAlgorithmId);
-  if (algorithm === null) {
-    return null;
-  }
-
-  const originalSize = payload.readUInt32LE(5);
-  const compressedSize = payload.readUInt32LE(9);
-  const payloadStart = envelopeHeaderSize;
-  const payloadEnd = payloadStart + compressedSize;
-
-  if (payloadEnd > payload.length) {
-    return null;
-  }
-
-  return {
-    algorithm,
-    originalSize,
-    compressedSize,
-    payload: Buffer.from(payload.subarray(payloadStart, payloadEnd)),
-  };
-}
 
 function encodeHeaderForStorage(header: Record<string, unknown>): Buffer {
   const jsonBuffer = Buffer.from(JSON.stringify(header));
@@ -80,11 +25,11 @@ function encodeHeaderForStorage(header: Record<string, unknown>): Buffer {
     return jsonBuffer;
   }
 
-  return serializeCompressedHeaderPayload(compressed);
+  return serializeCompressionEnvelope(HEADER_COMPRESSED_PAYLOAD_MAGIC, compressed);
 }
 
 function decodeHeaderFromStorage(payload: Buffer): string {
-  const compressed = tryDeserializeCompressedHeaderPayload(payload);
+  const compressed = deserializeCompressionEnvelope(payload, HEADER_COMPRESSED_PAYLOAD_MAGIC);
   if (compressed === null) {
     return payload.toString();
   }
