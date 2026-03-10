@@ -8,6 +8,12 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import cors from 'cors';
 import { EncryptionService } from './encryption-service.mjs';
+import {
+  COMPRESSION_ALGORITHM_ZSTD_ID,
+  COMPRESSION_ENVELOPE_HEADER_SIZE,
+  CompressionService,
+  type CompressionResult,
+} from './compression/compression.mjs';
 import { SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
 import { RealFile } from './file/file.mjs';
 import path from 'path';
@@ -29,6 +35,76 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
 const passwordHasher = new PasswordHasher();
+const contentCompressionService = new CompressionService({ algorithm: 'zstd' });
+const DOCUMENT_COMPRESSED_PAYLOAD_MAGIC = Buffer.from('DOC1', 'ascii');
+
+function serializeCompressedDocumentPayload(result: CompressionResult): Buffer {
+  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
+  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+  const metadata = Buffer.alloc(envelopeHeaderSize);
+
+  DOCUMENT_COMPRESSED_PAYLOAD_MAGIC.copy(metadata, 0);
+  metadata.writeUInt8(algorithmId, 4);
+  metadata.writeUInt32LE(result.originalSize >>> 0, 5);
+  metadata.writeUInt32LE(result.compressedSize >>> 0, 9);
+
+  return Buffer.concat([metadata, result.payload]);
+}
+
+function tryDeserializeCompressedDocumentPayload(payload: Buffer): CompressionResult | null {
+  const envelopeHeaderSize = COMPRESSION_ENVELOPE_HEADER_SIZE;
+  const algorithmId = COMPRESSION_ALGORITHM_ZSTD_ID;
+
+  if (payload.length < envelopeHeaderSize) {
+    return null;
+  }
+
+  if (!payload.subarray(0, 4).equals(DOCUMENT_COMPRESSED_PAYLOAD_MAGIC)) {
+    return null;
+  }
+
+  const payloadAlgorithmId = payload.readUInt8(4);
+  if (payloadAlgorithmId !== algorithmId) {
+    return null;
+  }
+
+  const originalSize = payload.readUInt32LE(5);
+  const compressedSize = payload.readUInt32LE(9);
+  const payloadStart = envelopeHeaderSize;
+  const payloadEnd = payloadStart + compressedSize;
+
+  if (payloadEnd > payload.length) {
+    return null;
+  }
+
+  return {
+    algorithm: 'zstd',
+    originalSize,
+    compressedSize,
+    payload: Buffer.from(payload.subarray(payloadStart, payloadEnd)),
+  };
+}
+
+function encodeContentForStorage(content: Record<string, unknown>): Buffer {
+  const jsonBuffer = Buffer.from(JSON.stringify(content));
+  const compressed = contentCompressionService.compress(jsonBuffer);
+
+  if (compressed.compressedSize >= compressed.originalSize) {
+    return jsonBuffer;
+  }
+
+  return serializeCompressedDocumentPayload(compressed);
+}
+
+function decodeContentFromStorage(payload: Buffer): Record<string, unknown> {
+  const compressed = tryDeserializeCompressedDocumentPayload(payload);
+  if (compressed === null) {
+    return JSON.parse(payload.toString()) as Record<string, unknown>;
+  }
+
+  const decoded = contentCompressionService.decompress(compressed);
+  return JSON.parse(decoded.toString()) as Record<string, unknown>;
+}
 
 // Initialize encryption service
 const masterKey = process.env['ENCRYPTION_KEY'] || EncryptionService.generateMasterKey();
@@ -140,8 +216,9 @@ async function loadDummyAccount() {
       console.log(`  Creating collection: ${collectionData.name}`);
 
       for (const docData of collectionData.documents) {
-        // Encrypt the document content
-        const encryptedBuffer = encryptionService.encrypt(Buffer.from(JSON.stringify(docData.content)));
+        // Compress then encrypt the document content
+        const encodedContent = encodeContentForStorage(docData.content);
+        const encryptedBuffer = encryptionService.encrypt(encodedContent);
 
         await collection.insert({
           name: docData.name,
@@ -1110,8 +1187,9 @@ app.post('/api/createDocument', authenticateToken, async (req: AuthenticatedRequ
       return;
     }
 
-    // Encrypt the document content before storing
-    const encryptedBuffer = encryptionService.encrypt(Buffer.from(JSON.stringify(documentContent || {})));
+    // Compress then encrypt the document content before storing
+    const encodedContent = encodeContentForStorage(documentContent || {});
+    const encryptedBuffer = encryptionService.encrypt(encodedContent);
 
     // Create the document in the collection with encrypted content
     await collection.insert({
@@ -1316,9 +1394,9 @@ app.get('/api/fetchDocumentContent', authenticateToken, async (req: Authenticate
     const docData = document as unknown as { content?: string };
     const encryptedContent = docData.content || '';
 
-    // Decrypt the content
+    // Decrypt then decode the content
     const decryptedBuffer = encryptionService.decrypt(Buffer.from(encryptedContent, 'base64'));
-    const documentContent = JSON.parse(decryptedBuffer.toString()) as Record<string, unknown>;
+    const documentContent = decodeContentFromStorage(decryptedBuffer);
 
     const response = addTokenToResponse(req, {
       success: true,
@@ -1390,8 +1468,9 @@ app.put('/api/updateDocument', authenticateToken, async (req: AuthenticatedReque
       return;
     }
 
-    // Encrypt the new content before storing
-    const encryptedBuffer = encryptionService.encrypt(Buffer.from(JSON.stringify(newDocumentContent)));
+    // Compress then encrypt the new content before storing
+    const encodedContent = encodeContentForStorage(newDocumentContent);
+    const encryptedBuffer = encryptionService.encrypt(encodedContent);
 
     // Update the document content while preserving all system fields
     const docData = document as unknown as { createdAt?: string };
