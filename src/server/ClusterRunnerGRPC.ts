@@ -12,7 +12,7 @@ import path from "node:path";
 import { ClusterMember } from "../config/ClusterConfig";
 import { StorageCodec } from "../storage/Storage";
 import { CONFIG_LEARNERS_KEY, CONFIG_VOTERS_KEY } from "../config/ConfigManager";
-
+import fs from "fs/promises";
 
 export interface ClusterRunnerOptions {
     nodeCount: number;
@@ -43,7 +43,7 @@ export class ClusterRunnerGRPC {
 
         const baseNodeIds: NodeId[] = Array.from({ length: nodeCount }, (_, i) => `node${i+1}`);
 
-        const persistedMembers = await this.readPersistedConfig(baseNodeIds[0])
+        const persistedMembers = await this.readPersistedConfig(baseNodeIds);
 
         const addressMap: Record<NodeId, string> = {};
         baseNodeIds.forEach((nodeId, index) => {
@@ -52,11 +52,10 @@ export class ClusterRunnerGRPC {
 
         if (persistedMembers) {
             for (const m of [...persistedMembers.voters, ...persistedMembers.learners]) {
-                if (!(m.id in addressMap)) {
-                    addressMap[m.id] = m.address;
-                }
+                addressMap[m.id] = m.address;
             }
         }
+        
 
         const allNodeIds: NodeId[] = persistedMembers
             ? [
@@ -188,20 +187,16 @@ export class ClusterRunnerGRPC {
             throw new Error(`Invalid address format: ${address}`);
         }
 
-        const addressMap: Record<NodeId, string> = {};
-        this.nodeIds.forEach(id => {
-            if (id !== nodeId) {
-                addressMap[id] = `localhost:${52000 + this.nodeIds.indexOf(id)}`;
-            }
-        });
+        const allCurrentMembers = [
+            ...this.committedConfig.voters,
+            ...this.committedConfig.learners
+        ];
 
         const peers = Object.fromEntries(
-            Object.entries(addressMap).filter(([id]) => id !== nodeId)
+            allCurrentMembers.map(m => [m.id, m.address])
         );
 
-        const peerMembers = this.nodeIds
-            .filter(id => id !== nodeId)
-            .map(id => ({ id, address: `localhost:${52000 + this.nodeIds.indexOf(id)}` }));
+        const peerMembers = allCurrentMembers.map(m => ({id: m.id, address: m.address }));
 
         const config = createConfig(
             nodeId,
@@ -288,6 +283,21 @@ export class ClusterRunnerGRPC {
             throw new Error('No leader available to remove server');
         }
         await leader.removeServer(nodeId);
+
+        const node = this.nodes.get(nodeId);
+        if (node && node.isStarted()) {
+            await node.stop();
+        }
+
+        this.nodes.delete(nodeId);
+        this.nodeIds = this.nodeIds.filter(id => id !== nodeId);
+        this.committedConfig = {
+            voters: this.committedConfig.voters.filter(m => m.id !== nodeId),
+            learners: this.committedConfig.learners.filter(m => m.id !== nodeId)
+        };
+
+        const dataDir = path.join(__dirname, "../../data", nodeId);
+        await fs.rm(dataDir, { recursive: true, force: true });
     }
 
     async promoteServer(nodeId: NodeId): Promise<void> {
@@ -296,6 +306,15 @@ export class ClusterRunnerGRPC {
             throw new Error('No leader available to promote server');
         }
         await leader.promoteServer(nodeId);
+
+        const member = this.committedConfig.learners.find(m => m.id === nodeId);
+        
+        if (member) {
+            this.committedConfig = {
+                voters: [...this.committedConfig.voters, member],
+                learners: this.committedConfig.learners.filter(m => m.id !== nodeId)
+            };
+        }
     }
 
     getCommittedConfig() {
@@ -303,25 +322,25 @@ export class ClusterRunnerGRPC {
     }
 
     private async readPersistedConfig(
-        seedNodeId: NodeId
+        baseNodeIds: NodeId[]
     ): Promise<{ voters: ClusterMember[]; learners: ClusterMember[] } | null> {
-        const storagePath = path.join(__dirname, "../../data", seedNodeId);
-        const storage = new DiskStorage(storagePath);
-        try {
-            await storage.open();
-            const votersBuf = await storage.get(CONFIG_VOTERS_KEY);
-            const learnersBuf = await storage.get(CONFIG_LEARNERS_KEY);
-            await storage.close();
-
-            if (!votersBuf || !learnersBuf) return null;
-
-            const voters = StorageCodec.decodeJSON<ClusterMember[]>(votersBuf);
-            const learners = StorageCodec.decodeJSON<ClusterMember[]>(learnersBuf);
-            return { voters, learners };
-        } catch {
-            try { await storage.close(); } catch {}
-            return null;
+        for (const seedNodeId of baseNodeIds) {
+            const storagePath = path.join(__dirname, "../../data", seedNodeId);
+            const storage = new DiskStorage(storagePath);
+            try {
+                await storage.open();
+                const votersBuf = await storage.get(CONFIG_VOTERS_KEY);
+                const learnersBuf = await storage.get(CONFIG_LEARNERS_KEY);
+                await storage.close();
+                if (!votersBuf || !learnersBuf) continue;
+                const voters = StorageCodec.decodeJSON<ClusterMember[]>(votersBuf);
+                const learners = StorageCodec.decodeJSON<ClusterMember[]>(learnersBuf);
+                return { voters, learners };
+            } catch {
+                try { await storage.close(); } catch {}
+            }
         }
+        return null;
     }
 }
 
