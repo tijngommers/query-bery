@@ -145,8 +145,8 @@ export async function compactDatabase(
 
         // Recreate secondary indexes (createIndex already streams internally)
         for (const field of meta.indexedFields) {
-          const blockSize = db.getFreeBlockFile().blockSize;
-          const pageSize = () => db.getFreeBlockFile().payloadSize;
+          const blockSize = newDb.getFreeBlockFile().blockSize;
+          const pageSize = () => newDb.getFreeBlockFile().payloadSize;
           const indexStorage = new FBNodeStorage<string, string>(
             (a, b) => (a < b ? -1 : a > b ? 1 : 0),
             pageSize,
@@ -199,8 +199,8 @@ export async function compactDatabase(
         }
 
         for (const field of meta.indexedFields) {
-          const blockSize = db.getFreeBlockFile().blockSize;
-          const pageSize = () => db.getFreeBlockFile().payloadSize;
+          const blockSize = newDb.getFreeBlockFile().blockSize;
+          const pageSize = () => newDb.getFreeBlockFile().payloadSize;
           const indexStorage = new FBNodeStorage<string, string>(
             (a, b) => (a < b ? -1 : a > b ? 1 : 0),
             pageSize,
