@@ -187,6 +187,11 @@ export class ClusterRunnerGRPC {
             throw new Error(`Invalid address format: ${address}`);
         }
 
+        const leader = Array.from(this.nodes.values()).find(n => n.isStarted() && n.isLeader());
+        if (!leader) {
+            throw new Error('No leader available to add server')
+        }
+
         const allCurrentMembers = [
             ...this.committedConfig.voters,
             ...this.committedConfig.learners
@@ -245,24 +250,16 @@ export class ClusterRunnerGRPC {
             }
         }
 
-        const leader = Array.from(this.nodes.values()).find(n => n.isStarted() && n.isLeader());
-        if (!leader) {
-            this.nodes.delete(nodeId);
-            this.nodeIds.pop();
-            await node.stop();
-            throw new Error('No leader available to add server');
-        }
-
         const success = await leader.addServer(nodeId, address, asLearner);
 
-        const member = { id: nodeId, address };
-
-         if (!success) {
+        if (!success) {
             this.nodes.delete(nodeId);
             this.nodeIds.pop();
             await node.stop();
             throw new Error(`Failed to add server ${nodeId} to the cluster`);
         }
+
+        const member = { id: nodeId, address };
         
         if (asLearner) {
             this.committedConfig = {
@@ -287,6 +284,12 @@ export class ClusterRunnerGRPC {
         const node = this.nodes.get(nodeId);
         if (node && node.isStarted()) {
             await node.stop();
+        }
+
+        for (const [existingId, existingNode] of this.nodes) {
+            if (existingId !== nodeId && existingNode.isStarted()) {
+                await existingNode.removePeer(nodeId);
+            }
         }
 
         this.nodes.delete(nodeId);

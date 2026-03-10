@@ -211,6 +211,13 @@ export class RaftNode implements RaftNodeInterface {
                 await this.transport.start();
             }
 
+            const activeconfig = this.configManager.getActiveConfig();
+            for (const member of [...activeconfig.voters, ...activeconfig.learners]) {
+                if (member.id !== this.config.nodeId) {
+                    await this.transport.addPeer?.(member.id, member.address);
+                }
+            }
+
             this.transport.onMessage(async (from, message) => {
                 return await this.rpcHandler.handleIncomingMessage(from, message, {
                     onRequestVote: async (request, from) => {
@@ -646,6 +653,10 @@ export class RaftNode implements RaftNodeInterface {
 
     async registerPeer(nodeId: NodeId, address: string): Promise<void> {
         await this.transport.addPeer?.(nodeId, address);
+    }
+
+    async removePeer(nodeId: NodeId): Promise<void> {
+        this.transport.removePeer?.(nodeId);
     }
 
     private async submitConfigChange(newConfig: ClusterConfig): Promise<boolean> {
