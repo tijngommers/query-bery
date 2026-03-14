@@ -59,6 +59,7 @@ export interface AggregateQuery {
 export interface JoinQuery {
   collection: string;
   on: string;
+  rightOn?: string;
 }
 
 // Query options interface
@@ -187,31 +188,32 @@ export function isIndexableField(fieldName: string): boolean {
 // Maybe make a seperate function for that.
 // Collection class with secondary index support
 export class Collection {
-  private primaryTree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>;
+  private documentHeap: FreeBlockFile;
 
-  //TODO: miss is kijken naar dat we primaryTree en secondaryIndexes tot 1 Map maken.
-  //TODO: secondaryIndexes en PrimaryTree tot 1 naamgeving komen. PrimaryIndex en SecondaryIndexes bv.
-  // Secondary indexes: field name -> B+ Tree
-  private secondaryIndexes: Map<
+  // Indexes: field name -> B+ Tree
+  // The 'id' index is guaranteed to exist and serves as the primary index
+  private indexes: Map<
     string,
-    BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>
+    BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>
   > = new Map();
 
   private onChangeCallback?: () => Promise<void>;
-  private createIndexStorage?: () => FBNodeStorage<string, string>;
+  private createIndexStorage?: () => FBNodeStorage<string, number>;
   private onIndexCreated?: (fieldName: string, rootBlockId: number) => Promise<void>;
   private onDocumentCountChanged?: (documentCount: number) => Promise<void>;
   private cachedDocumentCount: number | null = null;
 
   constructor(
-    primaryTree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>,
+    documentHeap: FreeBlockFile,
+    primaryIndexTree: BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>,
     onChangeCallback?: () => Promise<void>,
-    createIndexStorage?: () => FBNodeStorage<string, string>,
+    createIndexStorage?: () => FBNodeStorage<string, number>,
     onIndexCreated?: (fieldName: string, rootBlockId: number) => Promise<void>,
     onDocumentCountChanged?: (documentCount: number) => Promise<void>,
     initialDocumentCount?: number,
   ) {
-    this.primaryTree = primaryTree;
+    this.documentHeap = documentHeap;
+    this.indexes.set('id', primaryIndexTree);
     this.onChangeCallback = onChangeCallback;
     this.createIndexStorage = createIndexStorage;
     this.onIndexCreated = onIndexCreated;
@@ -227,30 +229,35 @@ export class Collection {
    * @throws {Error} If the field is not indexable (starts with _ or is 'id')
    * @returns {Promise<void>} A promise that resolves when the index is created
    */
-  async createIndex(fieldName: string, storage: FBNodeStorage<string, string>): Promise<void> {
+  async createIndex(fieldName: string, storage: FBNodeStorage<string, number>): Promise<void> {
     if (!isIndexableField(fieldName)) {
       throw new Error(`Field ${fieldName} cannot be indexed (starts with _ or is 'id')`);
     }
 
-    if (this.secondaryIndexes.has(fieldName)) {
+    if (this.indexes.has(fieldName)) {
       throw new Error(`Index already exists for field: ${fieldName}`);
     }
 
-    const indexTree = new BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>(
+    const indexTree = new BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>(
       storage,
       50,
     );
     await indexTree.init();
 
-    for await (const { key: docId, value: doc } of this.primaryTree.entries()) {
-      const fieldValue = doc[fieldName];
-      if (fieldValue !== undefined && fieldValue !== null) {
-        const indexKey = serializeFieldValue(fieldValue) + ':' + docId;
-        await indexTree.insert(indexKey, docId);
+    const primaryTree = this.indexes.get('id')!;
+    for await (const { key: docId, value: startBlockId } of primaryTree.entries()) {
+      const docBuffer = await this.documentHeap.readBlob(startBlockId);
+      if (docBuffer.length > 0) {
+        const doc = JSON.parse(docBuffer.toString()) as Document;
+        const fieldValue = doc[fieldName];
+        if (fieldValue !== undefined && fieldValue !== null) {
+          const indexKey = serializeFieldValue(fieldValue) + ':' + docId;
+          await indexTree.insert(indexKey, startBlockId);
+        }
       }
     }
 
-    this.secondaryIndexes.set(fieldName, indexTree);
+    this.indexes.set(fieldName, indexTree);
 
     if (this.onIndexCreated) {
       const root = indexTree.getRoot();
@@ -275,10 +282,13 @@ export class Collection {
    * @returns {Promise<void>} A promise that resolves when the index is dropped
    */
   async dropIndex(fieldName: string): Promise<void> {
-    if (!this.secondaryIndexes.has(fieldName)) {
+    if (fieldName === 'id') {
+      throw new Error('Cannot drop the primary ID index');
+    }
+    if (!this.indexes.has(fieldName)) {
       throw new Error(`Index does not exist for field: ${fieldName}`);
     }
-    this.secondaryIndexes.delete(fieldName);
+    this.indexes.delete(fieldName);
 
     if (this.onChangeCallback) {
       await this.onChangeCallback();
@@ -286,10 +296,17 @@ export class Collection {
   }
 
   /**
+   * Gets the Document Heap
+   */
+  getDocumentHeap() {
+    return this.documentHeap;
+  }
+
+  /**
    * Gets the list of indexed fields.
    */
   getIndexedFields(): string[] {
-    return Array.from(this.secondaryIndexes.keys());
+    return Array.from(this.indexes.keys()).filter((field) => field !== 'id');
   }
 
   /**
@@ -297,8 +314,8 @@ export class Collection {
    */
   getIndex(
     fieldName: string,
-  ): BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>> | undefined {
-    return this.secondaryIndexes.get(fieldName);
+  ): BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>> | undefined {
+    return this.indexes.get(fieldName);
   }
 
   /**
@@ -306,9 +323,14 @@ export class Collection {
    *TODO: is this function really neceseary?
    */
   setIndexes(
-    indexes: Map<string, BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>>,
+    indexes: Map<string, BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>>,
   ): void {
-    this.secondaryIndexes = indexes;
+    const primaryTree = this.indexes.get('id');
+    this.indexes = indexes;
+    // ensure 'id' is always preserved or updated
+    if (primaryTree && !this.indexes.has('id')) {
+      this.indexes.set('id', primaryTree);
+    }
   }
 
   /**
@@ -320,16 +342,18 @@ export class Collection {
   //TODO: is the omit really needed? Can't you just get it form the Document input itself?
   async insert(doc: Omit<Document, 'id'> & { id?: string }): Promise<Document> {
     const id = doc.id || randomUUID();
-    const newDoc: Document = structuredClone({ ...doc, id });
+    const newDoc: Document = JSON.parse(JSON.stringify({ ...doc, id }));
+    const docBuffer = Buffer.from(JSON.stringify(newDoc));
 
-    // Insert into primary index
-    await this.primaryTree.insert(id, newDoc);
+    // Allocate space and write document to the heap
+    const startBlockId = await this.documentHeap.allocateAndWrite(docBuffer);
 
+    // Insert into all indexes, including 'id'
     const newlyCreatedIndexes = new Set<string>();
 
     for (const [key, value] of Object.entries(newDoc)) {
       if (value !== undefined && value !== null) {
-        if (isIndexableField(key) && !this.secondaryIndexes.has(key)) {
+        if (isIndexableField(key) && !this.indexes.has(key)) {
           if (this.createIndexStorage) {
             await this.createIndex(key, this.createIndexStorage());
             newlyCreatedIndexes.add(key);
@@ -338,14 +362,17 @@ export class Collection {
       }
     }
 
-    // Update all secondary indexes that were NOT just completely rebuilt
-    for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
-      if (newlyCreatedIndexes.has(fieldName)) continue;
+    // Insert to all available indexes
+    for (const [fieldName, indexTree] of this.indexes.entries()) {
+      if (fieldName === 'id') {
+        await indexTree.insert(id, startBlockId);
+        continue;
+      }
 
       const fieldValue = newDoc[fieldName];
       if (fieldValue !== undefined && fieldValue !== null) {
         const indexKey = serializeFieldValue(fieldValue) + ':' + id;
-        await indexTree.insert(indexKey, id);
+        await indexTree.insert(indexKey, startBlockId);
       }
     }
 
@@ -371,11 +398,11 @@ export class Collection {
    * @param {FilterOperators} filterOps The filter operators to apply.
    * @returns {Promise<Set<string> | null>} A set of document IDs that match the query, or null if no index is available.
    */
-  private async applyFilterOps(filterOps: FilterOperators): Promise<Set<string> | null> {
+  private async applyFilterOps(filterOps: FilterOperators): Promise<Set<number> | null> {
     const indexedFields: Array<{ field: string; ops: FilterOperators[string]; score: number }> = [];
 
     for (const [field, ops] of Object.entries(filterOps)) {
-      if (!this.secondaryIndexes.has(field)) continue;
+      if (!this.indexes.has(field) || field === 'id') continue;
 
       let score = Infinity;
       if (ops.$eq !== undefined) score = 1;
@@ -416,21 +443,21 @@ export class Collection {
       return true;
     };
 
-    const collectInitialIds = async (
-      indexTree: BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>,
+    const collectInitialPointers = async (
+      indexTree: BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>,
       ops: FilterOperators[string],
-    ): Promise<Set<string> | null> => {
-      const ids = new Set<string>();
+    ): Promise<Set<number> | null> => {
+      const pointers = new Set<number>();
 
       if (ops.$eq !== undefined) {
         const prefix = serializeFieldValue(ops.$eq) + ':';
-        for await (const { value: docId } of indexTree.range(prefix, prefix + '\uffff', {
+        for await (const { value: startBlockId } of indexTree.range(prefix, prefix + '\uffff', {
           inclusiveStart: true,
           inclusiveEnd: true,
         })) {
-          ids.add(docId);
+          pointers.add(startBlockId);
         }
-        return ids;
+        return pointers;
       }
 
       if (ops.$gt !== undefined || ops.$gte !== undefined || ops.$lt !== undefined || ops.$lte !== undefined) {
@@ -442,13 +469,13 @@ export class Collection {
         const startKey = minVal !== undefined && minVal !== null ? serializeFieldValue(minVal) + ':' : '';
         const endKey = maxVal !== undefined && maxVal !== null ? serializeFieldValue(maxVal) + ':\uffff' : '\uffff';
 
-        for await (const { value: docId } of indexTree.range(startKey, endKey, {
+        for await (const { value: startBlockId } of indexTree.range(startKey, endKey, {
           inclusiveStart: minInclusive,
           inclusiveEnd: maxInclusive,
         })) {
-          ids.add(docId);
+          pointers.add(startBlockId);
         }
-        return ids;
+        return pointers;
       }
 
       if (ops.$in !== undefined) {
@@ -456,13 +483,13 @@ export class Collection {
           .map((v) => ({ serialized: serializeFieldValue(v) }))
           .sort((a, b) => (a.serialized < b.serialized ? -1 : a.serialized > b.serialized ? 1 : 0));
 
-        if (sortedValues.length === 0) return ids;
+        if (sortedValues.length === 0) return pointers;
 
         const firstKey = sortedValues[0].serialized + ':';
         const lastKey = sortedValues[sortedValues.length - 1].serialized + ':\uffff';
 
         let valueIndex = 0;
-        for await (const { key, value: docId } of indexTree.range(firstKey, lastKey, {
+        for await (const { key, value: startBlockId } of indexTree.range(firstKey, lastKey, {
           inclusiveStart: true,
           inclusiveEnd: true,
         })) {
@@ -474,7 +501,7 @@ export class Collection {
           }
 
           if (valueIndex < sortedValues.length && sortedValues[valueIndex].serialized === serializedValue) {
-            ids.add(docId);
+            pointers.add(startBlockId);
           }
 
           if (valueIndex >= sortedValues.length) break;
@@ -484,32 +511,37 @@ export class Collection {
         return null;
       }
 
-      return ids;
+      return pointers;
     };
 
     const [first, ...rest] = indexedFields;
-    const firstIndex = this.secondaryIndexes.get(first.field)!;
-    let resultSet = await collectInitialIds(firstIndex, first.ops);
+    const firstIndex = this.indexes.get(first.field)!;
+    let resultSet = await collectInitialPointers(firstIndex, first.ops);
 
     if (resultSet === null) return null;
     if (resultSet.size === 0) return resultSet;
 
-    const docCache = new Map<string, Document | null>();
+    const docCache = new Map<number, Document | null>();
 
     for (const { field, ops } of rest) {
       const previousSize = resultSet.size;
-      const nextSet = new Set<string>();
+      const nextSet = new Set<number>();
 
-      for (const id of resultSet) {
-        let doc = docCache.get(id);
+      for (const startBlockId of resultSet) {
+        let doc = docCache.get(startBlockId);
         if (doc === undefined) {
-          doc = await this.primaryTree.search(id);
-          docCache.set(id, doc);
+          const docBuffer = await this.documentHeap.readBlob(startBlockId);
+          if (docBuffer.length > 0) {
+            doc = JSON.parse(docBuffer.toString()) as Document;
+          } else {
+            doc = null;
+          }
+          docCache.set(startBlockId, doc);
         }
 
         if (!doc) continue;
         if (matchesOpsOnValue(doc[field], ops)) {
-          nextSet.add(id);
+          nextSet.add(startBlockId);
         }
       }
 
@@ -528,7 +560,7 @@ export class Collection {
     }
 
     let count = 0;
-    for await (const entry of this.primaryTree.entries()) {
+    for await (const entry of this.indexes.get('id')!.entries()) {
       void entry;
       count++;
     }
@@ -544,22 +576,24 @@ export class Collection {
    */
   async find(query: Query = {}): Promise<Document[]> {
     let results: Document[] = [];
-    let candidateIds: Set<string> | null = null;
+    let candidatePointers: Set<number> | null = null;
+    const primaryTree = this.indexes.get('id')!;
 
     // Step 1: Use filter operators with indexes if available
     if (query.filterOps) {
-      candidateIds = await this.applyFilterOps(query.filterOps);
+      candidatePointers = await this.applyFilterOps(query.filterOps);
 
-      if (candidateIds) {
+      if (candidatePointers) {
         const estimatedTotalDocs = await this.getCachedDocumentCount();
         const totalDocs = Math.max(1, estimatedTotalDocs);
-        const candidateRatio = candidateIds.size / totalDocs;
+        const candidateRatio = candidatePointers.size / totalDocs;
         const scanRatio = 1 - candidateRatio;
 
         if (candidateRatio <= scanRatio) {
-          for (const id of candidateIds) {
-            const doc = await this.primaryTree.search(id);
-            if (doc) {
+          for (const startBlockId of candidatePointers) {
+            const docBuffer = await this.documentHeap.readBlob(startBlockId);
+            if (docBuffer.length > 0) {
+              const doc = JSON.parse(docBuffer.toString()) as Document;
               let matches = true;
               for (const [field, ops] of Object.entries(query.filterOps)) {
                 const value = doc[field];
@@ -613,8 +647,12 @@ export class Collection {
             }
           }
         } else {
-          for await (const { value: doc } of this.primaryTree.entries()) {
-            if (!candidateIds.has(doc.id)) continue;
+          for await (const { value: startBlockId } of primaryTree.entries()) {
+            if (!candidatePointers.has(startBlockId)) continue;
+
+            const docBuffer = await this.documentHeap.readBlob(startBlockId);
+            if (docBuffer.length === 0) continue;
+            const doc = JSON.parse(docBuffer.toString()) as Document;
 
             let matches = true;
             for (const [field, ops] of Object.entries(query.filterOps)) {
@@ -673,25 +711,29 @@ export class Collection {
       }
     }
 
-    // Step 2:if no index was used
-    let iterator: AsyncGenerator<{ key: string; value: Document }, void, unknown>;
+    // Step 2: if no index was used
+    let iterator: AsyncGenerator<{ key: string; value: number }, void, unknown>;
 
     if (query.idRange) {
       const { min, max } = query.idRange;
 
       if (min && max) {
-        iterator = this.primaryTree.range(min, max, {
+        iterator = primaryTree.range(min, max, {
           inclusiveStart: true,
           inclusiveEnd: true,
         });
       } else if (min) {
-        iterator = this.primaryTree.entriesFrom(min);
+        iterator = primaryTree.entriesFrom(min);
       } else if (max) {
-        iterator = this.primaryTree.entries();
-        for await (const { key, value } of iterator) {
+        iterator = primaryTree.entries();
+        for await (const { key, value: startBlockId } of iterator) {
           if (key > max) break;
-          if (!query.filter || query.filter(value)) {
-            results.push(value);
+          const docBuffer = await this.documentHeap.readBlob(startBlockId);
+          if (docBuffer.length > 0) {
+            const doc = JSON.parse(docBuffer.toString()) as Document;
+            if (!query.filter || query.filter(doc)) {
+              results.push(doc);
+            }
           }
         }
 
@@ -699,13 +741,17 @@ export class Collection {
         results = this.applySorting(results, query.sort);
         return this.applyPagination(results, query.skip, query.limit);
       } else {
-        iterator = this.primaryTree.entries();
+        iterator = primaryTree.entries();
       }
 
       if (min || max) {
-        for await (const { value } of iterator) {
-          if (!query.filter || query.filter(value)) {
-            results.push(value);
+        for await (const { value: startBlockId } of iterator) {
+          const docBuffer = await this.documentHeap.readBlob(startBlockId);
+          if (docBuffer.length > 0) {
+            const doc = JSON.parse(docBuffer.toString()) as Document;
+            if (!query.filter || query.filter(doc)) {
+              results.push(doc);
+            }
           }
         }
 
@@ -716,15 +762,18 @@ export class Collection {
     }
 
     if (!query.filter && !query.filterOps && query.sort?.field === 'id' && query.sort.order === 'asc') {
-      iterator = this.primaryTree.entries();
+      iterator = primaryTree.entries();
 
       let count = 0;
       const start = query.skip ?? 0;
       const limit = query.limit ?? Infinity;
 
-      for await (const { value } of iterator) {
+      for await (const { value: startBlockId } of iterator) {
         if (count >= start && count < start + limit) {
-          results.push(value);
+          const docBuffer = await this.documentHeap.readBlob(startBlockId);
+          if (docBuffer.length > 0) {
+            results.push(JSON.parse(docBuffer.toString()) as Document);
+          }
         }
         count++;
         if (count >= start + limit) break;
@@ -737,9 +786,13 @@ export class Collection {
     if (query.sort?.field === 'id' && query.sort.order === 'desc') {
       //TODO: Implement reverse iteration in BPlusTree
       const all: Document[] = [];
-      for await (const { value } of this.primaryTree.reverseEntries()) {
-        if (!query.filter || query.filter(value)) {
-          all.push(value);
+      for await (const { value: startBlockId } of primaryTree.reverseEntries()) {
+        const docBuffer = await this.documentHeap.readBlob(startBlockId);
+        if (docBuffer.length > 0) {
+          const doc = JSON.parse(docBuffer.toString()) as Document;
+          if (!query.filter || query.filter(doc)) {
+            all.push(doc);
+          }
         }
       }
       // all.reverse();
@@ -749,16 +802,20 @@ export class Collection {
     }
 
     // Full scan with filter
-    iterator = this.primaryTree.entries();
-    for await (const { value } of iterator) {
-      if (query.filter && !query.filter(value)) {
+    iterator = primaryTree.entries();
+    for await (const { value: startBlockId } of iterator) {
+      const docBuffer = await this.documentHeap.readBlob(startBlockId);
+      if (docBuffer.length === 0) continue;
+      const doc = JSON.parse(docBuffer.toString()) as Document;
+
+      if (query.filter && !query.filter(doc)) {
         continue;
       }
 
       if (query.filterOps) {
         let matches = true;
         for (const [field, ops] of Object.entries(query.filterOps)) {
-          const docValue = value[field] as number | string | boolean | null;
+          const docValue = doc[field] as number | string | boolean | null;
           if (ops.$eq !== undefined && docValue !== ops.$eq) matches = false;
           if (ops.$ne !== undefined && docValue === ops.$ne) matches = false;
           if (ops.$gt !== undefined && ops.$gt !== null) {
@@ -804,7 +861,7 @@ export class Collection {
         }
       }
 
-      results.push(value);
+      results.push(doc);
     }
 
     results = this.applyProjection(results, query.projection);
@@ -839,44 +896,51 @@ export class Collection {
   }): Promise<Document[]> {
     const { groupBy, operations, filter } = options;
     const groups = new Map<DocumentValue, Document[]>();
+    const primaryTree = this.indexes.get('id')!;
 
     // Use secondary index if available fr grouping
-    let iterator: AsyncIterable<{ key: string; value: Document | string }>;
+    let iterator: AsyncIterable<{ key: string; value: number }>;
 
-    if (groupBy && this.secondaryIndexes.has(groupBy)) {
-      const indexTree = this.secondaryIndexes.get(groupBy)!;
+    if (groupBy && this.indexes.has(groupBy) && groupBy !== 'id') {
+      const indexTree = this.indexes.get(groupBy)!;
       iterator = indexTree.entries();
 
-      for await (const { value: docId } of iterator) {
-        const doc = await this.primaryTree.search(docId as string);
-        if (!doc || (filter && !filter(doc))) continue;
+      for await (const { value: startBlockId } of iterator) {
+        const docBuffer = await this.documentHeap.readBlob(startBlockId);
+        if (docBuffer.length === 0) continue;
+        const doc = JSON.parse(docBuffer.toString()) as Document;
+        if (filter && !filter(doc)) continue;
 
-        const groupValue = doc[groupBy];
-        if (!groups.has(groupValue)) {
-          groups.set(groupValue, []);
+        const groupValue = doc[groupBy] as DocumentValue;
+        const groupKey = typeof groupValue === 'object' ? JSON.stringify(groupValue) : String(groupValue);
+
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, []);
         }
-        groups.get(groupValue)!.push(doc);
+        groups.get(groupKey)!.push(doc);
       }
     } else {
       // Full scan
-      for await (const { value: doc } of this.primaryTree.entries()) {
+      for await (const { value: startBlockId } of primaryTree.entries()) {
+        const docBuffer = await this.documentHeap.readBlob(startBlockId);
+        if (docBuffer.length === 0) continue;
+        const doc = JSON.parse(docBuffer.toString()) as Document;
         if (filter && !filter(doc)) continue;
 
-        const groupValue = groupBy ? doc[groupBy] : '_all_';
-        if (!groups.has(groupValue)) {
-          groups.set(groupValue, []);
+        const groupValue = (groupBy ? doc[groupBy] : '_all_') as DocumentValue;
+        const groupKey = typeof groupValue === 'object' && groupValue !== null ? JSON.stringify(groupValue) : String(groupValue);
+
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, []);
         }
-        groups.get(groupValue)!.push(doc);
+        groups.get(groupKey)!.push(doc);
       }
     }
 
     // Compute aggregations for each group
     const results: Document[] = [];
-    for (const [groupValue, docs] of groups.entries()) {
-      const groupValueStr =
-        typeof groupValue === 'object' && groupValue !== null ? JSON.stringify(groupValue) : String(groupValue);
-
-      const result: Document = groupBy ? { id: `group_${groupValueStr}`, [groupBy]: groupValue } : { id: `group_all` };
+    for (const [groupKey, docs] of groups.entries()) {
+      const result: Document = groupBy ? { id: `group_${groupKey}`, [groupBy]: docs[0][groupBy] } : { id: `group_all` };
 
       if (operations.count) {
         result[operations.count] = docs.length;
@@ -973,7 +1037,13 @@ export class Collection {
    * @returns {Promise<Document | null>} The document, or null if not found.
    */
   async findById(id: string): Promise<Document | null> {
-    return await this.primaryTree.search(id);
+    const primaryTree = this.indexes.get('id')!;
+    const startBlockId = await primaryTree.search(id);
+    if (startBlockId === null) return null;
+
+    const docBuffer = await this.documentHeap.readBlob(startBlockId);
+    if (docBuffer.length === 0) return null;
+    return JSON.parse(docBuffer.toString()) as Document;
   }
 
   /**
@@ -983,38 +1053,44 @@ export class Collection {
    * @returns {Promise<Document | null>} The updated document, or null if not found.
    */
   async update(id: string, updates: Partial<Document>): Promise<Document | null> {
-    const existing = await this.primaryTree.search(id);
-    if (!existing) return null;
+    const primaryTree = this.indexes.get('id')!;
+    const startBlockId = await primaryTree.search(id);
+    if (startBlockId === null) return null;
 
+    const docBuffer = await this.documentHeap.readBlob(startBlockId);
+    if (docBuffer.length === 0) return null;
+
+    const existing = JSON.parse(docBuffer.toString()) as Document;
     const updated: Document = structuredClone({ ...existing, ...updates, id });
 
-    // Remove old index entries for changed fields
-    for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
+    // Remove old index entries and add new ones for changed fields
+    for (const [fieldName, indexTree] of this.indexes.entries()) {
+      if (fieldName === 'id') continue; // id can't change via update
+
       const oldValue = existing[fieldName];
       const newValue = updated[fieldName];
 
-      // If value changed, remove old entry
+      // If value changed, remove old entry from index
       if (oldValue !== newValue && oldValue !== undefined && oldValue !== null) {
         const oldIndexKey = serializeFieldValue(oldValue) + ':' + id;
         await indexTree.delete(oldIndexKey);
       }
 
-      // Add new entry if value exists
-      if (newValue !== undefined && newValue !== null) {
+      // Add new entry to index if value exists
+      if (newValue !== undefined && newValue !== null && oldValue !== newValue) {
         const newIndexKey = serializeFieldValue(newValue) + ':' + id;
-        await indexTree.insert(newIndexKey, id);
+        await indexTree.insert(newIndexKey, startBlockId);
       }
     }
 
-    // Delete old entry from primary tree and insert updated one
-    await this.primaryTree.delete(id);
-    await this.primaryTree.insert(id, updated);
+    // Overwrite the document in the heap
+    await this.documentHeap.overwriteBlock(startBlockId, Buffer.from(JSON.stringify(updated)));
 
     if (this.onChangeCallback) {
       await this.onChangeCallback();
     }
 
-    return updated;
+    return JSON.parse(JSON.stringify(updated));
   }
 
   /**
@@ -1023,11 +1099,17 @@ export class Collection {
    * @returns {Promise<boolean>} True if the document was deleted, false if not found.
    */
   async delete(id: string): Promise<boolean> {
-    const existing = await this.primaryTree.search(id);
-    if (!existing) return false;
+    const primaryTree = this.indexes.get('id')!;
+    const startBlockId = await primaryTree.search(id);
+    if (startBlockId === null) return false;
+
+    const docBuffer = await this.documentHeap.readBlob(startBlockId);
+    if (docBuffer.length === 0) return false;
+    const existing = JSON.parse(docBuffer.toString()) as Document;
 
     // Remove from all secondary indexes
-    for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
+    for (const [fieldName, indexTree] of this.indexes.entries()) {
+      if (fieldName === 'id') continue;
       const fieldValue = existing[fieldName];
       if (fieldValue !== undefined && fieldValue !== null) {
         const indexKey = serializeFieldValue(fieldValue) + ':' + id;
@@ -1035,7 +1117,9 @@ export class Collection {
       }
     }
 
-    await this.primaryTree.delete(id);
+    // Remove from primary index and free heap memory
+    await primaryTree.delete(id);
+    await this.documentHeap.freeBlob(startBlockId);
 
     if (this.cachedDocumentCount !== null && this.cachedDocumentCount > 0) {
       this.cachedDocumentCount--;
@@ -1058,12 +1142,14 @@ export class Collection {
  */
 export class SimpleDBMS {
   private fbFile: FreeBlockFile;
+  private documentHeap: FreeBlockFile;
   private catalogTree!: BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>; //TODO: waht does this do again?
   private catalogStorage!: FBNodeStorage<string, number>;
   private collections: Map<string, Collection> = new Map();
 
-  private constructor(fbFile: FreeBlockFile) {
+  private constructor(fbFile: FreeBlockFile, documentHeap: FreeBlockFile) {
     this.fbFile = fbFile;
+    this.documentHeap = documentHeap;
   }
 
   /**
@@ -1076,37 +1162,50 @@ export class SimpleDBMS {
 
   /**
    * Creates a new database.
-   * @param {File} file The file to use for the database.
-   * @param {File} walFile The file to use for the write-ahead log.
+   * @param {File} file The file to use for the database index.
+   * @param {File} walFile The file to use for the index write-ahead log.
+   * @param {File} heapFile The file to use for the document heap storage.
+   * @param {File} heapWalFile The file to use for the document heap write-ahead log.
    * @returns {Promise<SimpleDBMS>} A new SimpleDBMS instance.
    */
-  static async create(file: File, walFile: File): Promise<SimpleDBMS> {
+  static async create(file: File, walFile: File, heapFile: File, heapWalFile: File): Promise<SimpleDBMS> {
     const walManager = new WALManagerImpl(walFile, file);
     const atomicFile = new AtomicFileImpl(file, walManager);
     const fbFile = new FreeBlockFile(file, atomicFile, DEFAULT_BLOCK_SIZE);
-
     await fbFile.open();
 
-    const db = new SimpleDBMS(fbFile);
+    const heapWalManager = new WALManagerImpl(heapWalFile, heapFile);
+    const heapAtomicFile = new AtomicFileImpl(heapFile, heapWalManager);
+    const documentHeap = new FreeBlockFile(heapFile, heapAtomicFile, DEFAULT_BLOCK_SIZE);
+    await documentHeap.open();
+
+    const db = new SimpleDBMS(fbFile, documentHeap);
     await db.initCatalog(true);
     return db;
   }
 
   /**
    * Opens an existing database.
-   * @param {File} file The file to use for the database.
-   * @param {File} walFile The file to use for the write-ahead log.
+   * @param {File} file The file to use for the database index.
+   * @param {File} walFile The file to use for the index write-ahead log.
+   * @param {File} heapFile The file to use for the document heap storage.
+   * @param {File} heapWalFile The file to use for the document heap write-ahead log.
    * @returns {Promise<SimpleDBMS>} A SimpleDBMS instance.
    */
-  static async open(file: File, walFile: File): Promise<SimpleDBMS> {
+  static async open(file: File, walFile: File, heapFile: File, heapWalFile: File): Promise<SimpleDBMS> {
     const walManager = new WALManagerImpl(walFile, file);
     const atomicFile = new AtomicFileImpl(file, walManager);
     await atomicFile.recover();
-
     const fbFile = new FreeBlockFile(file, atomicFile, DEFAULT_BLOCK_SIZE);
     await fbFile.open();
 
-    const db = new SimpleDBMS(fbFile);
+    const heapWalManager = new WALManagerImpl(heapWalFile, heapFile);
+    const heapAtomicFile = new AtomicFileImpl(heapFile, heapWalManager);
+    await heapAtomicFile.recover();
+    const documentHeap = new FreeBlockFile(heapFile, heapAtomicFile, DEFAULT_BLOCK_SIZE);
+    await documentHeap.open();
+
+    const db = new SimpleDBMS(fbFile, documentHeap);
     await db.initCatalog(false);
     return db;
   }
@@ -1145,7 +1244,9 @@ export class SimpleDBMS {
         await this.saveCatalogRoot();
       } else {
         try {
-          this.dbHeader = JSON.parse(headerBuf.toString()) as typeof this.dbHeader;
+          // Remove null bytes before parsing
+          const jsonStr = headerBuf.toString().replace(/\0/g, '');
+          this.dbHeader = JSON.parse(jsonStr) as typeof this.dbHeader;
           const rootNode = await this.catalogStorage.loadNode(this.dbHeader.catalogRootBlockId);
           this.catalogTree.load(rootNode);
         } catch {
@@ -1195,13 +1296,13 @@ export class SimpleDBMS {
       throw new Error(`Collection '${name}' already exists`);
     }
 
-    const storage = new FBNodeStorage<string, Document>(
+    const storage = new FBNodeStorage<string, number>(
       (a, b) => (a < b ? -1 : a > b ? 1 : 0),
       (key) => key.length,
       this.fbFile,
       4096,
     );
-    const tree = new BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>(
+    const tree = new BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>(
       storage,
       50,
     );
@@ -1216,12 +1317,13 @@ export class SimpleDBMS {
     await this.saveCollectionRoot(name, tree, storage);
 
     const collection = new Collection(
+      this.documentHeap,
       tree,
       async () => {
         await this.saveCollectionRoot(name, tree, storage);
       },
       () =>
-        new FBNodeStorage<string, string>(
+        new FBNodeStorage<string, number>(
           (a, b) => (a < b ? -1 : a > b ? 1 : 0),
           () => 1024,
           this.fbFile,
@@ -1256,13 +1358,13 @@ export class SimpleDBMS {
       throw new Error(`Collection '${name}' not found`);
     }
 
-    const storage = new FBNodeStorage<string, Document>(
+    const storage = new FBNodeStorage<string, number>(
       (a, b) => (a < b ? -1 : a > b ? 1 : 0),
       (key) => key.length,
       this.fbFile,
       4096,
     );
-    const tree = new BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>(
+    const tree = new BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>(
       storage,
       50,
     );
@@ -1273,12 +1375,13 @@ export class SimpleDBMS {
     const collectionMeta = this.dbHeader.collections[name];
 
     const collection = new Collection(
+      this.documentHeap,
       tree,
       async () => {
         await this.saveCollectionRoot(name, tree, storage);
       },
       () =>
-        new FBNodeStorage<string, string>(
+        new FBNodeStorage<string, number>(
           (a, b) => (a < b ? -1 : a > b ? 1 : 0),
           () => 1024,
           this.fbFile,
@@ -1296,17 +1399,17 @@ export class SimpleDBMS {
     if (collectionMeta?.indexes) {
       const indexMap = new Map<
         string,
-        BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>
+        BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>
       >();
 
       for (const [field, indexRootId] of Object.entries(collectionMeta.indexes)) {
-        const indexStorage = new FBNodeStorage<string, string>(
+        const indexStorage = new FBNodeStorage<string, number>(
           (a, b) => (a < b ? -1 : a > b ? 1 : 0),
           () => 1024,
           this.fbFile,
           4096,
         );
-        const indexTree = new BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>(
+        const indexTree = new BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>(
           indexStorage,
           50,
         );
@@ -1330,7 +1433,8 @@ export class SimpleDBMS {
    * @param {object} options The join options.
    * @param {string} options.leftCollection The left collection name.
    * @param {string} options.rightCollection The right collection name.
-   * @param {string} options.on The field to join on.
+   * @param {string} options.on The field to join on for the left collection.
+   * @param {string} [options.rightOn] The field to join on for the right collection (defaults to 'on').
    * @param {'inner' | 'left' | 'right'} [options.type='inner'] The type of join.
    * @returns {Promise<Document[]>} The joined documents.
    */
@@ -1338,22 +1442,24 @@ export class SimpleDBMS {
     leftCollection: string;
     rightCollection: string;
     on: string;
+    rightOn?: string;
     type?: 'inner' | 'left' | 'right';
   }): Promise<Document[]> {
-    const { leftCollection, rightCollection, on, type = 'inner' } = options;
+    const { leftCollection, rightCollection, on, rightOn = on, type = 'inner' } = options;
 
     const left = await this.getCollection(leftCollection);
     const right = await this.getCollection(rightCollection);
 
     const rightMap = new Map<DocumentValue, Document[]>();
 
-    if (right.getIndexedFields().includes(on)) {
-      const indexTree = right.getIndex(on);
+    if (right.getIndexedFields().includes(rightOn)) {
+      const indexTree = right.getIndex(rightOn);
       if (indexTree) {
-        for await (const { value: docId } of indexTree.entries()) {
-          const doc = await right.findById(docId);
-          if (doc) {
-            const key = doc[on];
+        for await (const { value: startBlockId } of indexTree.entries()) {
+          const docBuffer = await right.getDocumentHeap().readBlob(startBlockId);
+          if (docBuffer.length > 0) {
+            const doc = JSON.parse(docBuffer.toString()) as Document;
+            const key = doc[rightOn] as DocumentValue;
             if (!rightMap.has(key)) {
               rightMap.set(key, []);
             }
@@ -1364,7 +1470,7 @@ export class SimpleDBMS {
     } else {
       const rightDocs = await right.find({});
       for (const doc of rightDocs) {
-        const key = doc[on];
+        const key = doc[rightOn] as DocumentValue;
         if (!rightMap.has(key)) {
           rightMap.set(key, []);
         }
@@ -1375,15 +1481,21 @@ export class SimpleDBMS {
     const results: Document[] = [];
     const leftDocs = await left.find({});
     for (const leftDoc of leftDocs) {
-      const key = leftDoc[on];
+      const key = leftDoc[on] as DocumentValue;
       const rightDocs = rightMap.get(key);
 
       if (rightDocs && rightDocs.length > 0) {
         for (const rightDoc of rightDocs) {
           const merged: Document = { ...leftDoc };
           for (const [field, value] of Object.entries(rightDoc)) {
-            if (field !== 'id' && field !== on) {
+            if (field === 'id' || field === rightOn) {
+              continue;
+            }
+
+            if (field in leftDoc) {
               merged[`${rightCollection}_${field}`] = value;
+            } else {
+              merged[field] = value;
             }
           }
           results.push(merged);
@@ -1398,8 +1510,8 @@ export class SimpleDBMS {
 
   private async saveCollectionRoot(
     name: string,
-    tree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>,
-    storage: FBNodeStorage<string, Document>,
+    tree: BPlusTree<string, number, FBLeafNode<string, number>, FBInternalNode<string, number>>,
+    storage: FBNodeStorage<string, number>,
   ) {
     const root = tree.getRoot();
     let rootId: number;
@@ -1417,7 +1529,9 @@ export class SimpleDBMS {
       this.dbHeader.collections[name].rootBlockId = rootId;
     }
 
-    await this.catalogTree.insert(name, rootId);
+    if ((await this.catalogTree.search(name)) === null) {
+      await this.catalogTree.insert(name, rootId);
+    }
     await this.saveCatalogRoot();
   }
 
@@ -1462,6 +1576,9 @@ export class SimpleDBMS {
    * Closes the database.
    */
   async close() {
+    await this.fbFile.commit();
+    await this.documentHeap.commit();
     await this.fbFile.close();
+    await this.documentHeap.close();
   }
 }

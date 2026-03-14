@@ -16,15 +16,25 @@ app.use(express.json());
 
 let db!: SimpleDBMS;
 
-async function initDB(customDbPath?: string, customWalPath?: string) {
+async function initDB(
+  customDbPath?: string,
+  customWalPath?: string,
+  customHeapPath?: string,
+  customHeapWalPath?: string,
+) {
   try {
     const dbPath = customDbPath || process.argv[2] || 'mydb.db';
     const walPath = customWalPath || process.argv[3] || 'mydb.wal';
+    const heapPath = customHeapPath || process.argv[4] || 'mydb-heap.db';
+    const heapWalPath = customHeapWalPath || process.argv[5] || 'mydb-heap.wal';
+
     const dbFile = new RealFile(dbPath);
     const walFile = new RealFile(walPath);
+    const heapFile = new RealFile(heapPath);
+    const heapWalFile = new RealFile(heapWalPath);
 
     try {
-      db = await SimpleDBMS.open(dbFile, walFile);
+      db = await SimpleDBMS.open(dbFile, walFile, heapFile, heapWalFile);
       console.log('Database opened successfully.');
     } catch {
       console.log('Could not open existing database, creating new one...');
@@ -32,7 +42,11 @@ async function initDB(customDbPath?: string, customWalPath?: string) {
       await dbFile.close();
       await walFile.create();
       await walFile.close();
-      db = await SimpleDBMS.create(dbFile, walFile);
+      await heapFile.create();
+      await heapFile.close();
+      await heapWalFile.create();
+      await heapWalFile.close();
+      db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
       console.log('Database created successfully.');
     }
   } catch (error) {
@@ -123,6 +137,10 @@ app.get('/db/:collection', async (req, res) => {
   try {
     const collectionName = req.params.collection;
     const filterQuery = req.query['filter'];
+    const limitQuery = req.query['limit'];
+    const skipQuery = req.query['skip'];
+    const sortFieldQuery = req.query['sortField'];
+    const sortOrderQuery = req.query['sortOrder'];
 
     let filterOps: FilterOperators | undefined = undefined;
     if (typeof filterQuery === 'string') {
@@ -134,8 +152,18 @@ app.get('/db/:collection', async (req, res) => {
       }
     }
 
+    let limit: number | undefined = undefined;
+    let skip: number | undefined = undefined;
+    if (typeof limitQuery === 'string') limit = parseInt(limitQuery, 10);
+    if (typeof skipQuery === 'string') skip = parseInt(skipQuery, 10);
+
+    let sort: { field: string; order: 'asc' | 'desc' } | undefined = undefined;
+    if (typeof sortFieldQuery === 'string') {
+      sort = { field: sortFieldQuery, order: sortOrderQuery === 'desc' ? 'desc' : 'asc' };
+    }
+
     const collection = await db.getCollection(collectionName);
-    const docs = await collection.find({ filterOps });
+    const docs = await collection.find({ filterOps, limit, skip, sort });
     res.json(docs);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Comparison operators')) {
@@ -337,7 +365,7 @@ app.post('/db/:collection/indexes/:field', async (req, res) => {
     const collection = await db.getCollection(collectionName);
 
     // Create storage for the index
-    const indexStorage = new FBNodeStorage<string, string>(
+    const indexStorage = new FBNodeStorage<string, number>(
       (a, b) => (a < b ? -1 : a > b ? 1 : 0),
       () => 1024,
       db.getFreeBlockFile(),
@@ -376,12 +404,18 @@ app.post('/db/:collection/indexes/:field', async (req, res) => {
  *           schema:
  *             type: object
  *             example:
- *               groupBy: "age"
+ *               groupBy: "category"
  *               operations:
- *                 count: "totalUsers"
+ *                 count: "totalProducts"
  *                 avg:
- *                   - field: "score"
- *                     as: "averageScore"
+ *                   - field: "price"
+ *                     as: "averagePrice"
+ *                 max:
+ *                   - field: "price"
+ *                     as: "highestPrice"
+ *                 sum:
+ *                   - field: "stockQuantity"
+ *                     as: "totalStock"
  *     responses:
  *       200:
  *         description: Aggregation results
@@ -505,7 +539,7 @@ app.post('/db/:collection/bulk', async (req, res) => {
  *             example:
  *               collection: "departments"
  *               on: "departmentId"
- *               type: "inner"
+ *               rightOn: "id"
  *     responses:
  *       200:
  *         description: Join results
@@ -513,8 +547,8 @@ app.post('/db/:collection/bulk', async (req, res) => {
 app.post('/db/:collection/join', async (req, res) => {
   try {
     const leftCollection = req.params.collection;
-    const body = req.body as { collection?: string; on?: string; type?: 'inner' | 'left' | 'right' };
-    const { collection: rightCollection, on, type } = body;
+    const body = req.body as { collection?: string; on?: string; rightOn?: string; type?: 'inner' | 'left' | 'right' };
+    const { collection: rightCollection, on, rightOn, type } = body;
 
     if (!rightCollection || !on) {
       res.status(400).json({ error: 'collection and on fields are required' });
@@ -525,6 +559,7 @@ app.post('/db/:collection/join', async (req, res) => {
       leftCollection,
       rightCollection,
       on,
+      rightOn,
       type: type || 'inner',
     });
 

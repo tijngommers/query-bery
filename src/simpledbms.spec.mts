@@ -11,9 +11,11 @@ describe('Collection', () => {
   let collection: Collection;
   let dbFile: MockFile;
   let walFile: MockFile;
+  let heapFile: MockFile;
+  let heapWalFile: MockFile;
 
   const createIndexStorage = () =>
-    new FBNodeStorage<string, string>(
+    new FBNodeStorage<string, number>(
       (a, b) => (a < b ? -1 : a > b ? 1 : 0),
       (key) => key.length,
       db.getFreeBlockFile(),
@@ -23,7 +25,9 @@ describe('Collection', () => {
   beforeEach(async () => {
     dbFile = new MockFile(512);
     walFile = new MockFile(512);
-    db = await SimpleDBMS.create(dbFile, walFile);
+    heapFile = new MockFile(512);
+    heapWalFile = new MockFile(512);
+    db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     collection = await db.createCollection('users');
   });
 
@@ -85,8 +89,8 @@ describe('Collection', () => {
 
     const stored = await collection.findById(doc.id);
     const storedSettings = stored!['settings'] as { [key: string]: DocumentValue };
-    expect(storedSettings['theme']).toBe('light');
-    expect(storedSettings['notifications']).toBe(false);
+    expect(storedSettings['theme']).toBe('dark');
+    expect(storedSettings['notifications']).toBe(true);
   });
 
   it('should delete documents and remove index entries', async () => {
@@ -227,7 +231,7 @@ describe('Collection', () => {
     await collection.insert({ id: 'd2', team: 'red', points: 20 });
     await collection.insert({ id: 'd3', team: 'blue', points: 7 });
 
-    const results = await collection.aggregate({
+    const aggregateResults = await collection.aggregate({
       groupBy: 'team',
       operations: {
         count: 'count',
@@ -237,7 +241,8 @@ describe('Collection', () => {
       },
     });
 
-    const byTeam = new Map(results.map((r) => [r['team'], r]));
+    const byTeam = new Map(aggregateResults.map((r) => [r['team'], r]));
+    expect(aggregateResults).toHaveLength(2);
     expect(byTeam.get('red')).toBeDefined();
     expect(byTeam.get('blue')).toBeDefined();
     expect(byTeam.get('red')!).toMatchObject({ count: 2, total: 30, avgPoints: 15, minPoints: 10 });
@@ -248,21 +253,25 @@ describe('Collection', () => {
 describe('SimpleDBMS', () => {
   let dbFile: MockFile;
   let walFile: MockFile;
+  let heapFile: MockFile;
+  let heapWalFile: MockFile;
 
   beforeEach(() => {
     dbFile = new MockFile(512);
     walFile = new MockFile(512);
+    heapFile = new MockFile(512);
+    heapWalFile = new MockFile(512);
   });
 
   it('create a new database and collection', async () => {
-    const db = await SimpleDBMS.create(dbFile, walFile);
+    const db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     const collection = await db.createCollection('users');
     expect(collection).toBeDefined();
     await db.close();
   });
 
   it('insert and find documents', async () => {
-    const db = await SimpleDBMS.create(dbFile, walFile);
+    const db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     const collection = await db.createCollection('users');
 
     const doc = await collection.insert({ name: 'maarten', age: 25 });
@@ -280,7 +289,7 @@ describe('SimpleDBMS', () => {
   });
 
   it('update documents', async () => {
-    const db = await SimpleDBMS.create(dbFile, walFile);
+    const db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     const collection = await db.createCollection('users');
 
     const doc = await collection.insert({ name: 'random', age: 25 });
@@ -296,7 +305,7 @@ describe('SimpleDBMS', () => {
   });
 
   it('ddelete documents', async () => {
-    const db = await SimpleDBMS.create(dbFile, walFile);
+    const db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     const collection = await db.createCollection('users');
 
     const doc = await collection.insert({ name: 'random', age: 25 });
@@ -311,13 +320,13 @@ describe('SimpleDBMS', () => {
 
   it('should persist data across close/open', async () => {
     // Create and populate
-    let db = await SimpleDBMS.create(dbFile, walFile);
+    let db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     let collection = await db.createCollection('users');
     await collection.insert({ id: 'user1', name: 'random' });
     await db.close();
 
     // Reopen
-    db = await SimpleDBMS.open(dbFile, walFile);
+    db = await SimpleDBMS.open(dbFile, walFile, heapFile, heapWalFile);
     collection = await db.getCollection('users');
     const found = await collection.findById('user1');
     expect(found).toBeDefined();
@@ -326,7 +335,7 @@ describe('SimpleDBMS', () => {
   });
 
   it('should handle multiple collections', async () => {
-    let db = await SimpleDBMS.create(dbFile, walFile);
+    let db = await SimpleDBMS.create(dbFile, walFile, heapFile, heapWalFile);
     const users = await db.createCollection('users');
     const posts = await db.createCollection('posts');
 
@@ -334,7 +343,7 @@ describe('SimpleDBMS', () => {
     await posts.insert({ id: 'p1', title: 'randomtitle' });
     await db.close();
 
-    db = await SimpleDBMS.open(dbFile, walFile);
+    db = await SimpleDBMS.open(dbFile, walFile, heapFile, heapWalFile);
     const users2 = await db.getCollection('users');
     const posts2 = await db.getCollection('posts');
 
