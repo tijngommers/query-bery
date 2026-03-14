@@ -99,16 +99,15 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
                 3000
             );
 
-            const node = new RaftNode(
+            const node = new RaftNode({
                 config,
-                nodeStorage,
+                storage: nodeStorage,
                 transport,
-                new NoOpStateMachine(),
-                new SystemClock(),
-                new SystemRandom(),
-                undefined,
-                this.bus
-            );
+                stateMachine: new NoOpStateMachine(),
+                _clock: new SystemClock(),
+                _random: new SystemRandom(),
+                eventBus: this.bus,
+            });
 
             this.nodes.set(nodeId, node);
         }
@@ -224,16 +223,15 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
             3000
         );
 
-        const node = new RaftNode(
+        const node = new RaftNode({
             config,
-            nodeStorage,
+            storage: nodeStorage,
             transport,
-            new NoOpStateMachine(),
-            new SystemClock(),
-            new SystemRandom(),
-            undefined,
-            this.bus
-        );
+            stateMachine: new NoOpStateMachine(),
+            _clock: new SystemClock(),
+            _random: new SystemRandom(),
+            eventBus: this.bus,
+        });
 
         this.nodes.set(nodeId, node);
         this.nodeIds.push(nodeId);

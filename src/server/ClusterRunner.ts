@@ -271,16 +271,15 @@ export class ClusterRunner implements ClusterRunnerInterface {
             timerConfig.heartbeatInterval
         );
 
-        return new RaftNode(
+        return new RaftNode({
             config,
             storage,
-            new MockTransport(nodeId, new SystemRandom()),
-            new NoOpStateMachine(),
-            new SystemClock(),
-            new SystemRandom(),
-            undefined,
-            this.bus
-        );
+            transport: new MockTransport(nodeId, new SystemRandom()),
+            stateMachine: new NoOpStateMachine(),
+            _clock: new SystemClock(),
+            _random: new SystemRandom(),
+            eventBus: this.bus,
+        });
     }
 
     getCommittedConfig(): CommittedConfig {

@@ -8,8 +8,8 @@ import { StateMachine } from "./StateMachine";
 import { RPCHandler } from "../rpc/RPCHandler";
 import { TimerManager } from "../timing/TimerManager";
 import { ConsoleLogger, Logger } from "../util/Logger";
-import { Random } from "../util/Random";
-import { Clock } from "../timing/Clock";
+import { Random, SystemRandom } from "../util/Random";
+import { Clock, SystemClock } from "../timing/Clock";
 import { NodeStorage } from "../storage/interfaces/NodeStorage";
 import { Transport } from "../transport/Transport";
 import { RaftError } from "../util/Error";
@@ -20,7 +20,6 @@ import { SnapshotManager } from "../snapshot/SnapshotManager";
 import { InstallSnapshotRequest, InstallSnapshotResponse } from "../rpc/RPCTypes";
 import { ConfigManager } from "../config/ConfigManager";
 import { ClusterConfig } from "../config/ClusterConfig";
-import { GrpcTransport } from "../transport/GRPCTransport";
 
 export interface CommandResult {
     success: boolean;
@@ -53,7 +52,26 @@ export interface RaftNodeInterface {
     getEntries(startIndex: number, endIndex: number): Promise<LogEntry[]>;
 }
 
+export interface RaftNodeOptions {
+    config: RaftConfig;
+    storage: NodeStorage;
+    transport: Transport;
+    stateMachine: ApplicationStateMachine;
+    logger?: Logger;
+    eventBus?: RaftEventBus;
+    _clock?: Clock;
+    _random?: Random;
+}
+
 export class RaftNode implements RaftNodeInterface {
+    private config: RaftConfig;
+    private nodeStorage: NodeStorage;
+    private transport: Transport;
+    private applicationStateMachine: ApplicationStateMachine;
+    private clock: Clock;
+    private random: Random;
+    private bus: RaftEventBus;
+
     private persistentState: PersistentState;
     private volatileState: VolatileState;
     private logManager: LogManager;
@@ -70,21 +88,30 @@ export class RaftNode implements RaftNodeInterface {
 
     private commitWaiters: Map<number, Array<(Commited: boolean) => void>> = new Map();
 
-    private snapshotTreshold: number = 5;
+    private snapshotThreshold: number = 5;
     private snapshotManager: SnapshotManager;
 
     private configManager: ConfigManager;
 
-    constructor(
-        private config: RaftConfig,
-        private nodeStorage: NodeStorage,
-        private transport: Transport,
-        private applicationStateMachine: ApplicationStateMachine,
-        private clock: Clock,
-        private random: Random,
-        logger?: Logger,
-        private bus: RaftEventBus = new NoOpEventBus()
-    ) {
+    constructor(options: RaftNodeOptions) {
+        const {
+            config,
+            storage,
+            transport,
+            stateMachine,
+            logger,
+            eventBus = new NoOpEventBus(),
+            _clock = new SystemClock(),
+            _random = new SystemRandom(),
+        } = options;
+
+        this.config = config;
+        this.nodeStorage = storage;
+        this.transport = transport;
+        this.applicationStateMachine = stateMachine;
+        this.clock = _clock;
+        this.random = _random;
+        this.bus = eventBus;
 
         validateConfig(config);
 
@@ -92,7 +119,7 @@ export class RaftNode implements RaftNodeInterface {
 
         this.rpcHandler = new RPCHandler(
             config.nodeId,
-            transport,
+            this.transport,
             this.logger,
             this.clock,
             this.bus
@@ -111,13 +138,13 @@ export class RaftNode implements RaftNodeInterface {
             timerConfig
         );
 
-        this.persistentState = new PersistentState(nodeStorage.meta);
+        this.persistentState = new PersistentState(this.nodeStorage.meta);
 
         this.volatileState = new VolatileState();
 
-        this.logManager = new LogManager(nodeStorage.log, this.bus, config.nodeId);
+        this.logManager = new LogManager(this.nodeStorage.log, this.bus, config.nodeId);
 
-        this.snapshotManager = new SnapshotManager(nodeStorage.snapshot);
+        this.snapshotManager = new SnapshotManager(this.nodeStorage.snapshot);
 
         const bootstrapConfig: ClusterConfig = {
             voters: [
@@ -127,7 +154,7 @@ export class RaftNode implements RaftNodeInterface {
             learners: []
         };
 
-        this.configManager = new ConfigManager(nodeStorage.config, bootstrapConfig);
+        this.configManager = new ConfigManager(this.nodeStorage.config, bootstrapConfig);
 
         this.stateMachine = new StateMachine(
             config.nodeId,
@@ -416,7 +443,16 @@ export class RaftNode implements RaftNodeInterface {
                         this.logger.error(`Failed to apply log entry, stopping node to prevent inconsistency`, error);
                         this.applyLoopRunning = false;
 
-                        process.exit(1);
+                        this.bus.emit({
+                            eventId: crypto.randomUUID(),
+                            timestamp: performance.now(),
+                            wallTime: Date.now(),
+                            nodeId: this.config.nodeId,
+                            type: "FatalError",
+                            reason: "ApplyEntryFailed",
+                            error: (error as Error).message,
+                        });
+                        this.started = false;
                     }
                     this.logger.error(`Error in apply loop`, error as Error);
                 }
@@ -477,7 +513,7 @@ export class RaftNode implements RaftNodeInterface {
                     const currentLastApplied = this.volatileState.getLastApplied();
                     const lastSnapshotIndex = this.snapshotManager.getSnapshotMetadata()?.lastIncludedIndex ?? 0;
 
-                    if (currentLastApplied - lastSnapshotIndex >= this.snapshotTreshold) {
+                    if (currentLastApplied - lastSnapshotIndex >= this.snapshotThreshold) {
                         await this.takeSnapshot();
                     }
 
@@ -490,8 +526,7 @@ export class RaftNode implements RaftNodeInterface {
         });
     }
 
-    // private async triggerReplication(): Promise<void> {
-    async triggerReplication(): Promise<void> {
+    private async triggerReplication(): Promise<void> {
         if (this.stateMachine.isLeader()) {
             await this.stateMachine.triggerReplication();
         }

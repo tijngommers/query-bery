@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { EventStore } from "../events/EventStore";
-import { ClientMessage, ServerMessage } from "../events/RaftEvents";
+import { ClientMessage, ServerMessage } from "./WsProtocol";
 import { ClusterRunnerInterface } from "./ClusterRunnerInterface";
 
 export class WsServer {

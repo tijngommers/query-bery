@@ -98,7 +98,15 @@ describe('RaftNode.ts, RaftNode', () => {
                 { id: 'node3', address: 'localhost:52002' }
             ], 150, 300, 50);
 
-        node = new RaftNode(config, storage, transport as any, appStateMachine as any, clock, random, silentLogger);
+        node = new RaftNode({
+            config,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+            logger: silentLogger as any,
+        });
     });
 
     afterEach(async () => {
@@ -111,10 +119,14 @@ describe('RaftNode.ts, RaftNode', () => {
     });
 
     it('should throw when config is invalid', () => {
-        expect(() => new RaftNode(
-            { ...config, nodeId: '' } as any,
-            storage, transport as any, appStateMachine as any, clock, random
-        )).toThrow();
+        expect(() => new RaftNode({
+            config: { ...config, nodeId: '' } as any,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+        })).toThrow();
     });
 
     it('should not be started initially', () => {
@@ -125,12 +137,27 @@ describe('RaftNode.ts, RaftNode', () => {
         const logger = {
             info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn()
         };
-        const nodeWithLogger = new RaftNode(config, storage, transport as any, appStateMachine as any, clock, random, logger);
+        const nodeWithLogger = new RaftNode({
+            config,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+            logger: logger as any,
+        });
         expect((nodeWithLogger as any)['logger']).toBe(logger);
     });
 
     it('should fall back to console if logger is not provided', () => {
-        const nodeWithoutLogger = new RaftNode(config, storage, transport as any, appStateMachine as any, clock, random);
+        const nodeWithoutLogger = new RaftNode({
+            config,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+        });
         expect((nodeWithoutLogger as any)['logger']).toBeInstanceOf(ConsoleLogger);
     });
 
@@ -145,7 +172,15 @@ describe('RaftNode.ts, RaftNode', () => {
     });
 
     it('should open storage if not already open on start', async () => {
-        const raftNode = new RaftNode(config, storage, transport as any, appStateMachine as any, clock, random, silentLogger);
+        const raftNode = new RaftNode({
+            config,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+            logger: silentLogger as any,
+        });
 
         const openSpy = vi.spyOn(storage, 'open').mockResolvedValue(undefined);
         vi.spyOn(storage, 'isOpen').mockReturnValueOnce(false);
@@ -197,7 +232,15 @@ describe('RaftNode.ts, RaftNode', () => {
 
         await storage.open();
 
-        const newNode = new RaftNode(config, storage, transport as any, appStateMachine as any, clock, random, silentLogger);
+        const newNode = new RaftNode({
+            config,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+            logger: silentLogger as any,
+        });
         await newNode.start();
         expect(newNode.getCurrentTerm()).toBe(5);
         await newNode.stop();
@@ -211,7 +254,15 @@ describe('RaftNode.ts, RaftNode', () => {
 
         await storage.open();
 
-        const newNode = new RaftNode(config, storage, transport as any, appStateMachine as any, clock, random, silentLogger);
+        const newNode = new RaftNode({
+            config,
+            storage,
+            transport: transport as any,
+            stateMachine: appStateMachine as any,
+            _clock: clock,
+            _random: random,
+            logger: silentLogger as any,
+        });
         await newNode.start();
         expect(newNode.getLastLogIndex()).toBe(1);
         await newNode.stop();
@@ -578,10 +629,10 @@ describe('RaftNode.ts, RaftNode', () => {
         expect(appStateMachine.apply).not.toHaveBeenCalled();
     });
 
-    it('should call process.exit(1) and stop loop when apply throws', async () => {
+    it('should emit FatalError and stop loop when apply throws', async () => {
         await node.start();
 
-        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+        const emitSpy = vi.spyOn((node as any)['bus'], 'emit');
 
         appStateMachine.apply.mockRejectedValue(new Error('apply error'));
 
@@ -594,10 +645,16 @@ describe('RaftNode.ts, RaftNode', () => {
         await tickApplyLoop();
 
         await vi.waitFor(() => {
-            expect(exitSpy).toHaveBeenCalledWith(1);
-        })
-
-        exitSpy.mockRestore();
+            expect(emitSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'FatalError',
+                    reason: 'ApplyEntryFailed',
+                    nodeId,
+                })
+            );
+        });
+        expect((node as any)['applyLoopRunning']).toBe(false);
+        expect(node.isStarted()).toBe(false);
     });
 
     it('should log error and continue on non-ApplyEntryFailed RaftError', async () => {
@@ -615,7 +672,7 @@ describe('RaftNode.ts, RaftNode', () => {
     it('should not throw when not the leader', async () => {
         await node.start();
 
-        await expect(node.triggerReplication()).resolves.not.toThrow();
+        await expect((node as any)['triggerReplication']()).resolves.not.toThrow();
     });
 
     it('should call stateMachine.triggerReplication when leader', async () => {
@@ -624,7 +681,7 @@ describe('RaftNode.ts, RaftNode', () => {
         forceLeader(node);
         const stateMachineSpy = vi.spyOn((node as any)['stateMachine'], 'triggerReplication').mockResolvedValue(undefined);
 
-        await node.triggerReplication();
+        await (node as any)['triggerReplication']();
         expect(stateMachineSpy).toHaveBeenCalled();
     });
 
@@ -1006,7 +1063,7 @@ describe('RaftNode.ts, RaftNode', () => {
         const volatileState = (node as any)['volatileState'];
         const snapshotManager = (node as any)['snapshotManager'];
 
-        (node as any)['snapshotTreshold'] = 2;
+        (node as any)['snapshotThreshold'] = 2;
 
         const takeSnapshotSpy = vi.spyOn(node as any, 'takeSnapshot');
         const saveSnapshotSpy = vi.spyOn(snapshotManager, 'saveSnapshot').mockResolvedValue(undefined);
@@ -1032,7 +1089,7 @@ describe('RaftNode.ts, RaftNode', () => {
         const volatileState = (node as any)['volatileState'];
         const snapshotManager = (node as any)['snapshotManager'];
 
-        (node as any)['snapshotTreshold'] = 1;
+        (node as any)['snapshotThreshold'] = 1;
 
         vi.spyOn(logManager, 'getTermAtIndex').mockResolvedValue(null);
         const saveSnapshotSpy = vi.spyOn(snapshotManager, 'saveSnapshot');
