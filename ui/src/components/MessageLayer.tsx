@@ -51,16 +51,19 @@ export function MessageLayer({ positions, nodeRadius, width, height }: Props) {
                 const y2 = to.y   - uy * (nodeRadius + 12);
 
                 const isRV = arrow.messageType === "RequestVote" || arrow.messageType === "RequestVoteResponse";
+                const isPreVote = arrow.messageType === "RequestVote" && arrow.preVote === true;
                 const isDropped = arrow.status === 'dropped';
                 const isSnapshot = arrow.messageType === "InstallSnapshotRequest" || arrow.messageType === "InstallSnapshotResponse";
 
                 if (isDropped && !messageVisibility.Dropped) return null;
-                if (isRV && !messageVisibility.RequestVote) return null;
+                if (isPreVote && !messageVisibility.PreVote) return null;
+                if (isRV && !isPreVote && !messageVisibility.RequestVote) return null;
                 if (isSnapshot && !messageVisibility.InstallSnapshot) return null;
                 if (!isRV && arrow.isHeartbeat && !isSnapshot && !messageVisibility.Heartbeat) return null;
                 if (!isRV && !arrow.isHeartbeat && !isDropped &&  !isSnapshot &&!messageVisibility.AppendEntries) return null;
 
                 const strokeColor = isDropped ? messageColors.Dropped
+                                  : isPreVote ? messageColors.PreVote
                                   : isRV ? messageColors.RequestVote
                                   : arrow.isHeartbeat ? messageColors.Heartbeat
                                   : isSnapshot ? messageColors.InstallSnapshotRequest

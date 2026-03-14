@@ -201,6 +201,7 @@ export function ClusterPanel() {
                     <Section title="MESSAGES">
                         {([
                             { key: 'RequestVote',   label: 'RequestVote',   color: messageColors.RequestVote,   dashed: false },
+                            { key: 'PreVote',       label: 'PreVote',       color: messageColors.PreVote,       dashed: false },
                             { key: 'AppendEntries', label: 'AppendEntries', color: messageColors.AppendEntries, dashed: false },
                             { key: 'InstallSnapshot',  label: 'InstallSnapshot',  color: messageColors.InstallSnapshotRequest,  dashed: false },
                             { key: 'Heartbeat',     label: 'Heartbeat',     color: messageColors.Heartbeat,     dashed: true  },

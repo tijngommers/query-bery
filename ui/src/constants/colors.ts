@@ -11,6 +11,7 @@ export const roleColors = {
 
 export const messageColors = {
     RequestVote: "#d73a49",
+    PreVote: "#f50bab",
     RequestVoteResponse: "#d73a49",
     AppendEntries: "#0366d6",
     Heartbeat: "#42e4e7",

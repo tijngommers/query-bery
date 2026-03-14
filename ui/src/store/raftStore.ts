@@ -78,6 +78,7 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
     totalEventCount: 0,
     messageVisibility: {
         RequestVote: true,
+        PreVote: true,
         AppendEntries: true,
         Heartbeat: true,
         Dropped: true,
@@ -122,6 +123,7 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
                 const isCrashedTarget = targetNode?.crashed ?? false;
 
                 const isHeartbeat: boolean = event.messageType === "AppendEntries" && (event.payload as { entries: unknown[] })?.entries?.length === 0;
+                const isPreVote: boolean = event.messageType === "RequestVote" && Boolean((event.payload as { preVote?: boolean })?.preVote);
 
                 const arrow: MessageArrow = {
                     id: event.messageId,
@@ -131,6 +133,7 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
                     status: isCrashedTarget ? "dropped" : "inFlight",
                     createdAt: Date.now(),
                     isHeartbeat: isHeartbeat,
+                    preVote: isPreVote,
                 };
                 set(state => ({ arrows: [...state.arrows, arrow] }));
 
@@ -491,7 +494,7 @@ export const useRaftStore = create<RaftStore>((set, get) => ({
     reset: () => set({ nodeIds: [], 
         events: [], nodes: {}, arrows: [], selectedNodeId: null, dropRateByNode: {}, 
         cutLinks: new Set(), totalEventCount: 0, 
-        messageVisibility: { RequestVote: true, AppendEntries: true, Heartbeat: true, Dropped: true, InstallSnapshot: true }, 
+        messageVisibility: { RequestVote: true, PreVote: true, AppendEntries: true, Heartbeat: true, Dropped: true, InstallSnapshot: true }, 
         snapshottingNodes: new Set(), installingSnapshotNodes: new Set(), clusterConfig: defaultConfig, pendingConfigChange: false}),
     })
 )

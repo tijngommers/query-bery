@@ -313,6 +313,7 @@ export interface MessageArrow {
     status: ArrowStatus;
     createdAt: number;
     isHeartbeat: boolean;
+    preVote?: boolean;
 }
 
 export interface Partition {
