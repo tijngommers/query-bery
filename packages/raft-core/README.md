@@ -1,5 +1,8 @@
 # @maboke123/raft-core
 
+[![npm version](https://img.shields.io/npm/v/@maboke123/raft-core.svg)](https://www.npmjs.com/package/@maboke123/raft-core)
+[![license](https://img.shields.io/npm/l/@maboke123/raft-core.svg)](./LICENSE)
+
 A TypeScript implementation of the [Raft consensus algorithm](https://raft.github.io/).
 
 Raft is a protocol that lets a cluster of nodes agree on a shared state even when some nodes crash or become unreachable. It handles leader election, log replication, snapshots, and cluster membership changes. You bring your own state machine — Raft takes care of making sure every node applies the same commands in the same order.

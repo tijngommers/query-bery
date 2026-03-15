@@ -1,5 +1,8 @@
 # @maboke123/raft-grpc
 
+[![npm version](https://img.shields.io/npm/v/@maboke123/raft-grpc.svg)](https://www.npmjs.com/package/@maboke123/raft-grpc)
+[![license](https://img.shields.io/npm/l/@maboke123/raft-grpc.svg)](./LICENSE)
+
 gRPC transport adapter for [@maboke123/raft-core](https://www.npmjs.com/package/@maboke123/raft-core).
 
 Enables Raft nodes to communicate over a real network using gRPC and Protocol Buffers. Use this when you want to run each node in its own process or on separate machines.
