@@ -7,6 +7,10 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "docs": "npm run docs --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typedoc": "0.28.17"
   }
 }

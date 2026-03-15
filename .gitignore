@@ -20,6 +20,7 @@
 **/node_modules/
 **/dist/
 **/coverage/
+docs/
 *src/test-scripts/
 *notes.md
 *data/
