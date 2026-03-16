@@ -17,6 +17,8 @@ const WRITE_HEADER_SIZE = 20;
 //   [magic(4)][type(4)]
 const COMMIT_RECORD_SIZE = 8;
 
+const WAL_SIZE_LIMIT = 100 * 1024 * 1024; // 100 MB
+
 /**
  * Interface to manage the write-ahead log.
  */
@@ -133,6 +135,13 @@ export class WALManagerImpl implements WALManager {
    */
   public async logWrite(offset: number, data: Uint8Array): Promise<void> {
     return this.mutex.runExclusive(async () => {
+      const walSize: number = await this.walFile.stat().then((stat) => stat.size);
+      const recordSize = WRITE_HEADER_SIZE + data.length;
+      if (walSize + recordSize > WAL_SIZE_LIMIT) {
+        console.log('WAL size limit reached. Triggering automatic checkpoint.');
+        await this.checkpointInternalWithoutMutex();
+      }
+
       const checksum: number = this.checksumCalculator(data);
       const header = Buffer.alloc(WRITE_HEADER_SIZE);
       header.writeUInt32LE(WAL_MAGIC, 0);
@@ -151,6 +160,12 @@ export class WALManagerImpl implements WALManager {
    */
   public async addCommitMarker(): Promise<void> {
     return this.mutex.runExclusive(async () => {
+      const walSize: number = await this.walFile.stat().then((stat) => stat.size);
+      if (walSize + COMMIT_RECORD_SIZE > WAL_SIZE_LIMIT) {
+        console.log('WAL size limit reached. Triggering automatic checkpoint.');
+        await this.checkpointInternalWithoutMutex();
+      }
+
       const record = Buffer.alloc(COMMIT_RECORD_SIZE);
       record.writeUInt32LE(WAL_MAGIC, 0);
       record.writeUInt32LE(RECORD_TYPE_COMMIT, 4);
@@ -194,6 +209,17 @@ export class WALManagerImpl implements WALManager {
     for (const w of committedData.writes) {
       await this.dbFile.writev([Buffer.from(w.data)], w.offset);
     }
+  }
+
+  /**
+   * Internal checkpoint with full durability cycle without acquiring the mutex.
+   * Called when WAL size limit is reached during logWrite or addCommitMarker.
+   */
+  private async checkpointInternalWithoutMutex(): Promise<void> {
+    await this.checkpointInternal();
+    await this.dbFile.sync();
+    await this.walFile.truncate(0);
+    await this.walFile.sync();
   }
 
   /**

@@ -223,4 +223,19 @@ describe('AtomicFile + WALManager integration (concurrency safe skeleton)', () =
     const walStat: { size: number } = await walFile.stat();
     expect(walStat.size).toBe(0);
   });
+
+  it('keeps WAL size at or below 100 MB by auto-checkpointing', async () => {
+    const WAL_SIZE_LIMIT = 100 * 1024 * 1024;
+    const chunkSize = 1024 * 1024;
+    const chunk = new Uint8Array(chunkSize);
+
+    // Push enough committed data to force at least one automatic checkpoint.
+    for (let i = 0; i < 140; i++) {
+      await wal.logWrite(i * chunkSize, chunk);
+      await wal.addCommitMarker();
+
+      const walStat = await walFile.stat();
+      expect(walStat.size).toBeLessThanOrEqual(WAL_SIZE_LIMIT);
+    }
+  }, 60000);
 });
