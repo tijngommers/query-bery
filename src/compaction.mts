@@ -219,7 +219,11 @@ export async function compactDatabase(
     } catch {
       // Rebuild failed after destroying original files — recover with empty DB
       if (newDb) {
-        try { await newDb.close(); } catch { /* best effort */ }
+        try {
+          await newDb.close();
+        } catch {
+          /* best effort */
+        }
       }
       await dbFile.create();
       await dbFile.close();
