@@ -27,12 +27,18 @@ function baseEvent(nodeId: NodeId): BaseEvent {
 }
 
 
+/**
+ * Runtime role of a Raft node.
+ */
 export enum RaftState {
     Follower = "Follower",
     Candidate = "Candidate",
     Leader = "Leader"
 }
 
+/**
+ * State machine contract responsible for Raft role transitions and RPC processing.
+ */
 export interface StateMachineInterface {
     start(): Promise<void>;
     stop(): Promise<void>;
@@ -47,6 +53,9 @@ export interface StateMachineInterface {
     handleInstallSnapshot(from: NodeId, request: InstallSnapshotRequest): Promise<InstallSnapshotResponse>;
 }
 
+/**
+ * In-progress chunked snapshot installation context.
+ */
 interface SnapshotInstallSession {
     leaderId: NodeId;
     term: number;
@@ -57,6 +66,13 @@ interface SnapshotInstallSession {
     receivedBytes: number;
 }
 
+/**
+ * Core Raft protocol state machine.
+ *
+ * @remarks
+ * Coordinates elections, leader transitions, replication, commit advancement, and
+ * incoming protocol RPC handling while preserving serialized state transitions.
+ */
 export class StateMachine implements StateMachineInterface {
     private currentState: RaftState = RaftState.Follower;
     private currentLeader: NodeId | null = null;
@@ -99,11 +115,17 @@ export class StateMachine implements StateMachineInterface {
         this.onPeerDiscovered = onPeerDiscovered;
     }
 
+    /**
+     * Starts protocol processing as follower in the current persisted term.
+     */
     async start(): Promise<void> {
         this.logger.info(`Node ${this.nodeId} starting as ${this.currentState}`);
         await this.becomeFollower( this.persistentState.getCurrentTerm(), null);
     }
 
+    /**
+     * Stops protocol timers and clears election/leader volatile state.
+     */
     async stop(): Promise<void> {
         this.logger.info(`Node ${this.nodeId} stopping`);
         this.timerManager.stopAllTimers();
@@ -113,36 +135,58 @@ export class StateMachine implements StateMachineInterface {
         this.leaderState = null;
     }
 
+    /** Returns the current node role. */
     getCurrentState(): RaftState {
         return this.currentState;
     }
 
+    /** Returns the current known leader id, or null if unknown. */
     getCurrentLeader(): NodeId | null {
         return this.currentLeader;
     }
 
+    /** Returns true when current role is leader. */
     isLeader(): boolean {
         return this.currentState === RaftState.Leader;
     }
 
+    /**
+     * Transitions to follower state under lock.
+     *
+     * @param term Term to adopt.
+     * @param leaderId Leader id associated with this follower transition.
+     */
     async becomeFollower(term: number, leaderId: NodeId | null): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             await this.becomeFollowerUnlocked(term, leaderId);
         });
     }
 
+    /**
+     * Starts a new election term under lock.
+     */
     async becomeCandidate(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             await this.becomeCandidateUnlocked();
         });
     }
 
+    /**
+     * Promotes the node to leader under lock.
+     */
     async becomeLeader(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             await this.becomeLeaderUnlocked();
         });
     }
 
+    /**
+     * Handles RequestVote and pre-vote requests.
+     *
+     * @param from Sender node id.
+     * @param request Vote request payload.
+     * @returns Vote response for the sender.
+     */
     async handleRequestVote(from: NodeId, request: RequestVoteRequest): Promise<RequestVoteResponse> {
         return await this.stateLock.runExclusive(async () => {
             const currentTerm = this.persistentState.getCurrentTerm();
@@ -265,6 +309,9 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /**
+     * Triggers replication cycle when node is leader.
+     */
     async triggerReplication(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             if (this.currentState === RaftState.Leader) {
@@ -273,6 +320,13 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /**
+     * Compares candidate log freshness against local log according to Raft rules.
+     *
+     * @param candidateLastLogIndex Candidate last log index.
+     * @param candidateLastLogTerm Candidate last log term.
+     * @returns True when candidate log is at least as up to date.
+     */
     private isLogUpToDate(candidateLastLogIndex: number, candidateLastLogTerm: number): boolean {
         const lastLogIndex = this.logManager.getLastIndex();
         const lastLogTerm = this.logManager.getLastTerm();
@@ -288,6 +342,13 @@ export class StateMachine implements StateMachineInterface {
         return candidateLastLogIndex >= lastLogIndex;
     }
 
+    /**
+     * Handles AppendEntries requests from leaders.
+     *
+     * @param from Sender node id.
+     * @param request AppendEntries payload.
+     * @returns AppendEntries response with success/conflict metadata.
+     */
     async handleAppendEntries(from: NodeId, request: AppendEntriesRequest): Promise<AppendEntriesResponse> {
         return await this.stateLock.runExclusive(async () => {
             const currentTerm = this.persistentState.getCurrentTerm();
@@ -373,6 +434,13 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /**
+     * Handles chunked InstallSnapshot requests and applies snapshot atomically.
+     *
+     * @param from Sender leader id.
+     * @param request InstallSnapshot payload chunk.
+     * @returns InstallSnapshot response for the sender.
+     */
     async handleInstallSnapshot(from: NodeId, request: InstallSnapshotRequest): Promise<InstallSnapshotResponse> {
         return await this.stateLock.runExclusive(async () => {
             const currentTerm = this.persistentState.getCurrentTerm();
@@ -476,12 +544,16 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /** Runs election timeout handling inside state lock. */
     private async handleElectionTimeoutlocked(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             await this.handleElectionTimeoutUnlocked();
         });
     }
 
+    /**
+     * Handles election timeout according to current role and pre-vote progress.
+     */
     private async handleElectionTimeoutUnlocked(): Promise<void> {
         if (!this.configManager.isVoter(this.nodeId)) {
             this.logger.info(`Node ${this.nodeId} is not a voter, ignoring election timeout`);
@@ -510,6 +582,12 @@ export class StateMachine implements StateMachineInterface {
         await this.startPreVoteUnlocked();
     }
 
+    /**
+     * Performs follower transition and resets role-dependent volatile state.
+     *
+     * @param term Term to adopt.
+     * @param leaderId Leader to track, if known.
+     */
     private async becomeFollowerUnlocked(term: number, leaderId: NodeId | null): Promise<void> {
         this.logger.info(`Node ${this.nodeId} becoming Follower for term ${term}, leader: ${leaderId}`);
 
@@ -558,6 +636,9 @@ export class StateMachine implements StateMachineInterface {
         this.logger.info(`Node ${this.nodeId} is now a Follower with term ${this.persistentState.getCurrentTerm()}`);
     }
 
+    /**
+     * Performs candidate transition, increments term, self-votes, and requests votes.
+     */
     private async becomeCandidateUnlocked(): Promise<void> {
         if (!this.configManager.isVoter(this.nodeId)) {
             this.logger.info(`Node ${this.nodeId} is not a voter, refusing transition to Candidate`);
@@ -613,6 +694,9 @@ export class StateMachine implements StateMachineInterface {
         await this.requestVotes();
     }
 
+    /**
+     * Performs leader transition and starts heartbeat/replication activity.
+     */
     private async becomeLeaderUnlocked(): Promise<void> {
         if (!this.configManager.isVoter(this.nodeId)) {
             this.logger.warn(`Node ${this.nodeId} is not a voter, refusing transition to Leader`);
@@ -661,6 +745,7 @@ export class StateMachine implements StateMachineInterface {
         await this.sendHeartbeatsUnlocked();
     }
 
+    /** Sends RequestVote RPCs to all current voter peers. */
     private async requestVotes(): Promise<void> {
         const currentTerm = this.persistentState.getCurrentTerm();
         const lastLogIndex = this.logManager.getLastIndex();
@@ -682,6 +767,7 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /** Starts pre-vote round to reduce disruptive elections. */
     private async startPreVoteUnlocked(): Promise<void> {
         this.preVoteInProgress = true;
         this.preVoteTerm = this.persistentState.getCurrentTerm();
@@ -702,6 +788,7 @@ export class StateMachine implements StateMachineInterface {
         await this.requestPreVotes();
     }
 
+    /** Sends pre-vote requests to all voter peers except self. */
     private async requestPreVotes(): Promise<void> {
         const currentTerm = this.persistentState.getCurrentTerm();
         const lastLogIndex = this.logManager.getLastIndex();
@@ -724,6 +811,7 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /** Sends one pre-vote request and dispatches response handling. */
     private async sendPreVote(peer: NodeId, request: RequestVoteRequest): Promise<void> {
         try {
             const response = await this.rpcHandler.sendRequestVote(peer, request);
@@ -737,6 +825,7 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /** Handles one pre-vote response under lock and advances to election on quorum. */
     private async handlePreVoteResponse(from: NodeId, response: RequestVoteResponse): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             if (!this.preVoteInProgress) {
@@ -773,6 +862,7 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /** Sends one RequestVote RPC and dispatches response handling. */
     private async sendRequestVote(peer: NodeId, request: RequestVoteRequest): Promise<void> {
 
         try {
@@ -791,6 +881,7 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /** Handles one RequestVote response and becomes leader on quorum. */
     private async handleRequestVoteResponse(from: NodeId, response: RequestVoteResponse): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             const currentTerm = this.persistentState.getCurrentTerm();
@@ -826,12 +917,16 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /** Runs heartbeat send cycle inside state lock. */
     private async sendHeartbeatsLocked(): Promise<void> {
         await this.stateLock.runExclusive(async () => {
             await this.sendHeartbeatsUnlocked();
         });
     }
 
+    /**
+     * Sends heartbeats (AppendEntries with no entries) to all peers
+     */
     private async sendHeartbeatsUnlocked(): Promise<void> {
         if (this.currentState !== RaftState.Leader) {
             return;
@@ -856,6 +951,11 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /**
+     * Sends AppendEntries to one peer, falling back to snapshot transfer when needed.
+     *
+     * @param peer Target peer id.
+     */
     private async sendAppendEntries(peer: NodeId): Promise<void> {
 
         let request: AppendEntriesRequest | null = null;
@@ -922,6 +1022,12 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /**
+     * Bounds AppendEntries batch size by configured byte limit.
+     *
+     * @param entries Candidate entries to send.
+     * @returns Bounded entry subset.
+     */
     private boundAppendEntriesBySize(entries: LogEntry[]): LogEntry[] {
         if (entries.length <= 1) {
             return entries;
@@ -945,6 +1051,11 @@ export class StateMachine implements StateMachineInterface {
         return bounded;
     }
     
+    /**
+     * Sends the current snapshot to a lagging follower in chunks.
+     *
+     * @param peer Target peer id.
+     */
     private async sendSnapshot(peer: NodeId): Promise<void> {
         const snapshotToSend = await this.stateLock.runExclusive(async () => {
             const snapshot = await this.snapshotManager.loadSnapshot();
@@ -1037,6 +1148,12 @@ export class StateMachine implements StateMachineInterface {
         }
     }
 
+    /**
+     * Handles AppendEntries responses, updating leader replication progress.
+     *
+     * @param from Responding follower id.
+     * @param response AppendEntries response payload.
+     */
     private async handleAppendEntriesResponse(from: NodeId, response: AppendEntriesResponse): Promise<void> {
         await this.stateLock.runExclusive(async () => {
 
@@ -1115,6 +1232,9 @@ export class StateMachine implements StateMachineInterface {
         });
     }
 
+    /**
+     * Attempts to advance commit index using current voter match indexes.
+     */
     private async tryAdvanceCommitIndex(): Promise<void> {
 
         if (!this.leaderState) {

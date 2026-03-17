@@ -6,6 +6,9 @@ import { NoOpEventBus } from '../events/EventBus';
 import { NodeId } from '../core/Config';
 import { ClusterConfig } from '../config/ClusterConfig';
 
+/**
+ * Log management contract for append, query, truncation, and compaction operations.
+ */
 export interface LogManagerInterface {
     initialize(): Promise<void>;
     appendEntry(entry: LogEntry): Promise<number>;
@@ -23,6 +26,13 @@ export interface LogManagerInterface {
     discardEntriesUpTo(index: number, term: number): Promise<void>;
 }
 
+/**
+ * Storage-backed Raft log manager with in-memory metadata cache.
+ *
+ * @remarks
+ * Enforces index/term consistency and coordinates append/truncate/compact behaviors
+ * used by leader replication and follower conflict resolution.
+ */
 export class LogManager implements LogManagerInterface {
 
     private lastIndex: number = 0;
@@ -37,6 +47,9 @@ export class LogManager implements LogManagerInterface {
         private readonly nodeId: NodeId | null = null
     ) {}
 
+    /**
+     * Initializes in-memory metadata from persistent log storage.
+     */
     async initialize(): Promise<void> {
         if (this.initialized) {
             return;
@@ -52,6 +65,13 @@ export class LogManager implements LogManagerInterface {
         }, 'initialize');
     }
 
+    /**
+     * Appends a single validated entry at the next expected index.
+     *
+     * @param entry Entry to append.
+     * @returns Appended entry index.
+     * @throws LogInconsistencyError When entry index is not contiguous.
+     */
     async appendEntry(entry: LogEntry): Promise<number> {
         this.ensureInitialized();
 
@@ -82,6 +102,13 @@ export class LogManager implements LogManagerInterface {
         return entry.index;
     }
 
+    /**
+     * Appends a contiguous sequence of validated entries.
+     *
+     * @param entries Entries to append.
+     * @returns Updated last log index.
+     * @throws LogInconsistencyError When sequence indices are not contiguous.
+     */
     async appendEntries(entries: LogEntry[]): Promise<number> {
         this.ensureInitialized();
 
@@ -123,6 +150,12 @@ export class LogManager implements LogManagerInterface {
         return this.lastIndex;
     }
 
+    /**
+     * Reads a single entry by index.
+     *
+     * @param index Log index to read.
+     * @returns Entry if present in retained log range, otherwise null.
+     */
     async getEntry(index: number): Promise<LogEntry | null> {
         this.ensureInitialized();
 
@@ -135,6 +168,14 @@ export class LogManager implements LogManagerInterface {
         }, `getEntry (${index})`);
     }
 
+    /**
+     * Reads entries in an inclusive index range.
+     *
+     * @param fromIndex Inclusive start index.
+     * @param toIndex Inclusive end index.
+     * @returns Entries in the requested range.
+     * @throws LogInconsistencyError When range is invalid for retained log bounds.
+     */
     async getEntries(fromIndex: number, toIndex: number): Promise<LogEntry[]> {
         this.ensureInitialized();
 
@@ -147,6 +188,12 @@ export class LogManager implements LogManagerInterface {
         }, `getEntries (${fromIndex} to ${toIndex})`);
     }
 
+    /**
+     * Returns first retained log index after snapshot compaction.
+     *
+     * @returns First retained index.
+     * @throws LogInconsistencyError When both log and snapshot are empty.
+     */
     getFirstIndex(): number {
         this.ensureInitialized();
         if (this.lastIndex === 0 && this.snapshotIndex === 0) {
@@ -155,6 +202,12 @@ export class LogManager implements LogManagerInterface {
         return this.snapshotIndex + 1;
     }
 
+    /**
+     * Returns term at given index, including snapshot boundary index.
+     *
+     * @param index Index to inspect.
+     * @returns Term if known, otherwise null.
+     */
     async getTermAtIndex(index: number): Promise<number | null> {
         this.ensureInitialized();
 
@@ -166,6 +219,13 @@ export class LogManager implements LogManagerInterface {
         return entry ? entry.term : null;
     }
 
+    /**
+     * Checks whether local log has an entry with matching index and term.
+     *
+     * @param index Candidate index.
+     * @param term Candidate term.
+     * @returns True when index/term pair matches local state.
+     */
     async hasMatchingEntry(index: number, term: number): Promise<boolean> {
         this.ensureInitialized();
 
@@ -185,6 +245,11 @@ export class LogManager implements LogManagerInterface {
         return entry !== null && entry.term === term;
     }
 
+    /**
+     * Returns the last retained log entry.
+     *
+     * @returns Last entry when present outside snapshot boundary, otherwise null.
+     */
     async getLastEntry(): Promise<LogEntry | null> {
         this.ensureInitialized();
 
@@ -199,16 +264,24 @@ export class LogManager implements LogManagerInterface {
         return await this.getEntry(this.lastIndex);
     }
 
+    /** Returns current last retained log index. */
     getLastIndex(): number {
         this.ensureInitialized();
         return this.lastIndex;
     }
 
+    /** Returns term associated with current last retained log index. */
     getLastTerm(): number {
         this.ensureInitialized();
         return this.lastTerm;
     }
 
+    /**
+     * Truncates entries starting at the provided index.
+     *
+     * @param index First index to remove.
+     * @throws LogInconsistencyError When index is outside valid retained range.
+     */
     async deleteEntriesFrom(index: number): Promise<void> {
         this.ensureInitialized();
 
@@ -229,6 +302,9 @@ export class LogManager implements LogManagerInterface {
         }, `deleteEntriesFrom (${index})`);
     }
 
+    /**
+     * Clears all retained entries after the snapshot boundary.
+     */
     async clear(): Promise<void> {
         this.ensureInitialized();
 
@@ -239,6 +315,12 @@ export class LogManager implements LogManagerInterface {
         await this.deleteEntriesFrom(this.snapshotIndex + 1);
     }
 
+    /**
+     * Reads all retained entries from a starting index to current last index.
+     *
+     * @param index Inclusive starting index.
+     * @returns Entries from index to lastIndex, or empty array when index is ahead.
+     */
     async getEntriesFromIndex(index: number): Promise<LogEntry[]> {
         this.ensureInitialized();
 
@@ -253,6 +335,13 @@ export class LogManager implements LogManagerInterface {
         return await this.getEntries(index, this.lastIndex);
     }
 
+    /**
+     * Applies leader entries from a previous index, resolving conflicts by truncation.
+     *
+     * @param prevLogIndex Previous index preceding incoming entries.
+     * @param entries Incoming entries from leader.
+     * @returns Updated last index after reconciliation.
+     */
     async appendEntriesFrom(prevLogIndex: number, entries: LogEntry[]): Promise<number> {
         this.ensureInitialized();
 
@@ -301,6 +390,13 @@ export class LogManager implements LogManagerInterface {
         return await this.appendEntries(toAppend);
     }
 
+    /**
+     * Validates whether local log matches leader previous log reference.
+     *
+     * @param prevLogIndex Previous log index from leader request.
+     * @param prevLogTerm Previous log term from leader request.
+     * @returns True when previous log reference is consistent.
+     */
     async matchesPrevLog(prevLogIndex: number, prevLogTerm: number): Promise<boolean> {
         this.ensureInitialized();
 
@@ -321,6 +417,12 @@ export class LogManager implements LogManagerInterface {
         return entry.term === prevLogTerm;
     }
 
+    /**
+     * Computes conflict hint for AppendEntries rejection optimization.
+     *
+     * @param prevLogIndex Candidate previous index from leader.
+     * @returns Conflict index/term pair for leader backtracking.
+     */
     async getConflictInfo(prevLogIndex: number): Promise<{ conflictIndex: number, conflictTerm: number }> {
         this.ensureInitialized();
 
@@ -349,6 +451,13 @@ export class LogManager implements LogManagerInterface {
         return { conflictIndex, conflictTerm };
     }
 
+    /**
+     * Appends a command entry at the next log index.
+     *
+     * @param command Command payload.
+     * @param term Term for the new entry.
+     * @returns Appended index.
+     */
     async appendCommand(command: Command, term: number): Promise<number> {
 
         const idx = this.lastIndex + 1;
@@ -365,6 +474,13 @@ export class LogManager implements LogManagerInterface {
         return idx;
     }
 
+    /**
+     * Compacts retained log entries up to and including the provided index.
+     *
+     * @param index Last index to compact into snapshot boundary.
+     * @param term Term at compacted index.
+     * @throws LogInconsistencyError When index exceeds current last index.
+     */
     async discardEntriesUpTo(index: number, term: number): Promise<void> {
         this.ensureInitialized();
 
@@ -387,6 +503,12 @@ export class LogManager implements LogManagerInterface {
         }, `discardEntriesUpTo (${index})`);
     }
 
+    /**
+     * Resets log state to snapshot boundary after receiving a newer snapshot.
+     *
+     * @param snapshotIndex Snapshot last included index.
+     * @param snapshotTerm Snapshot last included term.
+     */
     async resetToSnapshot(snapshotIndex: number, snapshotTerm: number): Promise<void> {
         this.ensureInitialized();
 
@@ -400,11 +522,19 @@ export class LogManager implements LogManagerInterface {
         }, `resetToSnapshot (${snapshotIndex})`);
     }
 
+    /** Returns current snapshot boundary index tracked by the log manager. */
     getSnapshotIndex(): number {
         this.ensureInitialized();
         return this.snapshotIndex;
     }
 
+    /**
+     * Appends a configuration-change entry at the next log index.
+     *
+     * @param config Cluster configuration payload.
+     * @param term Term for the new entry.
+     * @returns Appended index.
+     */
     async appendConfigEntry(config: ClusterConfig, term: number): Promise<number> {
 
         const idx = this.lastIndex + 1;
@@ -421,6 +551,11 @@ export class LogManager implements LogManagerInterface {
         return idx;
     }
 
+    /**
+     * Returns the most recent configuration entry from retained log.
+     *
+     * @returns Last configuration entry, or null when none exists.
+     */
     async getLastConfigEntry(): Promise<ClusterConfig | null> {
         this.ensureInitialized();
 
@@ -434,6 +569,12 @@ export class LogManager implements LogManagerInterface {
         return null;
     }
 
+    /**
+     * Appends a no-op entry for leader term establishment.
+     *
+     * @param term Term for the no-op entry.
+     * @returns Appended index.
+     */
     async appendNoOpEntry(term: number): Promise<number> {
 
         const idx = this.lastIndex + 1;
@@ -449,6 +590,13 @@ export class LogManager implements LogManagerInterface {
         return idx;
     }
 
+    /**
+     * Wraps storage operations and normalizes unexpected errors as StorageError.
+     *
+     * @param fn Operation to execute.
+     * @param context Human-readable operation context.
+     * @returns Result of the operation.
+     */
     private async safeStorage<T>(fn : () => Promise<T>, context: string): Promise<T> {
         try {
             return await fn();
@@ -461,6 +609,7 @@ export class LogManager implements LogManagerInterface {
 
     }
 
+    /** Ensures initialize has run before log operations are used. */
     private ensureInitialized() {
         if (!this.initialized) {
             throw new StorageError('LogManager is not initialized');
