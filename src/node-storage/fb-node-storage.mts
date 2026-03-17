@@ -15,10 +15,7 @@ import {
   NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC,
   resolveCompressionAlgorithmFromEnvironment,
 } from '../compression/compression.mjs';
-import {
-  deserializeCompressionEnvelope,
-  serializeCompressionEnvelope,
-} from '../compression/envelope.mjs';
+import { deserializeCompressionEnvelope, serializeCompressionEnvelope } from '../compression/envelope.mjs';
 
 type SerializedKey =
   | { type: 'string'; value: string }
