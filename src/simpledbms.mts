@@ -179,6 +179,63 @@ export function isIndexableField(fieldName: string): boolean {
   return !fieldName.startsWith('_') && fieldName !== 'id';
 }
 
+/**
+ * Simple read-write lock for async operations.
+ * Multiple readers can hold the lock concurrently, but a writer gets exclusive access.
+ */
+class RWLock {
+  private readers = 0;
+  private writing = false;
+  private readQueue: (() => void)[] = [];
+  private writeQueue: (() => void)[] = [];
+
+  async acquireRead(): Promise<void> {
+    if (!this.writing && this.writeQueue.length === 0) {
+      this.readers++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.readQueue.push(() => {
+        this.readers++;
+        resolve();
+      });
+    });
+  }
+
+  releaseRead(): void {
+    this.readers--;
+    if (this.readers === 0 && this.writeQueue.length > 0) {
+      this.writing = true;
+      this.writeQueue.shift()!();
+    }
+  }
+
+  async acquireWrite(): Promise<void> {
+    if (!this.writing && this.readers === 0) {
+      this.writing = true;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.writeQueue.push(() => {
+        this.writing = true;
+        resolve();
+      });
+    });
+  }
+
+  releaseWrite(): void {
+    this.writing = false;
+    if (this.writeQueue.length > 0) {
+      this.writing = true;
+      this.writeQueue.shift()!();
+    } else {
+      while (this.readQueue.length > 0) {
+        this.readQueue.shift()!();
+      }
+    }
+  }
+}
+
 // Collection class with secondary index support
 export class Collection {
   private primaryTree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>;
@@ -190,6 +247,8 @@ export class Collection {
   > = new Map();
 
   private onChangeCallback?: () => Promise<void>;
+
+  private lock = new RWLock();
 
   constructor(
     primaryTree: BPlusTree<string, Document, FBLeafNode<string, Document>, FBInternalNode<string, Document>>,
@@ -206,32 +265,37 @@ export class Collection {
    * @returns {Promise<void>} A promise that resolves when the index is created
    */
   async createIndex(fieldName: string, storage: FBNodeStorage<string, string>): Promise<void> {
-    if (!isIndexableField(fieldName)) {
-      throw new Error(`Field ${fieldName} cannot be indexed (starts with _ or is 'id')`);
-    }
-
-    if (this.secondaryIndexes.has(fieldName)) {
-      return;
-    }
-
-    const indexTree = new BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>(
-      storage,
-      50,
-    );
-    await indexTree.init();
-
-    for await (const { key: docId, value: doc } of this.primaryTree.entries()) {
-      const fieldValue = doc[fieldName];
-      if (fieldValue !== undefined && fieldValue !== null) {
-        const indexKey = serializeFieldValue(fieldValue) + ':' + docId;
-        await indexTree.insert(indexKey, docId);
+    await this.lock.acquireWrite();
+    try {
+      if (!isIndexableField(fieldName)) {
+        throw new Error(`Field ${fieldName} cannot be indexed (starts with _ or is 'id')`);
       }
-    }
 
-    this.secondaryIndexes.set(fieldName, indexTree);
+      if (this.secondaryIndexes.has(fieldName)) {
+        return;
+      }
 
-    if (this.onChangeCallback) {
-      await this.onChangeCallback();
+      const indexTree = new BPlusTree<string, string, FBLeafNode<string, string>, FBInternalNode<string, string>>(
+        storage,
+        50,
+      );
+      await indexTree.init();
+
+      for await (const { key: docId, value: doc } of this.primaryTree.entries()) {
+        const fieldValue = doc[fieldName];
+        if (fieldValue !== undefined && fieldValue !== null) {
+          const indexKey = serializeFieldValue(fieldValue) + ':' + docId;
+          await indexTree.insert(indexKey, docId);
+        }
+      }
+
+      this.secondaryIndexes.set(fieldName, indexTree);
+
+      if (this.onChangeCallback) {
+        await this.onChangeCallback();
+      }
+    } finally {
+      this.lock.releaseWrite();
     }
   }
 
@@ -241,10 +305,15 @@ export class Collection {
    * @returns {Promise<void>} A promise that resolves when the index is dropped
    */
   async dropIndex(fieldName: string): Promise<void> {
-    this.secondaryIndexes.delete(fieldName);
+    await this.lock.acquireWrite();
+    try {
+      this.secondaryIndexes.delete(fieldName);
 
-    if (this.onChangeCallback) {
-      await this.onChangeCallback();
+      if (this.onChangeCallback) {
+        await this.onChangeCallback();
+      }
+    } finally {
+      this.lock.releaseWrite();
     }
   }
 
@@ -290,26 +359,31 @@ export class Collection {
    * @returns {Promise<Document>} The inserted document.
    */
   async insert(doc: Omit<Document, 'id'> & { id?: string }): Promise<Document> {
-    const id = doc.id ?? randomUUID();
-    const newDoc: Document = { ...doc, id };
+    await this.lock.acquireRead();
+    try {
+      const id = doc.id ?? randomUUID();
+      const newDoc: Document = { ...doc, id };
 
-    // Insert into primary index
-    await this.primaryTree.insert(id, newDoc);
+      // Insert into primary index
+      await this.primaryTree.insert(id, newDoc);
 
-    // Update all secondary indexes
-    for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
-      const fieldValue = newDoc[fieldName];
-      if (fieldValue !== undefined && fieldValue !== null) {
-        const indexKey = serializeFieldValue(fieldValue) + ':' + id;
-        await indexTree.insert(indexKey, id);
+      // Update all secondary indexes
+      for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
+        const fieldValue = newDoc[fieldName];
+        if (fieldValue !== undefined && fieldValue !== null) {
+          const indexKey = serializeFieldValue(fieldValue) + ':' + id;
+          await indexTree.insert(indexKey, id);
+        }
       }
-    }
 
-    if (this.onChangeCallback) {
-      await this.onChangeCallback();
-    }
+      if (this.onChangeCallback) {
+        await this.onChangeCallback();
+      }
 
-    return newDoc;
+      return newDoc;
+    } finally {
+      this.lock.releaseRead();
+    }
   }
 
   /**
@@ -404,6 +478,15 @@ export class Collection {
    * @returns {Promise<Document[]>} An array of documents matching the query.
    */
   async find(query: Query = {}): Promise<Document[]> {
+    await this.lock.acquireRead();
+    try {
+      return await this._findInternal(query);
+    } finally {
+      this.lock.releaseRead();
+    }
+  }
+
+  private async _findInternal(query: Query = {}): Promise<Document[]> {
     let results: Document[] = [];
     let candidateIds: Set<string> | null = null;
 
@@ -713,7 +796,12 @@ export class Collection {
    * @returns {Promise<Document | null>} The document, or null if not found.
    */
   async findById(id: string): Promise<Document | null> {
-    return await this.primaryTree.search(id);
+    await this.lock.acquireRead();
+    try {
+      return await this.primaryTree.search(id);
+    } finally {
+      this.lock.releaseRead();
+    }
   }
 
   /**
@@ -723,38 +811,43 @@ export class Collection {
    * @returns {Promise<Document | null>} The updated document, or null if not found.
    */
   async update(id: string, updates: Partial<Document>): Promise<Document | null> {
-    const existing = await this.primaryTree.search(id);
-    if (!existing) return null;
+    await this.lock.acquireRead();
+    try {
+      const existing = await this.primaryTree.search(id);
+      if (!existing) return null;
 
-    const updated: Document = { ...existing, ...updates, id };
+      const updated: Document = { ...existing, ...updates, id };
 
-    // Remove old index entries for changed fields
-    for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
-      const oldValue = existing[fieldName];
-      const newValue = updated[fieldName];
+      // Remove old index entries for changed fields
+      for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
+        const oldValue = existing[fieldName];
+        const newValue = updated[fieldName];
 
-      // If value changed, remove old entry
-      if (oldValue !== newValue && oldValue !== undefined && oldValue !== null) {
-        const oldIndexKey = serializeFieldValue(oldValue) + ':' + id;
-        await indexTree.delete(oldIndexKey);
+        // If value changed, remove old entry
+        if (oldValue !== newValue && oldValue !== undefined && oldValue !== null) {
+          const oldIndexKey = serializeFieldValue(oldValue) + ':' + id;
+          await indexTree.delete(oldIndexKey);
+        }
+
+        // Add new entry if value exists
+        if (newValue !== undefined && newValue !== null) {
+          const newIndexKey = serializeFieldValue(newValue) + ':' + id;
+          await indexTree.insert(newIndexKey, id);
+        }
       }
 
-      // Add new entry if value exists
-      if (newValue !== undefined && newValue !== null) {
-        const newIndexKey = serializeFieldValue(newValue) + ':' + id;
-        await indexTree.insert(newIndexKey, id);
+      // Delete old entry from primary tree and insert updated one
+      await this.primaryTree.delete(id);
+      await this.primaryTree.insert(id, updated);
+
+      if (this.onChangeCallback) {
+        await this.onChangeCallback();
       }
+
+      return updated;
+    } finally {
+      this.lock.releaseRead();
     }
-
-    // Delete old entry from primary tree and insert updated one
-    await this.primaryTree.delete(id);
-    await this.primaryTree.insert(id, updated);
-
-    if (this.onChangeCallback) {
-      await this.onChangeCallback();
-    }
-
-    return updated;
   }
 
   /**
@@ -763,25 +856,30 @@ export class Collection {
    * @returns {Promise<boolean>} True if the document was deleted, false if not found.
    */
   async delete(id: string): Promise<boolean> {
-    const existing = await this.primaryTree.search(id);
-    if (!existing) return false;
+    await this.lock.acquireRead();
+    try {
+      const existing = await this.primaryTree.search(id);
+      if (!existing) return false;
 
-    // Remove from all secondary indexes
-    for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
-      const fieldValue = existing[fieldName];
-      if (fieldValue !== undefined && fieldValue !== null) {
-        const indexKey = serializeFieldValue(fieldValue) + ':' + id;
-        await indexTree.delete(indexKey);
+      // Remove from all secondary indexes
+      for (const [fieldName, indexTree] of this.secondaryIndexes.entries()) {
+        const fieldValue = existing[fieldName];
+        if (fieldValue !== undefined && fieldValue !== null) {
+          const indexKey = serializeFieldValue(fieldValue) + ':' + id;
+          await indexTree.delete(indexKey);
+        }
       }
+
+      await this.primaryTree.delete(id);
+
+      if (this.onChangeCallback) {
+        await this.onChangeCallback();
+      }
+
+      return true;
+    } finally {
+      this.lock.releaseRead();
     }
-
-    await this.primaryTree.delete(id);
-
-    if (this.onChangeCallback) {
-      await this.onChangeCallback();
-    }
-
-    return true;
   }
 }
 

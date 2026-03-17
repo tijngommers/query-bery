@@ -10,7 +10,7 @@ import cors from 'cors';
 import { EncryptionService } from './encryption/encryption-service.mjs';
 import { SimpleDBMS, type DocumentValue } from './simpledbms.mjs';
 import { RealFile } from './file/file.mjs';
-import { rename } from 'node:fs/promises';
+import { rename, writeFile, unlink, access } from 'node:fs/promises';
 import { compactDatabase, defragDatabase } from './compaction.mjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -27,6 +27,93 @@ import { existsSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Marker file used to make the two-rename compaction swap recoverable.
+ * The swap protocol is:
+ *   1. Write marker file (records temp paths)
+ *   2. rename(tempDb → db)
+ *   3. rename(tempWal → wal)
+ *   4. Delete marker file
+ *
+ * On startup, if the marker exists we know the swap was interrupted and
+ * can complete or roll back.
+ */
+const COMPACT_MARKER_SUFFIX = '.compact-swap';
+
+function compactMarkerPath(dbPath: string): string {
+  return dbPath + COMPACT_MARKER_SUFFIX;
+}
+
+async function fileExists(p: string): Promise<boolean> {
+  try { await access(p); return true; } catch { return false; }
+}
+
+/**
+ * Atomically swap temp compaction files into the original paths.
+ * Uses a marker file so the operation is recoverable after a crash.
+ */
+async function atomicCompactionSwap(
+  tempDbPath: string,
+  tempWalPath: string,
+  targetDbPath: string,
+  targetWalPath: string,
+): Promise<void> {
+  const marker = compactMarkerPath(targetDbPath);
+
+  // Step 1: write marker (fsync-safe intent record)
+  await writeFile(marker, JSON.stringify({ tempDbPath, tempWalPath, targetDbPath, targetWalPath }));
+
+  // Step 2: rename DB file (atomic on POSIX within same FS)
+  await rename(tempDbPath, targetDbPath);
+
+  // Step 3: rename WAL file
+  await rename(tempWalPath, targetWalPath);
+
+  // Step 4: remove marker — swap is complete
+  await unlink(marker);
+}
+
+/**
+ * On startup, check if a compaction swap was interrupted and finish it.
+ * - If the marker exists and the temp DB is gone (rename #1 succeeded),
+ *   complete the WAL rename.
+ * - If the marker exists and the temp DB still exists (rename #1 didn't
+ *   happen), roll back by removing temp files.
+ */
+async function recoverCompactionSwap(dbPath: string): Promise<void> {
+  const marker = compactMarkerPath(dbPath);
+  if (!(await fileExists(marker))) return;
+
+  console.log('Detected interrupted compaction swap, recovering...');
+
+  let info: { tempDbPath: string; tempWalPath: string; targetDbPath: string; targetWalPath: string };
+  try {
+    const raw = await readFile(marker, 'utf-8');
+    info = JSON.parse(raw);
+  } catch {
+    // Corrupt marker — delete it and let normal startup proceed
+    await unlink(marker).catch(() => {});
+    return;
+  }
+
+  const tempDbExists = await fileExists(info.tempDbPath);
+  const tempWalExists = await fileExists(info.tempWalPath);
+
+  if (!tempDbExists && tempWalExists) {
+    // DB rename succeeded, WAL rename did not — complete the swap
+    await rename(info.tempWalPath, info.targetWalPath);
+    console.log('Compaction swap recovered (completed WAL rename).');
+  } else if (tempDbExists) {
+    // DB rename never happened — roll back by cleaning up temp files
+    await unlink(info.tempDbPath).catch(() => {});
+    await unlink(info.tempWalPath).catch(() => {});
+    console.log('Compaction swap recovered (rolled back temp files).');
+  }
+  // else: both temp files gone — swap already completed
+
+  await unlink(marker).catch(() => {});
+}
 
 const app = express();
 const port = 3000;
@@ -171,6 +258,10 @@ async function initDB(customDbPath?: string, customWalPath?: string) {
   try {
     currentDbPath = customDbPath || process.argv[2] || 'mydb.db';
     currentWalPath = customWalPath || process.argv[3] || 'mydb.wal';
+
+    // Recover from a crashed compaction swap before opening the DB
+    await recoverCompactionSwap(currentDbPath);
+
     const dbFile = new RealFile(currentDbPath);
     const walFile = new RealFile(currentWalPath);
     let isNewDatabase = false;
@@ -694,9 +785,8 @@ app.post('/db/compact', async (_req, res) => {
     // Close the new DB so we can swap files
     await newDb.close();
 
-    // Atomically swap temp files into original paths
-    await rename(tempDbPath, currentDbPath);
-    await rename(tempWalPath, currentWalPath);
+    // Swap temp files into original paths (recoverable across crashes)
+    await atomicCompactionSwap(tempDbPath, tempWalPath, currentDbPath, currentWalPath);
 
     // Reopen the compacted database from the original paths
     const reopenedDbFile = new RealFile(currentDbPath);

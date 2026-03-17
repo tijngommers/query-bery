@@ -156,38 +156,44 @@ export async function compactDatabase(
           await newCollection.createIndex(field, indexStorage);
         }
       }
-
-      // Close old database
-      await db.close();
     } catch (error) {
+      // New DB build failed — old DB is still open and valid, just clean up temp
       await newDb.close();
       throw error;
+    }
+
+    // New DB is fully built — only now close the old one.
+    // If close() fails, the new DB is still valid so we proceed.
+    try {
+      await db.close();
+    } catch {
+      // Old DB close failed, but new DB is ready — safe to continue
     }
   } else {
     // Fallback for same-file mode (MockFile tests):
     // We must collect documents per-collection since we can't read and write
     // the same file simultaneously. We still stream collection-by-collection
     // to limit peak memory to the largest single collection.
-    try {
-      const collectionDocs: { meta: CollectionMeta; docs: import('./simpledbms.mjs').Document[] }[] = [];
+    const collectionDocs: { meta: CollectionMeta; docs: import('./simpledbms.mjs').Document[] }[] = [];
 
-      for (const meta of metas) {
-        const oldCollection = await db.getCollection(meta.name);
-        const docs: import('./simpledbms.mjs').Document[] = [];
-        for await (const { value: doc } of oldCollection.entries()) {
-          docs.push(doc);
-        }
-        collectionDocs.push({ meta, docs });
+    for (const meta of metas) {
+      const oldCollection = await db.getCollection(meta.name);
+      const docs: import('./simpledbms.mjs').Document[] = [];
+      for await (const { value: doc } of oldCollection.entries()) {
+        docs.push(doc);
       }
+      collectionDocs.push({ meta, docs });
+    }
 
-      // Close old DB and reset files
-      await db.close();
-      await dbFile.create();
-      await dbFile.close();
-      await walFile.create();
-      await walFile.close();
+    // Close old DB and reset files — point of no return
+    await db.close();
+    await dbFile.create();
+    await dbFile.close();
+    await walFile.create();
+    await walFile.close();
 
-      // Rebuild
+    // Rebuild — if this fails, we must still return a valid (empty) DB
+    try {
       newDb = await SimpleDBMS.create(dbFile, walFile);
 
       for (const { meta, docs } of collectionDocs) {
@@ -211,10 +217,27 @@ export async function compactDatabase(
         }
       }
     } catch (error) {
+      // Rebuild failed after destroying original files — recover with empty DB
       if (newDb) {
-        await newDb.close();
+        try { await newDb.close(); } catch { /* best effort */ }
       }
-      throw error;
+      await dbFile.create();
+      await dbFile.close();
+      await walFile.create();
+      await walFile.close();
+      newDb = await SimpleDBMS.create(dbFile, walFile);
+
+      const sizeAfter = (await targetDbFile.stat()).size;
+      return {
+        db: newDb,
+        result: {
+          success: false,
+          collectionsCompacted: 0,
+          totalDocuments: 0,
+          sizeBefore,
+          sizeAfter,
+        },
+      };
     }
   }
 
