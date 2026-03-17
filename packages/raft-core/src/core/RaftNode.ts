@@ -21,20 +21,41 @@ import { InstallSnapshotRequest, InstallSnapshotResponse } from "../rpc/RPCTypes
 import { ConfigManager } from "../config/ConfigManager";
 import { ClusterConfig } from "../config/ClusterConfig";
 
+/**
+ * Result returned by command submission APIs.
+ */
 export interface CommandResult {
+    /** Indicates whether the operation completed successfully. */
     success: boolean;
+    /** Index where the command was appended or committed when available. */
     index?: number;
+    /** Current known leader when the receiver is not leader. */
     leaderId?: NodeId;
+    /** Human-readable reason for failure when success is false. */
     error?: string;
 }
 
+/**
+ * Application state machine contract used by the Raft node.
+ *
+ * @remarks
+ * Implementations must be deterministic for replicated commands in order to keep
+ * state consistent across all nodes.
+ */
 export interface ApplicationStateMachine {
+    /** Applies a replicated command to application state. */
     apply(command: Command): Promise<any>;
+    /** Returns an observable view of the current application state. */
     getState(): any;
+    /** Serializes current application state into snapshot bytes. */
     takeSnapshot(): Promise<Buffer>;
+    /** Replaces current application state from snapshot bytes. */
     installSnapshot(data: Buffer): Promise<void>;
 }
 
+/**
+ * Public operational interface of a Raft node.
+ */
 export interface RaftNodeInterface {
     start(): Promise<void>;
     stop(): Promise<void>;
@@ -52,19 +73,38 @@ export interface RaftNodeInterface {
     getEntries(startIndex: number, endIndex: number): Promise<LogEntry[]>;
 }
 
+/**
+ * Construction options for a Raft node instance.
+ */
 export interface RaftNodeOptions {
+    /** Static local and cluster configuration. */
     config: RaftConfig;
+    /** Node storage bundle for log, metadata, snapshots, and configuration. */
     storage: NodeStorage;
+    /** Transport implementation used for Raft RPC communication. */
     transport: Transport;
+    /** Application state machine receiving committed commands. */
     stateMachine: ApplicationStateMachine;
+    /** Optional logger. Defaults to ConsoleLogger. */
     logger?: Logger;
+    /** Optional event bus. Defaults to NoOpEventBus. */
     eventBus?: RaftEventBus;
+    /** Internal/testing override for clock source. */
     _clock?: Clock;
+    /** Internal/testing override for random source. */
     _random?: Random;
 }
 
 const DEFAULT_SNAPSHOT_THRESHOLD = 200;
 
+/**
+ * Raft node runtime coordinating storage, replication, membership, and command application.
+ *
+ * @remarks
+ * This class owns node lifecycle and integrates all core components. Public methods
+ * provide operational APIs while internal methods enforce leader checks, commit waiting,
+ * and apply-loop consistency.
+ */
 export class RaftNode implements RaftNodeInterface {
     private config: RaftConfig;
     private nodeStorage: NodeStorage;
@@ -95,6 +135,12 @@ export class RaftNode implements RaftNodeInterface {
 
     private configManager: ConfigManager;
 
+    /**
+     * Creates a node with configured storage, transport, state machine, and runtime dependencies.
+     *
+     * @param options Complete node construction options.
+     * @throws RaftError When configuration validation fails.
+     */
     constructor(options: RaftNodeOptions) {
         const {
             config,
@@ -183,6 +229,17 @@ export class RaftNode implements RaftNodeInterface {
         );
     }
 
+    /**
+     * Starts node services and restores persisted state.
+     *
+     * @remarks
+     * Startup opens storage, initializes persistent/log/snapshot/config managers,
+     * restores snapshot state when present, wires transport handlers, starts the
+     * state machine, and launches the apply loop.
+     *
+     * @throws RaftError When node is already started.
+     * @throws RaftError When any startup phase fails.
+     */
     async start(): Promise<void> {
         if (this.started) {
             throw new RaftError(`Node ${this.config.nodeId} is already started`, 'NodeAlreadyStarted');
@@ -289,6 +346,12 @@ export class RaftNode implements RaftNodeInterface {
         }
     }
 
+    /**
+     * Stops node services and releases runtime resources.
+     *
+     * @throws RaftError When node is not started.
+     * @throws RaftError When shutdown fails.
+     */
     async stop(): Promise<void> {
         if (!this.started) {
             throw new RaftError(`Node ${this.config.nodeId} is not started`, 'NodeNotStarted');
@@ -327,6 +390,12 @@ export class RaftNode implements RaftNodeInterface {
         }
     }
 
+    /**
+     * Submits a client command through the leader path and waits for commit.
+     *
+     * @param command Command payload to replicate.
+     * @returns Submission result containing success/failure details.
+     */
     async submitCommand(command: Command): Promise<CommandResult> {
 
         const appendResult = await this.commandLock.runExclusive(async () => {
@@ -386,50 +455,68 @@ export class RaftNode implements RaftNodeInterface {
         }
     }
 
+    /** Returns the node's current Raft role/state. */
     getState(): RaftState {
         return this.stateMachine.getCurrentState();
     }
 
+    /** Returns true when this node currently acts as leader. */
     isLeader(): boolean {
         return this.stateMachine.isLeader();
     }
 
+    /** Returns the known leader identifier, or null if currently unknown. */
     getLeaderId(): NodeId | null {
         return this.stateMachine.getCurrentLeader();
     }
 
+    /** Returns the current persisted term. */
     getCurrentTerm(): number {
         return this.persistentState.getCurrentTerm();
     }
 
+    /** Returns the highest commit index known by this node. */
     getCommittedIndex(): number {
         return this.volatileState.getCommitIndex();
     }
 
+    /** Returns the highest log index applied to the application state machine. */
     getLastApplied(): number {
         return this.volatileState.getLastApplied();
     }
 
+    /** Returns the highest log index currently stored. */
     getLastLogIndex(): number {
         return this.logManager.getLastIndex();
     }
 
+    /** Returns this node identifier. */
     getNodeId(): NodeId {
         return this.config.nodeId;
     }
 
+    /** Returns the current application state machine state projection. */
     getApplicationState(): any {
         return this.applicationStateMachine.getState();
     }
 
+    /** Returns true when lifecycle start completed and stop has not been called. */
     isStarted(): boolean {
         return this.started;
     }
 
+    /**
+     * Reads a range of log entries.
+     *
+     * @param startIndex Inclusive start index.
+     * @param endIndex Inclusive end index.
+     * @returns Entries in the requested index range.
+     */
     async getEntries(startIndex: number, endIndex: number): Promise<LogEntry[]> {
         return await this.logManager.getEntries(startIndex, endIndex);
     }
 
+    /** Starts the background loop that applies committed entries in order. */
     private startApplyLoop(): void {
         if (this.applyLoopRunning) {
             return;
@@ -467,10 +554,20 @@ export class RaftNode implements RaftNodeInterface {
         runApplyLoop();
     }
 
+    /** Stops the background apply loop at the next loop boundary. */
     private stopApplyLoop(): void {
         this.applyLoopRunning = false;
     }
 
+    /**
+     * Applies committed but not-yet-applied entries to the application state machine.
+     *
+     * @remarks
+     * Application is serialized by applyLock to preserve strict in-order behavior.
+     * Snapshot-covered ranges are skipped and lastApplied is advanced accordingly.
+     *
+     * @throws RaftError When applying an entry fails.
+     */
     private async applyCommittedEntries(): Promise<void> {
         await this.applyLock.runExclusive(async () => {
             while (true) {
@@ -529,12 +626,21 @@ export class RaftNode implements RaftNodeInterface {
         });
     }
 
+    /** Triggers replication if and only if this node is currently leader. */
     private async triggerReplication(): Promise<void> {
         if (this.stateMachine.isLeader()) {
             await this.stateMachine.triggerReplication();
         }
     }
 
+    /**
+     * Proposes adding a node to cluster membership.
+     *
+     * @param nodeId Node identifier to add.
+     * @param address Transport address for the new node.
+     * @param asLearner When true, adds the node as learner instead of voter.
+     * @returns True when configuration change is committed.
+     */
     async addServer(nodeId: NodeId, address: string, asLearner: boolean = false): Promise<boolean> {
         if(!this.started){
             this.logger.warn(`Node ${this.config.nodeId} is not started, cannot add server ${nodeId}`);
@@ -593,6 +699,12 @@ export class RaftNode implements RaftNodeInterface {
         return result;
     }
 
+    /**
+     * Proposes removing a node from cluster membership.
+     *
+     * @param nodeId Node identifier to remove.
+     * @returns True when configuration change is committed.
+     */
     async removeServer(nodeId: NodeId): Promise<boolean> {
         if(!this.started){
             this.logger.warn(`Node ${this.config.nodeId} is not started, cannot remove server ${nodeId}`);
@@ -644,6 +756,12 @@ export class RaftNode implements RaftNodeInterface {
         return result;
     }
 
+    /**
+     * Proposes promoting a learner to voter.
+     *
+     * @param nodeId Learner node identifier.
+     * @returns True when configuration change is committed.
+     */
     async promoteServer(nodeId: NodeId): Promise<boolean> {
         if(!this.started){
             this.logger.warn(`Node ${this.config.nodeId} is not started, cannot promote server ${nodeId}`);
@@ -691,14 +809,31 @@ export class RaftNode implements RaftNodeInterface {
         return result;
     }
 
+    /**
+     * Adds a transport peer without changing cluster configuration.
+     *
+     * @param nodeId Peer node identifier.
+     * @param address Peer transport address.
+     */
     async registerPeer(nodeId: NodeId, address: string): Promise<void> {
         await this.transport.addPeer?.(nodeId, address);
     }
 
+    /**
+     * Removes a transport peer without changing cluster configuration.
+     *
+     * @param nodeId Peer node identifier.
+     */
     async removePeer(nodeId: NodeId): Promise<void> {
         this.transport.removePeer?.(nodeId);
     }
 
+    /**
+     * Appends and commits a cluster configuration entry.
+     *
+     * @param newConfig Configuration to append and attempt to commit.
+     * @returns True when the configuration entry commits in the current leader term.
+     */
     private async submitConfigChange(newConfig: ClusterConfig): Promise<boolean> {
         let capturedIndex: number | null = null;
         let capturedTerm: number | null = null;
@@ -754,6 +889,14 @@ export class RaftNode implements RaftNodeInterface {
         return committed;
     }
 
+    /**
+     * Waits for an index to commit while leadership and term remain valid.
+     *
+     * @param index Log index to wait for.
+     * @param timeoutMs Maximum wait duration in milliseconds.
+     * @param term Leader term captured when the entry was appended.
+     * @returns True if committed before timeout and before losing leadership/term.
+     */
     private async waitForCommit(index: number, timeoutMs: number, term: number): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
             const startTime = this.clock.now();
@@ -815,6 +958,11 @@ export class RaftNode implements RaftNodeInterface {
         });
     }
 
+    /**
+     * Resolves pending commit waiters at or below the provided commit index.
+     *
+     * @param newCommitIndex Latest committed index.
+     */
     private notifyCommitWaiters(newCommitIndex: number): void {
         for (const [index, resolvers] of this.commitWaiters.entries()) {
             if (index <= newCommitIndex) {
@@ -824,6 +972,13 @@ export class RaftNode implements RaftNodeInterface {
         }
     }
 
+    /**
+     * Captures a new snapshot and compacts log entries up to lastApplied.
+     *
+     * @remarks
+     * Snapshot metadata includes committed cluster configuration to ensure cluster
+     * membership can be reconstructed during recovery.
+     */
     private async takeSnapshot(): Promise<void> {
         const snapshotIndex = this.volatileState.getLastApplied();
         const snapshotTerm = await this.logManager.getTermAtIndex(snapshotIndex);
