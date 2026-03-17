@@ -15,7 +15,7 @@ import {
 export type CompressionAlgorithm = 'zstd' | 'gzip' | 'brotli' | 'deflate';
 
 // Compression envelope layout (13 bytes total):
-// - 4 bytes magic marker (e.g. FBC1/ZST1) to identify compressed payload format
+// - 4 bytes magic marker to identify compressed payload format
 // - 1 byte algorithm id (currently zstd = 1)
 // - 4 bytes original (uncompressed) payload size (UInt32LE)
 // - 4 bytes compressed payload size (UInt32LE)
