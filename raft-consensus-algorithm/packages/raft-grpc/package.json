@@ -30,7 +30,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "prepare": "npm run build",
+    "docs": "typedoc --options typedoc.json",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

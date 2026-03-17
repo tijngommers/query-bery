@@ -21,16 +21,30 @@ import { RPCHandlerError, NetworkError } from "../util/Error";
 import { RaftEventBus } from "../events/RaftEvents";
 import { NoOpEventBus } from "../events/EventBus";
 
+/**
+ * Optional send behavior for outbound RPC calls.
+ */
 export interface RPCSendOptions {
+    /** Per-request timeout override in milliseconds. */
     timeoutMs?: number;
 }
 
+/**
+ * RPC handler contract for outbound Raft protocol calls.
+ */
 export interface RPCHandlerInterface {
     sendRequestVote(peerId: NodeId, request: RequestVoteRequest, options?: RPCSendOptions): Promise<RequestVoteResponse>;
     sendAppendEntries(peerId: NodeId, request: AppendEntriesRequest, options?: RPCSendOptions): Promise<AppendEntriesResponse>;
     sendInstallSnapshot(peerId: NodeId, request: InstallSnapshotRequest, options?: RPCSendOptions): Promise<InstallSnapshotResponse>;
 }
 
+/**
+ * Transport-facing RPC utility for sending and dispatching Raft messages.
+ *
+ * @remarks
+ * Performs message validation, timeout handling, response type checks, and event
+ * emission around protocol traffic.
+ */
 export class RPCHandler implements RPCHandlerInterface {
 
     private static readonly default_timeout_ms = 1000;
@@ -43,6 +57,14 @@ export class RPCHandler implements RPCHandlerInterface {
         private eventBus: RaftEventBus = new NoOpEventBus()
     ) {}
 
+    /**
+     * Sends a RequestVote RPC and validates the corresponding response type.
+     *
+     * @param peerId Target peer id.
+     * @param request RequestVote payload.
+     * @param options Optional timeout override.
+     * @returns RequestVote response payload.
+     */
     async sendRequestVote(peerId: NodeId, request: RequestVoteRequest, options?: RPCSendOptions): Promise<RequestVoteResponse> {
 
         const message: RPCMessage = {
@@ -118,6 +140,14 @@ export class RPCHandler implements RPCHandlerInterface {
         }
     }
 
+    /**
+     * Sends an AppendEntries RPC and validates the corresponding response type.
+     *
+     * @param peerId Target peer id.
+     * @param request AppendEntries payload.
+     * @param options Optional timeout override.
+     * @returns AppendEntries response payload.
+     */
     async sendAppendEntries(peerId: NodeId, request: AppendEntriesRequest, options?: RPCSendOptions): Promise<AppendEntriesResponse> {
 
         const message: RPCMessage = {
@@ -192,6 +222,14 @@ export class RPCHandler implements RPCHandlerInterface {
         }
     }
 
+    /**
+     * Sends an InstallSnapshot RPC and validates the corresponding response type.
+     *
+     * @param peerId Target peer id.
+     * @param request InstallSnapshot payload.
+     * @param options Optional timeout override.
+     * @returns InstallSnapshot response payload.
+     */
     async sendInstallSnapshot(peerId: NodeId, request: InstallSnapshotRequest, options?: RPCSendOptions): Promise<InstallSnapshotResponse> {
         const message: RPCMessage = {
             type: "InstallSnapshot",
@@ -266,6 +304,15 @@ export class RPCHandler implements RPCHandlerInterface {
         }
     }
 
+    /**
+     * Sends one RPC message with timeout enforcement.
+     *
+     * @param peerId Target peer id.
+     * @param message Outbound RPC message.
+     * @param options Optional timeout override.
+     * @returns Raw RPC response message from transport.
+     * @throws RPCHandlerError On timeout.
+     */
     private async sendWithTimeout(peerId: NodeId, message: RPCMessage, options?: RPCSendOptions): Promise<RPCMessage> {
 
         const timeoutMs = options?.timeoutMs ?? RPCHandler.default_timeout_ms;
@@ -303,6 +350,15 @@ export class RPCHandler implements RPCHandlerInterface {
         }
     }
 
+    /**
+     * Dispatches incoming request message to protocol handlers and wraps response.
+     *
+     * @param from Sender node id.
+     * @param message Incoming request message.
+     * @param handler Handler set for each supported RPC request type.
+     * @returns RPC response message for transport reply.
+     * @throws RPCHandlerError When message type is unknown.
+     */
     async handleIncomingMessage(
         from: NodeId, 
         message: RPCMessage, 

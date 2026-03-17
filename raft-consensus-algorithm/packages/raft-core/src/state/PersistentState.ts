@@ -2,11 +2,19 @@ import { NodeId } from '../core/Config';
 import { MetaStorage } from '../storage/interfaces/MetaStorage';
 import { PersistentStateError, StorageError } from '../util/Error';
 
+/**
+ * Point-in-time view of durable Raft state for initialization return and testing.
+ */
 export interface PersistentStateSnapshot {
+    /** Current term restored from storage. */
     currentTerm: number;
+    /** Node voted for in currentTerm, or null. */
     votedFor: NodeId | null;
 }
 
+/**
+ * Contract for durable Raft state that must survive node restarts.
+ */
 export interface PersistentStateInterface {
     initialize(): Promise<PersistentStateSnapshot>;
     getCurrentTerm(): number;
@@ -16,6 +24,13 @@ export interface PersistentStateInterface {
     clear(): Promise<void>;
 }
 
+/**
+ * Storage-backed Raft persistent state holding current term and vote grant.
+ *
+ * @remarks
+ * Both fields must be written durably before responding to any RPC to preserve
+ * the Raft safety guarantees across crashes.
+ */
 export class PersistentState implements PersistentStateInterface {
     private currentTerm: number = 0;
     private votedFor: NodeId | null = null;
@@ -23,6 +38,12 @@ export class PersistentState implements PersistentStateInterface {
 
     constructor(private readonly meta: MetaStorage) {}
 
+    /**
+     * Restores term and vote from persistent storage.
+     *
+     * @returns Restored snapshot of term and vote state.
+     * @throws PersistentStateError When storage is not open.
+     */
     async initialize(): Promise<PersistentStateSnapshot> {
         if (this.initialized) {
             return { 
@@ -42,20 +63,34 @@ export class PersistentState implements PersistentStateInterface {
         return snapshot;
     }
 
+    /** Returns the current persisted term. */
     getCurrentTerm(): number {
         this.ensureInitialized();
         return this.currentTerm;
     }
 
+    /** Returns the node this node voted for in the current term, or null. */
     getVotedFor(): NodeId | null {
         this.ensureInitialized();
         return this.votedFor;
     }
 
+    /**
+     * Persists a new term and clears the vote grant.
+     *
+     * @param term New term value, must be >= current term.
+     */
     async setCurrentTerm(term: number): Promise<void> {
         await this.updateTermAndVote(term, null);
     }
 
+    /**
+     * Atomically persists term and vote in a single storage write.
+     *
+     * @param term New term value, must be >= current term.
+     * @param votedFor Candidate voted for in this term, or null.
+     * @throws PersistentStateError When term is invalid or storage write fails.
+     */
     async updateTermAndVote(term: number, votedFor: NodeId | null): Promise<void> {
         this.ensureInitialized();
 
@@ -74,6 +109,11 @@ export class PersistentState implements PersistentStateInterface {
         }
     }
 
+    /**
+     * Resets term to 0 and clears vote grant in storage.
+     *
+     * @throws PersistentStateError When storage write fails.
+     */
     async clear(): Promise<void> {
         this.ensureInitialized();
 
@@ -86,12 +126,14 @@ export class PersistentState implements PersistentStateInterface {
         }
     }
 
+    /** Throws if initialize() has not been called. */
     private ensureInitialized(): void {
         if (!this.initialized) {
             throw new PersistentStateError('PersistentState must be initialized before use');
         }
     }
 
+    /** Reads stored term and vote, returning defaults when storage is empty. */
     private async restore(): Promise<PersistentStateSnapshot> {
         try {
             const data = await this.meta.read();
@@ -111,12 +153,14 @@ export class PersistentState implements PersistentStateInterface {
         }
     }
 
+    /** Validates that a term value is a non-negative integer. */
     private validateTerm(term: number): void {
         if (!Number.isInteger(term) || term < 0) {
             throw new PersistentStateError(`Invalid term value in storage: ${term}`);
         }
     }
 
+    /** Asserts that a new term is valid and not a regression. */
     private assertValidNewTerm(newTerm: number): void {
         this.validateTerm(newTerm);
 
