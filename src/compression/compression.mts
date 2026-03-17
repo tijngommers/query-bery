@@ -23,7 +23,14 @@ export const COMPRESSION_ALGORITHM_ZSTD_ID: number = 1;
 export const COMPRESSION_ALGORITHM_GZIP_ID: number = 2;
 export const COMPRESSION_ALGORITHM_BROTLI_ID: number = 3;
 export const COMPRESSION_ALGORITHM_DEFLATE_ID: number = 4;
-export const COMPRESSION_ENVELOPE_HEADER_SIZE: number = 4 + 1 + 4 + 4;
+export const COMPRESSION_ENVELOPE_MAGIC_SIZE: number = 4;
+export const COMPRESSION_ENVELOPE_ALGORITHM_ID_SIZE: number = 1;
+export const COMPRESSION_ENVELOPE_SIZE_FIELD_SIZE: number = 4;
+export const COMPRESSION_ENVELOPE_HEADER_SIZE: number =
+  COMPRESSION_ENVELOPE_MAGIC_SIZE +
+  COMPRESSION_ENVELOPE_ALGORITHM_ID_SIZE +
+  COMPRESSION_ENVELOPE_SIZE_FIELD_SIZE +
+  COMPRESSION_ENVELOPE_SIZE_FIELD_SIZE;
 // Magic markers are custom format identifiers:
 // - FBC1: FreeBlock compressed payload envelope, version 1
 // - ZST1: Node-storage zstd payload envelope, version 1
@@ -31,6 +38,7 @@ export const FREEBLOCK_COMPRESSED_PAYLOAD_MAGIC: Buffer = Buffer.from('FBC1', 'a
 export const NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC: Buffer = Buffer.from('ZST1', 'ascii');
 export const DEFAULT_COMPRESSION_ALGORITHM: CompressionAlgorithm = 'zstd';
 export const COMPRESSION_ALGORITHM_ENV_VAR = 'COMPRESSION_ALGO';
+export const COMPRESSION_ALGORITHMS: CompressionAlgorithm[] = ['zstd', 'gzip', 'brotli', 'deflate'];
 let hasLoggedCompressionAlgorithmSelection = false;
 
 const COMPRESSION_ALGORITHM_ID_MAP: Record<CompressionAlgorithm, number> = {
@@ -52,8 +60,12 @@ const COMPRESSION_ID_ALGORITHM_MAP: Record<number, CompressionAlgorithm> = {
  *
  * @param {CompressionAlgorithm} algorithm - The compression algorithm name.
  * @returns {number} The numeric algorithm ID used in envelope headers.
+ * @throws {Error} If the algorithm is unknown.
  */
 export function getCompressionAlgorithmId(algorithm: CompressionAlgorithm): number {
+  if (!(algorithm in COMPRESSION_ALGORITHM_ID_MAP)) {
+    throw new Error(`Unknown compression algorithm '${algorithm}'`);
+  }
   return COMPRESSION_ALGORITHM_ID_MAP[algorithm];
 }
 
@@ -65,7 +77,7 @@ export function getCompressionAlgorithmId(algorithm: CompressionAlgorithm): numb
  * @throws {Error} If the algorithm ID is unknown.
  */
 export function getCompressionAlgorithmById(id: number): CompressionAlgorithm {
-  if (!COMPRESSION_ID_ALGORITHM_MAP[id]) {
+  if (!(id in COMPRESSION_ID_ALGORITHM_MAP)) {
     throw new Error(`Unknown compression algorithm ID '${id}' in envelope header`);
   }
   return COMPRESSION_ID_ALGORITHM_MAP[id];
@@ -87,8 +99,8 @@ export function parseCompressionAlgorithm(
   }
 
   const normalized = value.trim().toLowerCase();
-  if (normalized === 'zstd' || normalized === 'gzip' || normalized === 'brotli' || normalized === 'deflate') {
-    return normalized;
+  if (COMPRESSION_ALGORITHMS.includes(normalized as CompressionAlgorithm)) {
+    return normalized as CompressionAlgorithm;
   }
 
   return fallback;
@@ -137,7 +149,7 @@ export class CompressionService {
    *
    * @param {CompressionOptions} options - Compression settings for this instance.
    */
-  constructor(options: CompressionOptions = { algorithm: 'zstd', minSizeBytes: 0 }) {
+  constructor(options: CompressionOptions = { algorithm: DEFAULT_COMPRESSION_ALGORITHM, minSizeBytes: 0 }) {
     this.options = options;
   }
 
@@ -200,6 +212,10 @@ export class CompressionService {
   decompress(compressed: CompressionResult): Buffer {
     if (!Buffer.isBuffer(compressed.payload)) {
       throw new Error('CompressionService.decompress expects CompressionResult.payload to be a Buffer');
+    }
+
+    if (compressed.payload.length !== compressed.compressedSize) {
+      throw new Error('CompressionResult.compressedSize does not match payload length');
     }
 
     let decompressed: Buffer;

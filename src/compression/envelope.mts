@@ -93,7 +93,7 @@ export function deserializeCompressionEnvelope(payload: Buffer, expectedMagic: B
   const payloadStart = COMPRESSION_ENVELOPE_HEADER_SIZE;
   const payloadEnd = payloadStart + compressedSize;
 
-  if (payloadEnd > payload.length) {
+  if (payloadEnd !== payload.length) {
     return null;
   }
 
@@ -141,7 +141,7 @@ export function deserializeLegacyCompressionEnvelopeV0(
   const payloadStart = COMPRESSION_ENVELOPE_HEADER_SIZE;
   const payloadEnd = payloadStart + compressedSize;
 
-  if (payloadEnd > payload.length) {
+  if (payloadEnd !== payload.length) {
     return null;
   }
 

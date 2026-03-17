@@ -49,6 +49,19 @@ describe('Compression Envelope', () => {
     expect(decoded).toBeNull();
   });
 
+  it('returns null for v1 envelope with trailing bytes', () => {
+    const service = new CompressionService({ algorithm: 'zstd' });
+    const original = Buffer.from('trailing-v1', 'utf-8');
+    const compressed = service.compress(original);
+
+    const magic = Buffer.from('TRL1', 'ascii');
+    const encoded = serializeCompressionEnvelope(magic, compressed);
+    const withTrailingBytes = Buffer.concat([encoded, Buffer.from([0xaa, 0xbb])]);
+
+    const decoded = deserializeCompressionEnvelope(withTrailingBytes, magic);
+    expect(decoded).toBeNull();
+  });
+
   it('returns null for unknown algorithm id in v1 envelope', () => {
     const service = new CompressionService({ algorithm: 'zstd' });
     const original = Buffer.from('unknown-algo-id', 'utf-8');
@@ -99,6 +112,24 @@ describe('Compression Envelope', () => {
     const truncated = legacyEncoded.subarray(0, legacyEncoded.length - 1);
 
     const decoded = deserializeLegacyCompressionEnvelopeV0(truncated, magic, 'zstd');
+    expect(decoded).toBeNull();
+  });
+
+  it('returns null for legacy v0 envelope with trailing bytes', () => {
+    const service = new CompressionService({ algorithm: 'zstd' });
+    const original = Buffer.from('legacy-trailing', 'utf-8');
+    const compressed = service.compress(original);
+
+    const magic = Buffer.from('LGC1', 'ascii');
+    const legacyHeader = Buffer.alloc(13);
+    magic.copy(legacyHeader, 0);
+    legacyHeader.writeUInt32LE(compressed.originalSize, 4);
+    legacyHeader.writeUInt32LE(compressed.compressedSize, 8);
+
+    const legacyEncoded = Buffer.concat([legacyHeader, compressed.payload]);
+    const withTrailingBytes = Buffer.concat([legacyEncoded, Buffer.from([0xcc])]);
+
+    const decoded = deserializeLegacyCompressionEnvelopeV0(withTrailingBytes, magic, 'zstd');
     expect(decoded).toBeNull();
   });
 

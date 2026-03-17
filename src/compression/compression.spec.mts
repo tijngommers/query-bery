@@ -44,4 +44,16 @@ describe('CompressionService', () => {
       }),
     ).toThrowError();
   });
+
+  it('throws when compressedSize does not match payload length', () => {
+    const service = new CompressionService({ algorithm: 'zstd' });
+    const compressed = service.compress(Buffer.from('size-mismatch', 'utf-8'));
+
+    expect(() =>
+      service.decompress({
+        ...compressed,
+        compressedSize: compressed.compressedSize + 1,
+      }),
+    ).toThrowError('CompressionResult.compressedSize does not match payload length');
+  });
 });
