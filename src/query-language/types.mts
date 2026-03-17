@@ -3,6 +3,7 @@
 
 export enum TokenType {
     SELECT = 'SELECT',
+    DELETE = 'DELETE',
     FROM = 'FROM',
     WHERE = 'WHERE',
     AND = 'AND',
@@ -20,4 +21,15 @@ export enum TokenType {
 export interface Token {
     type: TokenType;
     value: string;
+}
+
+export type ASTNode = 
+  | { type: 'SelectStatement'; table: string; columns: string[]; where?: BinaryExpression }
+    | { type: 'DeleteStatement'; table: string; where?: BinaryExpression };
+
+
+export interface BinaryExpression {
+    left: string;
+    operator: string;
+    right: string | number;
 }
