@@ -1,7 +1,7 @@
-import { MetaStorage } from "./MetaStorage";
-import { ConfigStorage } from "./ConfigStorage";
-import { LogStorage } from "./LogStorage";
-import { SnapshotStorage } from "./SnapshotStorage";
+import { MetaStorage } from './MetaStorage';
+import { ConfigStorage } from './ConfigStorage';
+import { LogStorage } from './LogStorage';
+import { SnapshotStorage } from './SnapshotStorage';
 
 /**
  * Aggregate storage contract for all Raft durable data domains.
@@ -11,18 +11,18 @@ import { SnapshotStorage } from "./SnapshotStorage";
  * as one unit.
  */
 export interface NodeStorage {
-    /** Persistent term and vote state. */
-    meta: MetaStorage;
-    /** Cluster membership persistence. */
-    config: ConfigStorage;
-    /** Replicated log persistence. */
-    log: LogStorage;
-    /** Snapshot persistence. */
-    snapshot: SnapshotStorage;
-    /** Opens storage resources. */
-    open(): Promise<void>;
-    /** Closes storage resources. */
-    close(): Promise<void>;
-    /** Returns true when storage is currently open. */
-    isOpen(): boolean;
+  /** Persistent term and vote state. */
+  meta: MetaStorage;
+  /** Cluster membership persistence. */
+  config: ConfigStorage;
+  /** Replicated log persistence. */
+  log: LogStorage;
+  /** Snapshot persistence. */
+  snapshot: SnapshotStorage;
+  /** Opens storage resources. */
+  open(): Promise<void>;
+  /** Closes storage resources. */
+  close(): Promise<void>;
+  /** Returns true when storage is currently open. */
+  isOpen(): boolean;
 }

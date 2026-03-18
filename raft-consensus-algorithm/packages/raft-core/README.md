@@ -28,7 +28,7 @@ There are four things you always need to provide:
 - **Transport** — how nodes talk to each other. Use `MockTransport` (from `/testing`) for in-process clusters, `GrpcTransport` (from `@maboke123/raft-grpc`) for real networks
 - **State machine** — your application logic. Raft calls `apply()` on it for every committed command
 
-> **Commit vs apply:** `submitCommand()` resolves when the command is *committed* — meaning a majority of nodes have written it to their logs. The command is then *applied* to your state machine asynchronously. In practice this happens within milliseconds, but if you read `getApplicationState()` immediately after `submitCommand()` resolves, wait a brief moment for the apply loop to catch up.
+> **Commit vs apply:** `submitCommand()` resolves when the command is _committed_ — meaning a majority of nodes have written it to their logs. The command is then _applied_ to your state machine asynchronously. In practice this happens within milliseconds, but if you read `getApplicationState()` immediately after `submitCommand()` resolves, wait a brief moment for the apply loop to catch up.
 
 ---
 
@@ -37,18 +37,18 @@ There are four things you always need to provide:
 This runs three Raft nodes in the same process using in-memory storage and a mock transport. Good for development, testing, and learning how Raft works.
 
 ```ts
-import { RaftNode, InMemoryNodeStorage } from "@maboke123/raft-core";
-import { MockTransport } from "@maboke123/raft-core/testing";
+import { RaftNode, InMemoryNodeStorage } from '@maboke123/raft-core';
+import { MockTransport } from '@maboke123/raft-core/testing';
 
 // 1. Define your application state machine
 class KeyValueStore {
   private data = new Map<string, unknown>();
 
   async apply(command: { type: string; payload: any }) {
-    if (command.type === "SET") {
+    if (command.type === 'SET') {
       this.data.set(command.payload.key, command.payload.value);
     }
-    if (command.type === "DELETE") {
+    if (command.type === 'DELETE') {
       this.data.delete(command.payload.key);
     }
   }
@@ -69,13 +69,11 @@ class KeyValueStore {
 
 // 2. Boot the cluster
 async function main() {
-  const nodeIds = ["node1", "node2", "node3"];
+  const nodeIds = ['node1', 'node2', 'node3'];
   const nodes: RaftNode[] = [];
 
   for (const nodeId of nodeIds) {
-    const peers = nodeIds
-      .filter((id) => id !== nodeId)
-      .map((id, i) => ({ id, address: `localhost:${5000 + i}` }));
+    const peers = nodeIds.filter((id) => id !== nodeId).map((id, i) => ({ id, address: `localhost:${5000 + i}` }));
 
     const node = new RaftNode({
       config: {
@@ -101,15 +99,15 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 500));
 
   const leader = nodes.find((n) => n.isLeader());
-  if (!leader) throw new Error("No leader elected");
+  if (!leader) throw new Error('No leader elected');
   console.log(`Leader: ${leader.getNodeId()}`);
 
   // 5. Submit a command — only the leader accepts commands
   const result = await leader.submitCommand({
-    type: "SET",
-    payload: { key: "hello", value: "world" },
+    type: 'SET',
+    payload: { key: 'hello', value: 'world' },
   });
-  console.log("Committed:", result); // { success: true, index: 2 }
+  console.log('Committed:', result); // { success: true, index: 2 }
 
   // Wait briefly for the apply loop to apply the committed entry
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -135,33 +133,34 @@ main().catch(console.error);
 Each node runs in its own process. You need `@maboke123/raft-grpc` for the transport.
 
 **node1.ts:**
+
 ```ts
-import { RaftNode, DiskNodeStorage } from "@maboke123/raft-core";
-import { GrpcTransport } from "@maboke123/raft-grpc";
+import { RaftNode, DiskNodeStorage } from '@maboke123/raft-core';
+import { GrpcTransport } from '@maboke123/raft-grpc';
 
 async function main() {
   const node = new RaftNode({
     config: {
-      nodeId: "node1",
-      address: "localhost:50051",
+      nodeId: 'node1',
+      address: 'localhost:50051',
       peers: [
-        { id: "node2", address: "localhost:50052" },
-        { id: "node3", address: "localhost:50053" },
+        { id: 'node2', address: 'localhost:50052' },
+        { id: 'node3', address: 'localhost:50053' },
       ],
       electionTimeoutMinMs: 150,
       electionTimeoutMaxMs: 300,
       heartbeatIntervalMs: 50,
     },
-    storage: new DiskNodeStorage("./data/node1"),
-    transport: new GrpcTransport("node1", 50051, {
-      node2: "localhost:50052",
-      node3: "localhost:50053",
+    storage: new DiskNodeStorage('./data/node1'),
+    transport: new GrpcTransport('node1', 50051, {
+      node2: 'localhost:50052',
+      node3: 'localhost:50053',
     }),
     stateMachine: new KeyValueStore(),
   });
 
   await node.start();
-  console.log("node1 started");
+  console.log('node1 started');
 }
 
 main().catch(console.error);
@@ -175,17 +174,17 @@ Pass a `certPaths` object as the fourth argument to `GrpcTransport`. Each node n
 
 ```ts
 const transport = new GrpcTransport(
-  "node1",
+  'node1',
   50051,
   {
-    node2: "localhost:50052",
-    node3: "localhost:50053",
+    node2: 'localhost:50052',
+    node3: 'localhost:50053',
   },
   {
-    caCert:   "./certs/ca/ca.crt",
-    nodeCert: "./certs/node1/node1.crt",
-    nodeKey:  "./certs/node1/node1.key",
-  }
+    caCert: './certs/ca/ca.crt',
+    nodeCert: './certs/node1/node1.crt',
+    nodeKey: './certs/node1/node1.key',
+  },
 );
 ```
 
@@ -198,45 +197,45 @@ Without `certPaths` the transport runs in insecure mode — fine for local devel
 Subscribe to a `LocalEventBus` to get a stream of everything happening inside the cluster. Useful for logging, metrics, dashboards, and reacting to leadership changes.
 
 ```ts
-import { RaftNode, InMemoryNodeStorage, LocalEventBus } from "@maboke123/raft-core";
-import { MockTransport } from "@maboke123/raft-core/testing";
+import { RaftNode, InMemoryNodeStorage, LocalEventBus } from '@maboke123/raft-core';
+import { MockTransport } from '@maboke123/raft-core/testing';
 
 async function main() {
   const bus = new LocalEventBus();
 
   const node = new RaftNode({
     config: {
-      nodeId: "node1",
-      address: "localhost:5001",
+      nodeId: 'node1',
+      address: 'localhost:5001',
       peers: [
-        { id: "node2", address: "localhost:5002" },
-        { id: "node3", address: "localhost:5003" },
+        { id: 'node2', address: 'localhost:5002' },
+        { id: 'node3', address: 'localhost:5003' },
       ],
       electionTimeoutMinMs: 150,
       electionTimeoutMaxMs: 300,
       heartbeatIntervalMs: 50,
     },
     storage: new InMemoryNodeStorage(),
-    transport: new MockTransport("node1"),
+    transport: new MockTransport('node1'),
     stateMachine: new KeyValueStore(),
     eventBus: bus,
   });
 
   bus.subscribe((event) => {
     switch (event.type) {
-      case "LeaderElected":
+      case 'LeaderElected':
         console.log(`New leader: ${event.leaderId} in term ${event.term}`);
         break;
-      case "NodeStateChanged":
+      case 'NodeStateChanged':
         console.log(`${event.nodeId}: ${event.oldState} → ${event.newState}`);
         break;
-      case "CommitIndexAdvanced":
+      case 'CommitIndexAdvanced':
         console.log(`Commit index advanced to ${event.newCommitIndex}`);
         break;
-      case "SnapshotTaken":
+      case 'SnapshotTaken':
         console.log(`Snapshot taken at index ${event.lastIncludedIndex}`);
         break;
-      case "FatalError":
+      case 'FatalError':
         console.error(`Fatal error on ${event.nodeId}: ${event.reason}`);
         process.exit(1); // your code decides what to do
         break;
@@ -259,17 +258,17 @@ The leader can add and remove nodes from a running cluster without downtime.
 
 ```ts
 // Add a new voter
-await leader.addServer("node4", "localhost:50054");
+await leader.addServer('node4', 'localhost:50054');
 
 // Add as a learner first — receives log but does not vote
 // useful to let the node catch up before promoting it
-await leader.addServer("node4", "localhost:50054", true);
+await leader.addServer('node4', 'localhost:50054', true);
 
 // Promote a learner to voter once it has caught up
-await leader.promoteServer("node4");
+await leader.promoteServer('node4');
 
 // Remove a node
-await leader.removeServer("node3");
+await leader.removeServer('node3');
 ```
 
 ---
@@ -279,7 +278,7 @@ await leader.removeServer("node3");
 Implement the `Transport` interface to use any communication layer — WebSockets, HTTP/2, IPC, etc.
 
 ```ts
-import type { Transport, MessageHandler, NodeId, RPCMessage } from "@maboke123/raft-core";
+import type { Transport, MessageHandler, NodeId, RPCMessage } from '@maboke123/raft-core';
 
 export class MyTransport implements Transport {
   private handler: MessageHandler | null = null;
@@ -302,7 +301,7 @@ export class MyTransport implements Transport {
   // Send a message to a peer and return its response
   async send(peerId: NodeId, message: RPCMessage): Promise<RPCMessage> {
     // serialize message, send over the wire, deserialize and return response
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   // Register the handler that processes incoming messages from peers.
@@ -326,42 +325,58 @@ Implement `NodeStorage` to persist Raft state in any backend — Redis, Postgres
 ```ts
 import type {
   NodeStorage,
-  MetaStorage,    MetaData,
-  LogStorage,     LogStorageMeta, LogEntry,
+  MetaStorage,
+  MetaData,
+  LogStorage,
+  LogStorageMeta,
+  LogEntry,
   SnapshotStorage,
-  ConfigStorage,  ConfigStorageData,
+  ConfigStorage,
+  ConfigStorageData,
   ClusterMember,
-} from "@maboke123/raft-core";
+} from '@maboke123/raft-core';
 
 // Stores current term and votedFor — written on every vote and term change
 class MyMetaStorage implements MetaStorage {
-  async open(): Promise<void> { /* connect */ }
-  async close(): Promise<void> { /* disconnect */ }
-  isOpen(): boolean { return true; }
+  async open(): Promise<void> {
+    /* connect */
+  }
+  async close(): Promise<void> {
+    /* disconnect */
+  }
+  isOpen(): boolean {
+    return true;
+  }
 
   async read(): Promise<MetaData | null> {
     // return { term, votedFor } or null if no data yet
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async write(term: number, votedFor: string | null): Promise<void> {
     // must be atomic — if this write is lost, the node may violate safety
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 }
 
 // Stores committed cluster configuration
 class MyConfigStorage implements ConfigStorage {
-  async open(): Promise<void> { /* connect */ }
-  async close(): Promise<void> { /* disconnect */ }
-  isOpen(): boolean { return true; }
+  async open(): Promise<void> {
+    /* connect */
+  }
+  async close(): Promise<void> {
+    /* disconnect */
+  }
+  isOpen(): boolean {
+    return true;
+  }
 
   async read(): Promise<ConfigStorageData | null> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async write(voters: ClusterMember[], learners: ClusterMember[]): Promise<void> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 }
 
@@ -369,38 +384,40 @@ class MyConfigStorage implements ConfigStorage {
 class MyLogStorage implements LogStorage {
   async open(): Promise<void> {}
   async close(): Promise<void> {}
-  isOpen(): boolean { return true; }
+  isOpen(): boolean {
+    return true;
+  }
 
   async readMeta(): Promise<LogStorageMeta> {
     // return { snapshotIndex, snapshotTerm, lastIndex, lastTerm }
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async append(entries: LogEntry[]): Promise<void> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async getEntry(index: number): Promise<LogEntry | null> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async getEntries(from: number, to: number): Promise<LogEntry[]> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async truncateFrom(index: number): Promise<void> {
     // delete all entries from index onwards (used during conflict resolution)
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async compact(upToIndex: number, term: number): Promise<void> {
     // discard entries up to upToIndex after a snapshot has been taken
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async reset(snapshotIndex: number, snapshotTerm: number): Promise<void> {
     // clear the entire log (used when installing a snapshot from the leader)
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 }
 
@@ -408,53 +425,40 @@ class MyLogStorage implements LogStorage {
 class MySnapshotStorage implements SnapshotStorage {
   async open(): Promise<void> {}
   async close(): Promise<void> {}
-  isOpen(): boolean { return true; }
+  isOpen(): boolean {
+    return true;
+  }
 
   async save(snapshot: any): Promise<void> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async load(): Promise<any | null> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 
   async readMetadata(): Promise<any | null> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
   }
 }
 
 // Compose all four into a NodeStorage
 export class MyNodeStorage implements NodeStorage {
-  meta     = new MyMetaStorage();
-  config   = new MyConfigStorage();
-  log      = new MyLogStorage();
+  meta = new MyMetaStorage();
+  config = new MyConfigStorage();
+  log = new MyLogStorage();
   snapshot = new MySnapshotStorage();
 
   async open(): Promise<void> {
-    await Promise.all([
-      this.meta.open(),
-      this.config.open(),
-      this.log.open(),
-      this.snapshot.open(),
-    ]);
+    await Promise.all([this.meta.open(), this.config.open(), this.log.open(), this.snapshot.open()]);
   }
 
   async close(): Promise<void> {
-    await Promise.all([
-      this.meta.close(),
-      this.config.close(),
-      this.log.close(),
-      this.snapshot.close(),
-    ]);
+    await Promise.all([this.meta.close(), this.config.close(), this.log.close(), this.snapshot.close()]);
   }
 
   isOpen(): boolean {
-    return (
-      this.meta.isOpen() &&
-      this.config.isOpen() &&
-      this.log.isOpen() &&
-      this.snapshot.isOpen()
-    );
+    return this.meta.isOpen() && this.config.isOpen() && this.log.isOpen() && this.snapshot.isOpen();
   }
 }
 ```
@@ -493,16 +497,17 @@ console.log(node.isLeader()); // true
 
 ## Configuration reference
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `nodeId` | `string` | Unique identifier for this node |
-| `address` | `string` | Address this node listens on e.g. `localhost:50051` |
-| `peers` | `ClusterMember[]` | Initial list of other nodes `{ id, address }` |
-| `electionTimeoutMinMs` | `number` | Min wait before a follower starts an election. Must be ≥ 3× heartbeat |
-| `electionTimeoutMaxMs` | `number` | Max election timeout. Actual value is randomized between min and max |
-| `heartbeatIntervalMs` | `number` | How often the leader sends heartbeats to followers |
+| Option                 | Type              | Description                                                           |
+| ---------------------- | ----------------- | --------------------------------------------------------------------- |
+| `nodeId`               | `string`          | Unique identifier for this node                                       |
+| `address`              | `string`          | Address this node listens on e.g. `localhost:50051`                   |
+| `peers`                | `ClusterMember[]` | Initial list of other nodes `{ id, address }`                         |
+| `electionTimeoutMinMs` | `number`          | Min wait before a follower starts an election. Must be ≥ 3× heartbeat |
+| `electionTimeoutMaxMs` | `number`          | Max election timeout. Actual value is randomized between min and max  |
+| `heartbeatIntervalMs`  | `number`          | How often the leader sends heartbeats to followers                    |
 
 **Recommended values for a LAN cluster:**
+
 ```ts
 electionTimeoutMinMs: 150,
 electionTimeoutMaxMs: 300,
@@ -510,6 +515,7 @@ heartbeatIntervalMs: 50,
 ```
 
 **Recommended values for a WAN / higher latency cluster:**
+
 ```ts
 electionTimeoutMinMs: 500,
 electionTimeoutMaxMs: 1000,

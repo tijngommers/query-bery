@@ -68,7 +68,9 @@ button:focus-visible {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .no-scrollbar::-webkit-scrollbar {

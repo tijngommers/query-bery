@@ -20,26 +20,26 @@ npm install @maboke123/raft-core @maboke123/raft-grpc
 ### Insecure mode (local development only)
 
 ```ts
-import { RaftNode, DiskNodeStorage } from "@maboke123/raft-core";
-import { GrpcTransport } from "@maboke123/raft-grpc";
+import { RaftNode, DiskNodeStorage } from '@maboke123/raft-core';
+import { GrpcTransport } from '@maboke123/raft-grpc';
 
 async function main() {
   const node = new RaftNode({
     config: {
-      nodeId: "node1",
-      address: "localhost:50051",
+      nodeId: 'node1',
+      address: 'localhost:50051',
       peers: [
-        { id: "node2", address: "localhost:50052" },
-        { id: "node3", address: "localhost:50053" },
+        { id: 'node2', address: 'localhost:50052' },
+        { id: 'node3', address: 'localhost:50053' },
       ],
       electionTimeoutMinMs: 150,
       electionTimeoutMaxMs: 300,
       heartbeatIntervalMs: 50,
     },
-    storage: new DiskNodeStorage("./data/node1"),
-    transport: new GrpcTransport("node1", 50051, {
-      node2: "localhost:50052",
-      node3: "localhost:50053",
+    storage: new DiskNodeStorage('./data/node1'),
+    transport: new GrpcTransport('node1', 50051, {
+      node2: 'localhost:50052',
+      node3: 'localhost:50053',
     }),
     stateMachine: new MyStateMachine(),
   });
@@ -58,17 +58,17 @@ Pass a `certPaths` object as the fourth argument. Each node needs a shared CA ce
 
 ```ts
 const transport = new GrpcTransport(
-  "node1",
+  'node1',
   50051,
   {
-    node2: "localhost:50052",
-    node3: "localhost:50053",
+    node2: 'localhost:50052',
+    node3: 'localhost:50053',
   },
   {
-    caCert:   "./certs/ca/ca.crt",
-    nodeCert: "./certs/node1/node1.crt",
-    nodeKey:  "./certs/node1/node1.key",
-  }
+    caCert: './certs/ca/ca.crt',
+    nodeCert: './certs/node1/node1.crt',
+    nodeKey: './certs/node1/node1.key',
+  },
 );
 ```
 

@@ -12,17 +12,17 @@ TypeDoc API documentation is published on GitHub Pages:
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| [`@maboke123/raft-core`](./packages/raft-core) | The core library — transport and storage agnostic |
+| Package                                        | Description                                         |
+| ---------------------------------------------- | --------------------------------------------------- |
+| [`@maboke123/raft-core`](./packages/raft-core) | The core library — transport and storage agnostic   |
 | [`@maboke123/raft-grpc`](./packages/raft-grpc) | gRPC transport adapter for real network deployments |
 
 ## Apps
 
-| App | Description |
-|-----|-------------|
-| [`example-cluster`](./apps/example-cluster) | A runnable 3-node cluster with a WebSocket server for the devtools UI |
-| [`devtools`](./apps/devtools) | A React visualizer that shows live cluster state, elections, and message flow |
+| App                                         | Description                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
+| [`example-cluster`](./apps/example-cluster) | A runnable 3-node cluster with a WebSocket server for the devtools UI         |
+| [`devtools`](./apps/devtools)               | A React visualizer that shows live cluster state, elections, and message flow |
 
 ## Repository structure
 
