@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "predev": "npm run build --prefix ../../packages/raft-core && npm run build --prefix ../../packages/raft-grpc",
     "dev": "tsx src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js"

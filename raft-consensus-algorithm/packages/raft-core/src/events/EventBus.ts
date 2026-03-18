@@ -40,7 +40,7 @@ export class NoOpEventBus implements RaftEventBus {
         // no-op
     }
     /** Returns a no-op unsubscribe callback. */
-    subscribe(handler: (event: RaftEvent) => void): () => void {
+    subscribe(_handler: (event: RaftEvent) => void): () => void {
         return () => {
             // no-op
         };

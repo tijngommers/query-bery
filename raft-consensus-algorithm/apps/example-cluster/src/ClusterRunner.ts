@@ -21,10 +21,10 @@ export interface ClusterRunnerOptions {
 }
 
 class NoOpStateMachine {
-    async apply(command: Command): Promise<void> {}
+    async apply(_command: Command): Promise<void> {}
     getState(): null { return null; }
-    async takeSnapshot(): Promise<Buffer> { return Buffer.alloc(0); }
-    async installSnapshot(snapshot: Buffer): Promise<void> {}
+    takeSnapshot(): Promise<Buffer> { return Promise.resolve(Buffer.alloc(0)); }
+    async installSnapshot(_snapshot: Buffer): Promise<void> {}
 }
 
 interface NodeEntry {
@@ -44,7 +44,7 @@ export class ClusterRunner implements ClusterRunnerInterface {
     ) {}
 
     async start(): Promise<void> {
-        const { nodeCount, timerConfig } = this.options;
+        const { nodeCount } = this.options;
 
         this.nodeIds = Array.from({ length: nodeCount }, (_, i) => `node${i + 1}`);
 
@@ -112,8 +112,11 @@ export class ClusterRunner implements ClusterRunnerInterface {
     }
 
     async submitCommand(command: Command, targetLeaderId?: NodeId): Promise<void> {
-        const candidates = targetLeaderId
-            ? [this.entries.get(targetLeaderId)?.node!].filter(Boolean)
+        const candidates: RaftNode[] = targetLeaderId
+            ? (() => {
+                const targetNode = this.entries.get(targetLeaderId)?.node;
+                return targetNode ? [targetNode] : [];
+            })()
             : Array.from(this.entries.values()).map(e => e.node).filter(n => n.isStarted() && n.isLeader());
 
         if (candidates.length === 0) {

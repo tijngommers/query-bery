@@ -12,12 +12,14 @@ export class InMemorySnapshotStorage implements SnapshotStorage {
     async open(): Promise<void> {
         if (this.isOpenFlag) throw new StorageError("InMemorySnapshotStorage is already open");
         this.isOpenFlag = true;
+        await Promise.resolve();
     }
 
     /** Closes storage handle. */
     async close(): Promise<void> {
         this.ensureOpen();
         this.isOpenFlag = false;
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */
@@ -28,6 +30,7 @@ export class InMemorySnapshotStorage implements SnapshotStorage {
     /** Reads snapshot metadata only. */
     async readMetadata(): Promise<SnapshotMetaData | null> {
         this.ensureOpen();
+        await Promise.resolve();
         if (!this.snapshot) return null;
         return {
             lastIncludedIndex: this.snapshot.lastIncludedIndex,
@@ -37,6 +40,7 @@ export class InMemorySnapshotStorage implements SnapshotStorage {
 
     /** Saves deep-copied snapshot payload in memory. */
     async save(snapshot: Snapshot): Promise<void> {
+      await Promise.resolve();
         this.ensureOpen();
         this.snapshot = {
             lastIncludedIndex: snapshot.lastIncludedIndex,
@@ -51,6 +55,7 @@ export class InMemorySnapshotStorage implements SnapshotStorage {
 
     /** Loads deep-copied snapshot payload from memory. */
     async load(): Promise<Snapshot | null> {
+      await Promise.resolve();
         this.ensureOpen();
         if (!this.snapshot) return null;
         return {

@@ -6,7 +6,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /** Structured key-value logging context payload. */
 export interface LogContext {
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 /** Logging contract used across raft-core components. */

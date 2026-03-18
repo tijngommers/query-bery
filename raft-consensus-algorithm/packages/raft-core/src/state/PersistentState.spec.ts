@@ -8,20 +8,20 @@ import { NodeId } from "../core/Config";
 describe('PersistentState.ts, PersistentState', () => {
 
     class FailingWriteStorage extends InMemoryMetaStorage {
-        async write(term: number, votedFor: NodeId | null): Promise<void> {
-            throw new StorageError('Storage write error');
+        write(_term: number, _votedFor: NodeId | null): Promise<void> {
+            return Promise.reject(new StorageError('Storage write error'));
         }
     }
 
     class FailingWriteStorage2 extends InMemoryMetaStorage {
-        async write(term: number, votedFor: NodeId | null): Promise<void> {
-            throw new Error('Generic error');
+        write(_term: number, _votedFor: NodeId | null): Promise<void> {
+            return Promise.reject(new Error('Generic error'));
         }
     }
 
     class FailingReadStorage extends InMemoryMetaStorage {
-        async read(): Promise<MetaData | null> {
-            throw new StorageError('Storage read error');
+        read(): Promise<MetaData | null> {
+            return Promise.reject(new StorageError('Storage read error'));
         }
     }
 
@@ -111,7 +111,7 @@ describe('PersistentState.ts, PersistentState', () => {
         await meta.open();
         const persistentState = new PersistentState(meta);
         await persistentState.initialize();
-        await expect(persistentState.updateTermAndVote("not an integer" as any, 'node1')).rejects.toThrow(PersistentStateError);
+        await expect(persistentState.updateTermAndVote("not an integer" as unknown as number, 'node1')).rejects.toThrow(PersistentStateError);
     });
 
     it('updateTermandVote should throw for negative term', async () => {

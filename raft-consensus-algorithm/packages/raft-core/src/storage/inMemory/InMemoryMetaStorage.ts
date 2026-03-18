@@ -13,12 +13,14 @@ export class InMemoryMetaStorage implements MetaStorage {
     async open(): Promise<void> {
         if (this.isOpenFlag) throw new StorageError("InMemoryMetaStorage is already open");
         this.isOpenFlag = true;
+        await Promise.resolve();
     }
 
     /** Closes storage handle. */
     async close(): Promise<void> {
         this.ensureOpen();
         this.isOpenFlag = false;
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */
@@ -29,6 +31,7 @@ export class InMemoryMetaStorage implements MetaStorage {
     /** Reads current term/vote snapshot. */
     async read(): Promise<MetaData | null> {
         this.ensureOpen();
+        await Promise.resolve();
         return this.data ? { ...this.data } : null;
     }
 
@@ -36,6 +39,7 @@ export class InMemoryMetaStorage implements MetaStorage {
     async write(term: number, votedFor: NodeId | null): Promise<void> {
         this.ensureOpen();
         this.data = { term, votedFor };
+        await Promise.resolve();
     }
 
     /** Throws when storage handle is not open. */

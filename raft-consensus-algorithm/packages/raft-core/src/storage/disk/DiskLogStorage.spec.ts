@@ -361,6 +361,7 @@ describe("DiskLogStorage.ts, DiskLogStorage", () => {
 
     it("should throw for parseHeader when provided buffer is smaller than header size", () => {
         const storage = new DiskLogStorage(dirPath);
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
         expect(() => (storage as any).parseHeader(Buffer.alloc(1))).toThrow("wal.bin too small: 1 bytes");
     });
 

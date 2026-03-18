@@ -5,9 +5,10 @@ import { ClusterConfig } from "../config/ClusterConfig";
  */
 export interface Command {
     /** Command discriminator used by application state machine. */
-  type: string;
+    type: string;
     /** Command payload consumed by application state machine. */
-  payload: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload: any;
 }
 
 /**
@@ -64,12 +65,12 @@ export function validateLogEntry(entry: LogEntry): void {
         }
 
         if (!Array.isArray(entry.config.voters) || !Array.isArray(entry.config.learners)) {
-            throw new Error(`Invalid config: ${entry.config}. Voters and learners must be arrays`);
+            throw new Error(`Invalid config: ${String(entry.config)}. Voters and learners must be arrays`);
         }
     } else if (entry.type === LogEntryType.NOOP) {
         // no fields
     } else {
-        throw new Error(`Invalid log entry type: ${entry.type}. Type must be either COMMAND, CONFIG or NOOP`);
+        throw new Error(`Invalid log entry type: ${String(entry.type)}. Type must be either COMMAND, CONFIG or NOOP`);
     }
 }
 

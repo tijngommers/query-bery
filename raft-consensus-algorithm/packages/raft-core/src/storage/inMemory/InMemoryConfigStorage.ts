@@ -13,12 +13,14 @@ export class InMemoryConfigStorage implements ConfigStorage {
     async open(): Promise<void> {
         if (this.isOpenFlag) throw new StorageError("InMemoryConfigStorage is already open");
         this.isOpenFlag = true;
+        await Promise.resolve();
     }
 
     /** Closes storage handle. */
     async close(): Promise<void> {
         this.ensureOpen();
         this.isOpenFlag = false;
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */
@@ -29,6 +31,7 @@ export class InMemoryConfigStorage implements ConfigStorage {
     /** Reads current config snapshot, returning deep-cloned members. */
     async read(): Promise<ConfigStorageData | null> {
         this.ensureOpen();
+        await Promise.resolve();
         return this.data
             ? { voters: [...this.data.voters], learners: [...this.data.learners] }
             : null;
@@ -41,6 +44,7 @@ export class InMemoryConfigStorage implements ConfigStorage {
             voters: voters.map(m => ({ ...m })),
             learners: learners.map(m => ({ ...m })),
         };
+        await Promise.resolve();
     }
 
     /** Throws when storage handle is not open. */

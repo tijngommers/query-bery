@@ -36,6 +36,7 @@ export class DiskMetaStorage implements MetaStorage {
     async close(): Promise<void> {
         this.ensureOpen();
         this.isOpenFlag = false;
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */

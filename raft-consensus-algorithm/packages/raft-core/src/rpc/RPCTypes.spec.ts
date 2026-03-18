@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect } from "vitest";
 import { isRequestVoteRequestMessage,
         isRequestVoteResponseMessage,
@@ -19,7 +20,6 @@ import { isRequestVoteRequestMessage,
         validateInstallSnapshotResponse,
         validateRPCMessage
         } from "./RPCTypes";
-import { config } from "node:process";
 
 describe('RPCTypes.ts, isRequestVoteRequestMessage', () => {
 

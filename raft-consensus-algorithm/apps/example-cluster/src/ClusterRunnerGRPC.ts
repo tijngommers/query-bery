@@ -24,10 +24,10 @@ export interface ClusterRunnerOptions {
 }
 
 class NoOpStateMachine {
-    async apply(command: Command): Promise<void> {}
+    async apply(_command: Command): Promise<void> {}
     getState(): null { return null; }
-    async takeSnapshot(): Promise<Buffer> { return Buffer.alloc(0); }
-    async installSnapshot(snapshot: Buffer): Promise<void> {}
+    takeSnapshot(): Promise<Buffer> { return Promise.resolve(Buffer.alloc(0)); }
+    async installSnapshot(_snapshot: Buffer): Promise<void> {}
 }
 
 export class ClusterRunnerGRPC implements ClusterRunnerInterface {
@@ -90,16 +90,13 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
             const peers = Object.fromEntries(
                 Object.entries(addressMap).filter(([id]) => id !== nodeId)
             );
+            const certPaths = await this.resolveTlsCertPaths(nodeId);
 
             const transport = new GrpcTransport(
                 nodeId,
                 port,
                 peers,
-                {
-                    caCert: path.join(__dirname, "../../../certs/ca/ca.crt"),
-                    nodeCert: path.join(__dirname, `../../../certs/${nodeId}`, `${nodeId}.crt`),
-                    nodeKey: path.join(__dirname, `../../../certs/${nodeId}`, `${nodeId}.key`)
-                },
+                certPaths,
                 400,
                 3000
             );
@@ -151,11 +148,11 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
         }
     }
 
-    partitionNodes(groups: NodeId[][]): void {}
+    partitionNodes(_groups: NodeId[][]): void {}
 
     healPartition(): void {}
 
-    setDropRate(nodeId: NodeId, rate: number): void {}
+    setDropRate(_nodeId: NodeId, _rate: number): void {}
 
     async submitCommand(command: Command, targetLeaderId?: NodeId): Promise<void> {
         const candidates = targetLeaderId
@@ -172,9 +169,9 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
         }
     }
 
-    cutLink(nodeA: NodeId, nodeB: NodeId): void {}
+    cutLink(_nodeA: NodeId, _nodeB: NodeId): void {}
 
-    healLink(nodeA: NodeId, nodeB: NodeId): void {}
+    healLink(_nodeA: NodeId, _nodeB: NodeId): void {}
 
     healAllLinks(): void {}
 
@@ -212,16 +209,13 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
 
         const nodeStorage = new DiskNodeStorage(path.join(__dirname, "../../../data", nodeId));
         await nodeStorage.open();
+        const certPaths = await this.resolveTlsCertPaths(nodeId);
 
         const transport = new GrpcTransport(
             nodeId,
             port,
             peers,
-            {
-                caCert: path.join(__dirname, "../../../certs/ca/ca.crt"),
-                nodeCert: path.join(__dirname, `../../../certs/${nodeId}`, `${nodeId}.crt`),
-                nodeKey: path.join(__dirname, `../../../certs/${nodeId}`, `${nodeId}.key`)
-            },
+            certPaths,
             400,
             3000
         );
@@ -335,9 +329,32 @@ export class ClusterRunnerGRPC implements ClusterRunnerInterface {
                 if (!data) continue;
                 return { voters: data.voters, learners: data.learners };
             } catch {
-                try { await nodeStorage.close(); } catch {}
+                try { await nodeStorage.close(); } catch { void 0; }
             }
         }
         return null;
+    }
+
+    private async resolveTlsCertPaths(nodeId: NodeId): Promise<{
+        caCert: string;
+        nodeCert: string;
+        nodeKey: string;
+    } | undefined> {
+        const certPaths = {
+            caCert: path.join(__dirname, "../../../certs/ca/ca.crt"),
+            nodeCert: path.join(__dirname, `../../../certs/${nodeId}`, `${nodeId}.crt`),
+            nodeKey: path.join(__dirname, `../../../certs/${nodeId}`, `${nodeId}.key`)
+        };
+
+        try {
+            await Promise.all([
+                fs.access(certPaths.caCert),
+                fs.access(certPaths.nodeCert),
+                fs.access(certPaths.nodeKey)
+            ]);
+            return certPaths;
+        } catch {
+            return undefined;
+        }
     }
 }

@@ -158,7 +158,7 @@ export function validateRequestVoteRequest(request: RequestVoteRequest): void {
     }
 
     if (request.preVote !== undefined && typeof request.preVote !== 'boolean') {
-        throw new Error(`Invalid preVote: ${request.preVote}. preVote must be a boolean if provided.`);
+        throw new Error(`Invalid preVote: ${String(request.preVote)}. preVote must be a boolean if provided.`);
     }
 }
 
@@ -169,7 +169,7 @@ export function validateRequestVoteResponse(response: RequestVoteResponse): void
     }
 
     if (typeof response.voteGranted !== 'boolean') {
-        throw new Error(`Invalid voteGranted: ${response.voteGranted}. voteGranted must be a boolean.`);
+        throw new Error(`Invalid voteGranted: ${String(response.voteGranted)}. voteGranted must be a boolean.`);
     }
 }
 
@@ -196,7 +196,7 @@ export function validateAppendEntriesRequest(request: AppendEntriesRequest): voi
     }
 
     if (!Array.isArray(request.entries) || request.entries.some(entry => typeof entry !== 'object')) {
-        throw new Error(`Invalid entries: ${request.entries}. entries must be an array of LogEntry objects.`);
+        throw new Error(`Invalid entries: ${String(request.entries)}. entries must be an array of LogEntry objects.`);
     }
 }
 
@@ -207,7 +207,7 @@ export function validateAppendEntriesResponse(response: AppendEntriesResponse): 
     }
 
     if (typeof response.success !== 'boolean') {
-        throw new Error(`Invalid success: ${response.success}. success must be a boolean.`);
+        throw new Error(`Invalid success: ${String(response.success)}. success must be a boolean.`);
     }
 
     if (response.matchIndex !== undefined && (!Number.isInteger(response.matchIndex) || response.matchIndex < 0)) {
@@ -242,30 +242,42 @@ export function validateInstallSnapshotRequest(request: InstallSnapshotRequest):
     }
 
     if (!Buffer.isBuffer(request.data)) {
-        throw new Error(`Invalid data: ${request.data}. data must be a Buffer.`);
+        throw new Error(`Invalid data: ${String(request.data)}. data must be a Buffer.`);
     }
 
     if (!Number.isInteger(request.offset) || request.offset < 0) {
-        throw new Error(`Invalid offset: ${request.offset}. offset must be a non-negative integer.`);
+        throw new Error(`Invalid offset: ${String(request.offset)}. offset must be a non-negative integer.`);
     }
 
     if (typeof request.done !== 'boolean') {
-        throw new Error(`Invalid done: ${request.done}. done must be a boolean.`);
+        throw new Error(`Invalid done: ${String(request.done)}. done must be a boolean.`);
     }
 
     if (!request.config || typeof request.config !== 'object') {
-        throw new Error(`Invalid config: ${request.config}. config must be an object.`);
+        throw new Error(`Invalid config: ${String(request.config)}. config must be an object.`);
     }
 
     if (!Array.isArray(request.config.voters) || !Array.isArray(request.config.learners)) {
-        throw new Error(`Invalid config: ${request.config}. voters and learners must be arrays.`);
+        throw new Error(`Invalid config: ${String(request.config)}. voters and learners must be arrays.`);
     }
 
-    if (request.config.voters.some((m: any) => typeof m.id !== 'string' || typeof m.address !== 'string')) {
+    if (request.config.voters.some((m: unknown) => {
+        if (typeof m !== 'object' || m === null || !('id' in m) || !('address' in m)) {
+            return true;
+        }
+        const member = m as { id?: unknown; address?: unknown };
+        return typeof member.id !== 'string' || typeof member.address !== 'string';
+    })) {
         throw new Error(`Invalid config: voters must be ClusterMember objects with id and address strings.`);
     }
 
-    if (request.config.learners.some((m: any) => typeof m.id !== 'string' || typeof m.address !== 'string')) {
+    if (request.config.learners.some((m: unknown) => {
+        if (typeof m !== 'object' || m === null || !('id' in m) || !('address' in m)) {
+            return true;
+        }
+        const member = m as { id?: unknown; address?: unknown };
+        return typeof member.id !== 'string' || typeof member.address !== 'string';
+    })) {
         throw new Error(`Invalid config: learners must be ClusterMember objects with id and address strings.`);
     }
 }
@@ -277,7 +289,7 @@ export function validateInstallSnapshotResponse(response: InstallSnapshotRespons
     }
 
     if (typeof response.success !== 'boolean') {
-        throw new Error(`Invalid success: ${response.success}. success must be a boolean.`);
+        throw new Error(`Invalid success: ${String(response.success)}. success must be a boolean.`);
     }
 }
 

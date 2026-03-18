@@ -121,6 +121,7 @@ describe('AsyncLock.ts, AsyncLock', () => {
     it('should run callback exclusively', async () => {
         let executed = false;
         const result = await lock.runExclusive(async () => {
+            await Promise.resolve();
             executed = true;
             expect(lock.isLocked()).toBe(true);
             return true
@@ -132,6 +133,7 @@ describe('AsyncLock.ts, AsyncLock', () => {
 
     it('should release lock even if callback throws', async () => {
         await expect(lock.runExclusive(async () => {
+            await Promise.resolve();
             expect(lock.isLocked()).toBe(true);
             throw new Error('Test error');
         })).rejects.toThrow('Test error');
@@ -175,13 +177,17 @@ describe('AsyncLock.ts, AsyncLock', () => {
 
     it('should return callback result', async () => {
         const result = await lock.runExclusive(async () => {
+            await Promise.resolve();
             return 'exclusive result';
         });
         expect(result).toBe('exclusive result');
     });
 
     it('should handle sync callbacks', async () => {
-        const result = await lock.runExclusive(async () => 'sync result');
+        const result = await lock.runExclusive(async () => {
+            await Promise.resolve();
+            return 'sync result';
+        });
         expect(result).toBe('sync result');
     });
 
@@ -215,11 +221,11 @@ describe('AsyncLock.ts, AsyncLock', () => {
 
     it('should return correct queue length', async () => {
         await lock.acquire();
-        lock.acquire();
+        void lock.acquire();
         expect(lock.getQueueLength()).toBe(1);
-        lock.acquire();
+        void lock.acquire();
         expect(lock.getQueueLength()).toBe(2);
-        lock.acquire();
+        void lock.acquire();
         expect(lock.getQueueLength()).toBe(3);
         lock.release();
         expect(lock.getQueueLength()).toBe(2);
@@ -241,7 +247,10 @@ describe('AsyncLock.ts, AsyncLock', () => {
     it('should handle mixed runExclusive and acquire/release', async () => {
         await lock.acquire();
 
-        const exclusivePromise = lock.runExclusive(async () => "exclusive");
+        const exclusivePromise = lock.runExclusive(async () => {
+            await Promise.resolve();
+            return "exclusive";
+        });
         const manualPromise = lock.acquire().then(() => {
             lock.release();
             return "manual";
@@ -259,6 +268,7 @@ describe('AsyncLock.ts, AsyncLock', () => {
 
         const result = await lock.runExclusive(async () => {
             return await innerLock.runExclusive(async () => {
+                await Promise.resolve();
                 return "nested exclusive";
             });
         });

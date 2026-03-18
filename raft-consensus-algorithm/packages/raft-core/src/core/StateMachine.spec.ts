@@ -1,9 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-misused-promises, @typescript-eslint/require-await, @typescript-eslint/await-thenable, @typescript-eslint/prefer-promise-reject-errors, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-unused-vars */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StateMachine, RaftState } from './StateMachine';
 import { RaftError } from '../util/Error';
 import { AsyncLock } from '../lock/AsyncLock';
 import { ConfigManager } from '../config/ConfigManager';
-import { getQuorumSize } from '../config/ClusterConfig';
 import { LogEntry, LogEntryType } from '../log/LogEntry';
 
 describe('StateMachine.ts, StateMachine', () => {

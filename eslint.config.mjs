@@ -32,7 +32,7 @@ export default [{
         parserOptions: {
             project: [
                 "./tsconfig.json",
-                "./raft-consensus-algorithm/packages/*/tsconfig.json",
+                "./raft-consensus-algorithm/packages/*/tsconfig*.json",
                 "./raft-consensus-algorithm/apps/*/tsconfig.json",
                 "./raft-consensus-algorithm/apps/*/tsconfig.*.json",
             ],

@@ -35,6 +35,7 @@ export class DiskSnapshotStorage implements SnapshotStorage {
     async close(): Promise<void> {
         this.ensureOpen();
         this.isOpenFlag = false;
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */
@@ -141,6 +142,7 @@ export class DiskSnapshotStorage implements SnapshotStorage {
 
         let config: Snapshot["config"];
         try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             config = JSON.parse(buf.subarray(pos, pos + configLen).toString("utf-8"));
         } catch (err) {
             throw new StorageError(`snapshot.bin config JSON error: ${(err as Error).message}`);

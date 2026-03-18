@@ -87,7 +87,9 @@ describe('Storage.ts, StorageCodec', () => {
     });
 
     it('should throw when encoding a non-string value', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         const nonString = 12345 as any;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         expect(() => StorageCodec.encodeString(nonString)).toThrow("Value must be a string, got number");
     });
 
@@ -106,7 +108,9 @@ describe('Storage.ts, StorageCodec', () => {
     });
 
     it('should throw when decoding a non-buffer value', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         const nonBuffer = "Not a buffer" as any;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         expect(() => StorageCodec.decodeString(nonBuffer)).toThrow("Value must be a Buffer, got string");
     });
 
@@ -125,7 +129,9 @@ describe('Storage.ts, StorageCodec', () => {
     });
 
     it('should throw when encoding a non-serializable object', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const circularObj: any = {};
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
         circularObj.self = circularObj;
         expect(() => StorageCodec.encodeJSON(circularObj)).toThrow("Failed to encode JSON");
     });
@@ -142,11 +148,17 @@ describe('Storage.ts, StorageCodec', () => {
             type: LogEntryType.COMMAND,
             command: { type: "set", payload: { key: "x", value: 42 } }
         };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         const serialized = StorageCodec.serializeLogEntry(logEntry) as any;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.index).toBe(1);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.term).toBe(1);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.type).toBe(LogEntryType.COMMAND);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.command.type).toBe("set");
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(Buffer.isBuffer(serialized.command.payload)).toBe(true);
     });
 
@@ -157,10 +169,15 @@ describe('Storage.ts, StorageCodec', () => {
             type: LogEntryType.CONFIG,
             config: { voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [] }
         };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         const serialized = StorageCodec.serializeLogEntry(logEntry) as any;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.index).toBe(1);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.term).toBe(1);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         expect(serialized.type).toBe(LogEntryType.CONFIG);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
         expect(JSON.parse(serialized.config)).toEqual({ voters: [ { id: 'node1', address: 'address1' }, { id: 'node2', address: 'address2' } ], learners: [] });
     });
 
@@ -171,6 +188,7 @@ describe('Storage.ts, StorageCodec', () => {
             type: LogEntryType.NOOP,
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         const serialized = StorageCodec.serializeLogEntry(logEntry) as any;
         expect(serialized).toEqual({
             index: 7,

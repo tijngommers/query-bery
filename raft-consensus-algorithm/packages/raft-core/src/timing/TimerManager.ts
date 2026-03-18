@@ -19,11 +19,11 @@ export interface TimerConfig{
  * Timer manager contract for election and heartbeat control.
  */
 export interface TimerManagerIInterface {
-    startElectionTimer(callback: () => void): void;
+    startElectionTimer(callback: () => void | Promise<void>): void;
     resetElectionTimer(): void;
     stopElectionTimer(): void;
     isElectionTimerActive(): boolean;
-    startHeartbeatTimer(callback: () => void): void;
+    startHeartbeatTimer(callback: () => void | Promise<void>): void;
     stopHeartbeatTimer(): void;
     isHeartbeatTimerActive(): boolean;
     stopAllTimers(): void;
@@ -37,8 +37,8 @@ export interface TimerManagerIInterface {
 export class TimerManager implements TimerManagerIInterface {
     private electionTimer: TimerHandle | null = null;
     private heartbeatTimer: TimerHandle | null = null;
-    private electionCallback: (() => void) | null = null;
-    private heartbeatCallback: (() => void) | null = null;
+    private electionCallback: (() => void | Promise<void>) | null = null;
+    private heartbeatCallback: (() => void | Promise<void>) | null = null;
     private static readonly minRatio = 2;
     private static readonly maxHeartBeats = Number.MAX_SAFE_INTEGER;
     private heartbeatCount = 0;
@@ -61,7 +61,7 @@ export class TimerManager implements TimerManagerIInterface {
      *
      * @param callback Callback executed when timeout elapses.
      */
-    startElectionTimer(callback: () => void): void {
+    startElectionTimer(callback: () => void | Promise<void>): void {
         this.stopElectionTimer();
         this.electionCallback = callback;
 
@@ -69,10 +69,15 @@ export class TimerManager implements TimerManagerIInterface {
 
         this.electionTimer = this.clock.setTimeout(() => {
             this.electionTimer = null;
-            try { 
-                this.electionCallback?.();
+            try {
+                const maybePromise = this.electionCallback?.();
+                if (maybePromise && typeof maybePromise.then === "function") {
+                    void maybePromise.catch((error: unknown) => {
+                        this.logger.error(`Error in election timer callback`, { error });
+                    });
+                }
             } catch (error) {
-                this.logger.error(`Error in election timer callback`, error as Error);
+                this.logger.error(`Error in election timer callback`, { error });
             }
         }, timeoutMs);
     }
@@ -104,7 +109,7 @@ export class TimerManager implements TimerManagerIInterface {
      *
      * @param callback Callback executed on each heartbeat tick.
      */
-    startHeartbeatTimer(callback: () => void): void {
+    startHeartbeatTimer(callback: () => void | Promise<void>): void {
         this.stopHeartbeatTimer();
         this.heartbeatCallback = callback;
         this.heartbeatCount = 0;
@@ -204,9 +209,14 @@ export class TimerManager implements TimerManagerIInterface {
 
         this.heartbeatTimer = this.clock.setTimeout(() => {
             try {
-                this.heartbeatCallback?.();
+                const maybePromise = this.heartbeatCallback?.();
+                if (maybePromise && typeof maybePromise.then === "function") {
+                    void maybePromise.catch((error: unknown) => {
+                        this.logger.error(`Error in heartbeat timer callback`, { error });
+                    });
+                }
             } catch (error) {
-                this.logger.error(`Error in heartbeat timer callback`, error as Error);
+                this.logger.error(`Error in heartbeat timer callback`, { error });
             } finally {
                 this.scheduleNextHeartbeat();
             }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { MockTransport } from "./MockTransport";
 import { NetworkError } from "../util/Error";
 import { SeededRandom } from "../util/Random";
@@ -76,6 +76,8 @@ describe("MockTransport.ts, MockTransport", () => {
             expect(from).toBe("A");
             expect(message).toEqual(validMessage);
             handlerCalled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
             
             return {
                 type: 'RequestVote',
@@ -93,7 +95,7 @@ describe("MockTransport.ts, MockTransport", () => {
     it('should catch error thrown by handler and rethrow as NetworkError', async () => {
         await transportA.start();
         await transportB.start();
-        transportB.onMessage(async () => {
+        transportB.onMessage(() => {
             throw new Error("Handler error");
         });
         await expect(transportA.send("B", validMessage)).rejects.toThrow(NetworkError);
@@ -102,6 +104,7 @@ describe("MockTransport.ts, MockTransport", () => {
     it('should throw error for invalid drop rate', () => {
         expect(() => transportA.setDropRate(-0.1)).toThrow(NetworkError);
         expect(() => transportA.setDropRate(1.1)).toThrow(NetworkError);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
         expect(() => transportA.setDropRate('not an integer' as any)).toThrow(NetworkError);
     });
 
@@ -121,6 +124,8 @@ describe("MockTransport.ts, MockTransport", () => {
             expect(from).toBe("A");
             expect(message).toEqual(validMessage);
             handlerCalled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
 
             return {
                 type: 'RequestVote',
@@ -173,6 +178,9 @@ describe("MockTransport.ts, MockTransport", () => {
             expect(from).toBe("A");
             expect(message).toEqual(validMessage);
             handlerCalled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
             return {
                 type: 'RequestVote',
                 direction: 'response',
@@ -207,6 +215,9 @@ describe("MockTransport.ts, MockTransport", () => {
             expect(from).toBe("A");
             expect(message).toEqual(validMessage);
             handlerCalled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
             return {
                 type: 'RequestVote',
                 direction: 'response',
@@ -223,6 +234,9 @@ describe("MockTransport.ts, MockTransport", () => {
             expect(from).toBe("B");
             expect(message).toEqual(validMessage);
             handlerCalled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
             return {
                 type: 'RequestVote',
                 direction: 'response',
@@ -239,6 +253,9 @@ describe("MockTransport.ts, MockTransport", () => {
             expect(from).toBe("A");
             expect(message).toEqual(validMessage);
             handlerCalled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
             return {
                 type: 'RequestVote',
                 direction: 'response',
@@ -261,7 +278,7 @@ describe("MockTransport.ts, MockTransport", () => {
         expect(transportB.getDropRate()).toBe(0);
     });
 
-    it('should return early when setting droprate for a node that does not exist', async () => {
+    it('should return early when setting droprate for a node that does not exist',  () => {
         expect(() => MockTransport.setDropRate("C", 0.5)).not.toThrow();
     });
 });

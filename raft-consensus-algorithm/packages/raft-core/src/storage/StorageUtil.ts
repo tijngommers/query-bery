@@ -82,7 +82,7 @@ export class StorageCodec {
     }
 
     /** Encodes JSON-serializable object into buffer. */
-    static encodeJSON(obj: any): Buffer {
+    static encodeJSON(obj: unknown): Buffer {
         try {
             const jsonString = JSON.stringify(obj);
             return Buffer.from(jsonString, StorageCodec.encoding);
@@ -95,7 +95,8 @@ export class StorageCodec {
     static decodeJSON<T>(buffer: Buffer): T {
         try {
             const bufStr = buffer.toString(StorageCodec.encoding);
-            return JSON.parse(bufStr);
+            const parsed: unknown = JSON.parse(bufStr);
+            return parsed as T;
         } catch (error) {
             throw new StorageError(`Failed to decode JSON: ${(error as Error).message}`); // idem
         }
@@ -120,43 +121,73 @@ export class StorageCodec {
             };
         }
 
+        if (!entry.command) {
+            throw new StorageError("COMMAND entry is missing command payload");
+        }
+
         return {
             term: entry.term,
             index: entry.index,
             type: entry.type,
             command: {
-                type: entry.command!.type,
-                payload: Buffer.from(JSON.stringify(entry.command!.payload)),
+                type: entry.command.type,
+                payload: Buffer.from(JSON.stringify(entry.command.payload)),
             },
         };
     }
 
     /** Deserializes raw storage object into typed LogEntry. */
-    static deserializeLogEntry(raw: any): LogEntry {
-        if (raw.type === LogEntryType.CONFIG) {
+    static deserializeLogEntry(raw: unknown): LogEntry {
+        if (typeof raw !== "object" || raw === null) {
+            throw new StorageError("Expected object for deserialization");
+        }
+
+        const obj = raw as Record<string, unknown>;
+        if (obj.type === LogEntryType.CONFIG) {
+            let config: LogEntry["config"];
+            if (typeof obj.config === "string") {
+                const parsedConfig: unknown = JSON.parse(obj.config);
+                config = parsedConfig as LogEntry["config"];
+            } else {
+                config = obj.config as LogEntry["config"];
+            }
+
             return {
-                term: raw.term,
-                index: raw.index,
+                term: obj.term as number,
+                index: obj.index as number,
                 type: LogEntryType.CONFIG,
-                config: typeof raw.config === "string" ? JSON.parse(raw.config) : raw.config
+                config,
             };
         }
 
-        if (raw.type === LogEntryType.NOOP) {
+        if (obj.type === LogEntryType.NOOP) {
             return {
-                term: raw.term,
-                index: raw.index,
-                type: LogEntryType.NOOP
+                term: obj.term as number,
+                index: obj.index as number,
+                type: LogEntryType.NOOP,
             };
         }
+
+        const cmd = obj.command as Record<string, unknown>;
+        const payloadRaw = cmd.payload;
+        let payloadText: string;
+        if (Buffer.isBuffer(payloadRaw)) {
+            payloadText = payloadRaw.toString();
+        } else if (typeof payloadRaw === "string") {
+            payloadText = payloadRaw;
+        } else {
+            throw new StorageError("COMMAND payload must be a Buffer or string");
+        }
+
+        const commandPayload: unknown = JSON.parse(payloadText);
 
         return {
-            term: raw.term,
-            index: raw.index,
+            term: obj.term as number,
+            index: obj.index as number,
             type: LogEntryType.COMMAND,
             command: {
-                type: raw.command.type,
-                payload: JSON.parse(raw.command.payload.toString()),
+                type: cmd.type as string,
+                payload: commandPayload,
             },
         };
     }

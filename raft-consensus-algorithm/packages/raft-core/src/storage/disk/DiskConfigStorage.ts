@@ -34,6 +34,7 @@ export class DiskConfigStorage implements ConfigStorage {
     /** Closes this storage handle. */
     async close(): Promise<void> {
         this.ensureOpen();
+        await Promise.resolve();
         this.isOpenFlag = false;
     }
 

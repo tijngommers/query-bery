@@ -17,7 +17,6 @@ import { AsyncLock } from "../lock/AsyncLock";
 import { RaftEventBus } from "../events/RaftEvents";
 import { NoOpEventBus } from "../events/EventBus";
 import { SnapshotManager } from "../snapshot/SnapshotManager";
-import { InstallSnapshotRequest, InstallSnapshotResponse } from "../rpc/RPCTypes";
 import { ConfigManager } from "../config/ConfigManager";
 import { ClusterConfig } from "../config/ClusterConfig";
 
@@ -44,9 +43,9 @@ export interface CommandResult {
  */
 export interface ApplicationStateMachine {
     /** Applies a replicated command to application state. */
-    apply(command: Command): Promise<any>;
+    apply(command: Command): Promise<unknown>;
     /** Returns an observable view of the current application state. */
-    getState(): any;
+    getState(): unknown;
     /** Serializes current application state into snapshot bytes. */
     takeSnapshot(): Promise<Buffer>;
     /** Replaces current application state from snapshot bytes. */
@@ -68,7 +67,7 @@ export interface RaftNodeInterface {
     getLastApplied(): number;
     getLastLogIndex(): number;
     getNodeId(): NodeId;
-    getApplicationState(): any;
+    getApplicationState(): unknown;
     isStarted(): boolean;
     getEntries(startIndex: number, endIndex: number): Promise<LogEntry[]>;
 }
@@ -223,7 +222,7 @@ export class RaftNode implements RaftNodeInterface {
             (peerId) => {
                 const address = this.configManager.getMemberAddress(peerId);
                 if (address) {
-                    this.transport.addPeer?.(peerId, address);
+                    void this.transport.addPeer?.(peerId, address);
                 }
             }
         );
@@ -341,7 +340,7 @@ export class RaftNode implements RaftNodeInterface {
             });
 
         } catch (error) {
-            this.logger.error(`Failed to start node ${this.config.nodeId}`, error as Error);
+            this.logger.error(`Failed to start node ${this.config.nodeId}`, { error });
             throw new RaftError(`Failed to start node: ${(error as Error).message}`, 'NodeStartFailed');
         }
     }
@@ -385,7 +384,7 @@ export class RaftNode implements RaftNodeInterface {
             });
 
         } catch (error) {
-            this.logger.error(`Failed to stop node ${this.config.nodeId}`, error as Error);
+            this.logger.error(`Failed to stop node ${this.config.nodeId}`, { error });
             throw new RaftError(`Failed to stop node: ${(error as Error).message}`, 'NodeStopFailed');
         }
     }
@@ -421,7 +420,7 @@ export class RaftNode implements RaftNodeInterface {
 
                 return { success: true, index: idx, term: term };
             } catch (error) {
-                this.logger.error(`Error appending command to log`, error as Error);
+                this.logger.error(`Error appending command to log`, { error });
                 return { success: false, error: (error as Error).message };
             }
         });
@@ -450,7 +449,7 @@ export class RaftNode implements RaftNodeInterface {
             }
 
         } catch (error) {
-                this.logger.error(`Error submitting command`, error as Error);
+            this.logger.error(`Error submitting command`, { error });
                 return { success: false, error: (error as Error).message };
         }
     }
@@ -496,7 +495,7 @@ export class RaftNode implements RaftNodeInterface {
     }
 
     /** Returns the current application state machine state projection. */
-    getApplicationState(): any {
+    getApplicationState(): unknown {
         return this.applicationStateMachine.getState();
     }
 
@@ -530,7 +529,7 @@ export class RaftNode implements RaftNodeInterface {
                     await this.applyCommittedEntries();
                 } catch (error) {
                     if (error instanceof RaftError && error.code === 'ApplyEntryFailed') {
-                        this.logger.error(`Failed to apply log entry, stopping node to prevent inconsistency`, error);
+                        this.logger.error(`Failed to apply log entry, stopping node to prevent inconsistency`, { error });
                         this.applyLoopRunning = false;
 
                         this.bus.emit({
@@ -544,14 +543,14 @@ export class RaftNode implements RaftNodeInterface {
                         });
                         this.started = false;
                     }
-                    this.logger.error(`Error in apply loop`, error as Error);
+                    this.logger.error(`Error in apply loop`, { error });
                 }
 
                 await new Promise<void>(resolve => this.clock.setTimeout(() => resolve(), 10));
             }
         };
 
-        runApplyLoop();
+        void runApplyLoop();
     }
 
     /** Stops the background apply loop at the next loop boundary. */
@@ -618,7 +617,7 @@ export class RaftNode implements RaftNodeInterface {
                     }
 
                 } catch (error) {
-                    this.logger.error(`Error applying log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}`, error as Error);
+                    this.logger.error(`Error applying log entry at index ${nextIndex} with command ${JSON.stringify(entry.command)}`, { error });
                     
                     throw new RaftError(`Failed to apply log entry at index ${nextIndex}: ${(error as Error).message}`, 'ApplyEntryFailed');
                 }
@@ -740,7 +739,7 @@ export class RaftNode implements RaftNodeInterface {
         const result = await this.submitConfigChange(newConfig);
 
         if (result) {
-            await this.transport.removePeer?.(nodeId);
+            this.transport.removePeer?.(nodeId);
 
             this.bus.emit({
                 eventId: crypto.randomUUID(),
@@ -824,8 +823,9 @@ export class RaftNode implements RaftNodeInterface {
      *
      * @param nodeId Peer node identifier.
      */
-    async removePeer(nodeId: NodeId): Promise<void> {
+    removePeer(nodeId: NodeId): Promise<void> {
         this.transport.removePeer?.(nodeId);
+        return Promise.resolve();
     }
 
     /**

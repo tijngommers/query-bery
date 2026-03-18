@@ -102,7 +102,7 @@ describe('ConfigManager.ts, ConfigManager', () => {
         await expect(fresh.commitConfig(initialConfig)).rejects.toThrow(StorageError);
     });
 
-    it('should return the initial config if initialize is called before any commit', async () => {
+    it('should return the initial config if initialize is called before any commit', () => {
         expect(configManager.getActiveConfig()).toEqual(initialConfig);
     });
 

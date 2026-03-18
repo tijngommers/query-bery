@@ -22,6 +22,7 @@ describe('Config.ts, validateConfig', () => {
     };
 
     const invalidConfig2 = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         nodeId: 123 as any,
         address: "address2",
         peers: [{ id: "node2", address: "address2" }, { id: "node3", address: "address3" }],
@@ -33,6 +34,7 @@ describe('Config.ts, validateConfig', () => {
     const invalidConfig3 = {
         nodeId: "node1",
         address: "address1",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         peers: "not an array" as any,
         electionTimeoutMinMs: 150,
         electionTimeoutMaxMs: 300,
@@ -42,6 +44,7 @@ describe('Config.ts, validateConfig', () => {
     const invalidConfig4 = {
         nodeId: "node1",
         address: "address1",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         peers: [{ id: "node2", address: "address2" }, { id: "node3", address: "address3" }, { id: 123, address: "address4" }] as any,
         electionTimeoutMinMs: 150,
         electionTimeoutMaxMs: 300,
@@ -61,6 +64,7 @@ describe('Config.ts, validateConfig', () => {
         nodeId: "node1",
         address: "address1",
         peers: [{ id: "node2", address: "address2" }, { id: "node3", address: "address3" }],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         electionTimeoutMinMs: "not an integer" as any,
         electionTimeoutMaxMs: 300,
         heartbeatIntervalMs: 50
@@ -80,6 +84,7 @@ describe('Config.ts, validateConfig', () => {
         address: "address1",
         peers: [{ id: "node2", address: "address2" }, { id: "node3", address: "address3" }],
         electionTimeoutMinMs: 150,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         electionTimeoutMaxMs: "not an integer" as any,
         heartbeatIntervalMs: 50
     };
@@ -108,6 +113,7 @@ describe('Config.ts, validateConfig', () => {
         peers: [{ id: "node2", address: "address2" }, { id: "node3", address: "address3" }],
         electionTimeoutMinMs: 150,
         electionTimeoutMaxMs: 300,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         heartbeatIntervalMs: "not an integer" as any
     };
 
@@ -140,6 +146,7 @@ describe('Config.ts, validateConfig', () => {
 
      const invalidConfig15 = {
         nodeId: "node1",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         address: 123 as any,
         peers: [{ id: "node2", address: "address2" }, { id: "node3", address: "address3" }],
         electionTimeoutMinMs: 150,
@@ -154,6 +161,7 @@ describe('Config.ts, validateConfig', () => {
           electionTimeoutMinMs: 150,
           electionTimeoutMaxMs: 300,
           heartbeatIntervalMs: 50,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
           snapshotThreshold: "not an integer" as any
       };
 

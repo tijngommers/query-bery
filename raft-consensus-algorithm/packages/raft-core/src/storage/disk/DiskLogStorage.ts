@@ -10,7 +10,6 @@ import { LogStorage, LogStorageMeta } from "../interfaces/LogStorage";
 const WAL_MAGIC = Buffer.from("RWAL");
 const WAL_VERSION = 0x01;
 const WAL_HEADER_SIZE = 21;
-const RECORD_HEADER_SIZE = 25;
 
 /**
  * Disk-backed write-ahead log storage with CRC-protected records.
@@ -50,6 +49,7 @@ export class DiskLogStorage implements LogStorage {
         this.ensureOpen();
         this.isOpenFlag = false;
         this.offsetIndex.clear();
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */
@@ -60,6 +60,7 @@ export class DiskLogStorage implements LogStorage {
     /** Reads cached metadata for snapshot boundary and log tail. */
     async readMeta(): Promise<LogStorageMeta> {
         this.ensureOpen();
+        await Promise.resolve();
         return {
             snapshotIndex: this.snapshotIndex,
             snapshotTerm: this.snapshotTerm,

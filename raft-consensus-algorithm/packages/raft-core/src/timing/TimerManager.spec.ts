@@ -1,16 +1,21 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { TimerManager } from "./TimerManager";
 import { TimerManagerError } from "../util/Error";
 import { MockClock } from "./Clock";
 import { SeededRandom } from "../util/Random";
-import { afterEach, before } from "node:test";
-import { ConsoleLogger, Logger } from "../util/Logger";
+import { Logger } from "../util/Logger";
 
 describe("TimerManager.ts, TimerManager", () => {
 
     let clock: MockClock;
     let random: SeededRandom;
     let logger: Logger;
+    let mockLogger: {
+        error: ReturnType<typeof vi.fn<Logger["error"]>>;
+        warn: ReturnType<typeof vi.fn<Logger["warn"]>>;
+        info: ReturnType<typeof vi.fn<Logger["info"]>>;
+        debug: ReturnType<typeof vi.fn<Logger["debug"]>>;
+    };
 
     const validConfig = {
         electionTimeoutMin: 300,
@@ -19,6 +24,7 @@ describe("TimerManager.ts, TimerManager", () => {
     };
 
     const invalidConfig1 = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         electionTimeoutMin: "not an integer" as any,
         electionTimeoutMax: 200,
         heartbeatInterval: 100,
@@ -30,6 +36,7 @@ describe("TimerManager.ts, TimerManager", () => {
     };
     const invalidConfig3 = {
         electionTimeoutMin: 300,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         electionTimeoutMax: "not an integer" as any,
         heartbeatInterval: 100,
     };
@@ -38,14 +45,10 @@ describe("TimerManager.ts, TimerManager", () => {
         electionTimeoutMax: -1,
         heartbeatInterval: 100,
     };
-    const invalidConfig5 = {
-        electionTimeoutMin: 300,
-        electionTimeoutMax: 200,
-        heartbeatInterval: 100,
-    };
     const invalidConfig6 = {
         electionTimeoutMin: 300,
         electionTimeoutMax: 500,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
         heartbeatInterval: "not an integer" as any,
     };
     const invalidConfig7 = {
@@ -62,12 +65,13 @@ describe("TimerManager.ts, TimerManager", () => {
     beforeEach(() => {
         clock = new MockClock();
         random = new SeededRandom(123);
-        logger = { 
-            error: vi.fn(),
-            warn: vi.fn(),
-            info: vi.fn(),
-            debug: vi.fn(),
-        }
+        mockLogger = {
+            error: vi.fn<Logger["error"]>(),
+            warn: vi.fn<Logger["warn"]>(),
+            info: vi.fn<Logger["info"]>(),
+            debug: vi.fn<Logger["debug"]>(),
+        };
+        logger = mockLogger;
     });
 
     afterEach(() => {
@@ -212,7 +216,7 @@ describe("TimerManager.ts, TimerManager", () => {
             throw error;
         });
         clock.advanceMs(400);
-        expect(logger.error).toHaveBeenCalledWith(`Error in election timer callback`, error);
+        expect(mockLogger.error.mock.calls).toContainEqual([`Error in election timer callback`, { error }]);
     });
 
     it('should log error if heartbeat timer callback throws', () => {
@@ -222,7 +226,7 @@ describe("TimerManager.ts, TimerManager", () => {
             throw error;
         });
         clock.advanceMs(100);
-        expect(logger.error).toHaveBeenCalledWith(`Error in heartbeat timer callback`, error);
+        expect(mockLogger.error.mock.calls).toContainEqual([`Error in heartbeat timer callback`, { error }]);
     });
 
     it('should do nothing if resetElectionTimer is called before starting election timer', () => {

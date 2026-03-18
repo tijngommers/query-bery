@@ -21,6 +21,7 @@ describe("DiskNodeStorage.ts, DiskNodeStorage", () => {
         try {
             await storage.close();
         } catch {
+          // ignore
         }
         await fs.rm(dirPath, { recursive: true, force: true });
     });

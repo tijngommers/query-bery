@@ -4,6 +4,7 @@ import { LogEntry, Command, LogEntryType } from "./LogEntry";
 import { InMemoryLogStorage } from "../storage/inMemory/InMemoryLogStorage";
 import { LogInconsistencyError, StorageError } from "../util/Error";
 import { LogStorageMeta } from "../storage/interfaces/LogStorage";
+import { RaftEventBus } from "../events/RaftEvents";
 
 describe('LogManager.ts, LogManager', () => {
 
@@ -30,20 +31,20 @@ describe('LogManager.ts, LogManager', () => {
     const invalidEntries: LogEntry[] = [ validLogEntry, invalidLogEntry, validLogEntry3 ];
 
     class FailingStorage extends InMemoryLogStorage {
-        async readMeta(): Promise<LogStorageMeta> {
-            throw new StorageError('Storage read error');
+        readMeta(): Promise<LogStorageMeta> {
+            return Promise.reject(new StorageError('Storage read error'));
         }
     }
 
     class FailingStorage2 extends InMemoryLogStorage {
-        async readMeta(): Promise<LogStorageMeta> {
-            throw new LogInconsistencyError('Log inconsistency error');
+        readMeta(): Promise<LogStorageMeta> {
+            return Promise.reject(new LogInconsistencyError('Log inconsistency error'));
         }
     }
 
     class FailingStorage3 extends InMemoryLogStorage {
-        async readMeta(): Promise<LogStorageMeta> {
-            throw new Error('Unexpected error');
+        readMeta(): Promise<LogStorageMeta> {
+            return Promise.reject(new Error('Unexpected error'));
         }
     }
 
@@ -650,15 +651,16 @@ describe('LogManager.ts, LogManager', () => {
     });
 
     it('should emit LogConflictResolved event when nodeId is set and conflict is detected', async () => {
-        const eventBus = { emit: vi.fn() };
-        const logManagerWithNodeId = new LogManager(logStorage, eventBus as any, 'node1');
+        const emit = vi.fn();
+        const eventBus: RaftEventBus = { emit, subscribe: () => () => {} };
+        const logManagerWithNodeId = new LogManager(logStorage, eventBus, 'node1');
         await logManagerWithNodeId.initialize();
         await logManagerWithNodeId.appendEntries(validEntries);
 
         const conflictingEntry3: LogEntry = { index: 3, term: 99, type: LogEntryType.COMMAND, command: validCommand3 };
         await logManagerWithNodeId.appendEntriesFrom(2, [conflictingEntry3]);
 
-        expect(eventBus.emit).toHaveBeenCalledWith(expect.objectContaining({
+        expect(emit).toHaveBeenCalledWith(expect.objectContaining({
             type: 'LogConflictResolved',
             nodeId: 'node1',
             truncatedFromIndex: 3,
@@ -716,11 +718,12 @@ describe('LogManager.ts, LogManager', () => {
     });
 
     it('should emit logAppended event when nodeId is set and entry is appended', async () => {
-        const eventBus = { emit: vi.fn() };
-        const logManagerWithNodeId = new LogManager(logStorage, eventBus as any, 'node1');
+        const emit = vi.fn();
+        const eventBus: RaftEventBus = { emit, subscribe: () => () => {} };
+        const logManagerWithNodeId = new LogManager(logStorage, eventBus, 'node1');
         await logManagerWithNodeId.initialize();
         await logManagerWithNodeId.appendEntry(validLogEntry);
-        expect(eventBus.emit).toHaveBeenCalledWith(expect.objectContaining({
+        expect(emit).toHaveBeenCalledWith(expect.objectContaining({
             type: 'LogAppended',
             nodeId: 'node1',
             entries: [validLogEntry],

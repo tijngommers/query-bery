@@ -28,6 +28,7 @@ describe('Clock.ts, MockClock', () => {
 
     it('should throw in clearTimeout if handle is invalid', () => {
         const clock = new MockClock();
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
         expect(() => clock.clearTimeout("invalid" as any)).toThrow("Invalid timer handle type");
     });
 
@@ -208,7 +209,9 @@ describe('Clock.ts, MockClock', () => {
     it('should sort timers by fire time', () => {
         const clock = new MockClock();
         const list: number[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const timer1 = clock.setTimeout(() => {list.push(1)}, 200);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const timer2 = clock.setTimeout(() => {list.push(2)}, 100);
         clock.advanceMs(300);
         expect(list).toEqual([2, 1]);
@@ -251,6 +254,7 @@ describe('Clock.ts, SystemClock', () => {
 
     it('should throw in clearTimeout if handle is invalid', () => {
         const clock = new SystemClock();
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
         expect(() => clock.clearTimeout(123 as any)).toThrow("Invalid timer handle type");
     });
 });

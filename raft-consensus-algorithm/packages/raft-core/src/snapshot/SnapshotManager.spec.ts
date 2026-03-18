@@ -94,7 +94,7 @@ describe('SnapshotManager.ts, SnapshotManager', () => {
         expect(result).toEqual(snapshot);
     });
 
-    it('throws StorageError if hasSnapshot is called before initialization', async () => {
+    it('throws StorageError if hasSnapshot is called before initialization', () => {
         expect(() => snapshotManager.hasSnapshot()).toThrow(StorageError);
     });
 
@@ -115,7 +115,7 @@ describe('SnapshotManager.ts, SnapshotManager', () => {
         expect(snapshotManager.hasSnapshot()).toBe(true);
     });
 
-    it('throws StorageError if getSnapshotMetadata is called before initialization', async () => {
+    it('throws StorageError if getSnapshotMetadata is called before initialization', () => {
         expect(() => snapshotManager.getSnapshotMetadata()).toThrow(StorageError);
     });
 

@@ -23,6 +23,111 @@ type AppendEntriesResponseLike = {
     conflictTerm?: number;
 };
 
+type RpcEnvelope<T extends RPCMessage["type"], D extends RPCMessage["direction"]> = Extract<RPCMessage, { type: T; direction: D }>;
+type RequestVoteRequestPayload = RpcEnvelope<"RequestVote", "request">["payload"];
+type RequestVoteResponsePayload = RpcEnvelope<"RequestVote", "response">["payload"];
+type AppendEntriesRequestPayload = RpcEnvelope<"AppendEntries", "request">["payload"];
+type InstallSnapshotRequestPayload = RpcEnvelope<"InstallSnapshot", "request">["payload"];
+type InstallSnapshotResponsePayload = RpcEnvelope<"InstallSnapshot", "response">["payload"];
+
+type GrpcAppendEntriesRequestPayload = Omit<AppendEntriesRequestPayload, "entries"> & { entries: object[] };
+type GrpcInstallSnapshotRequestPayload = Omit<InstallSnapshotRequestPayload, "config"> & { config: string };
+
+type GrpcOutboundMessage =
+    | { method: "RequestVote"; payload: RequestVoteRequestPayload }
+    | { method: "AppendEntries"; payload: GrpcAppendEntriesRequestPayload }
+    | { method: "InstallSnapshot"; payload: GrpcInstallSnapshotRequestPayload };
+
+type RawAppendEntriesResponse = {
+    term: number;
+    success: boolean;
+    hasMatchIndex?: boolean;
+    matchIndex?: number;
+    hasConflictIndex?: boolean;
+    conflictIndex?: number;
+    hasConflictTerm?: boolean;
+    conflictTerm?: number;
+};
+
+type RawInstallSnapshotResponse = {
+    term: number;
+    success: boolean;
+};
+
+type GrpcClientCallback = (err: grpc.ServiceError | null, response: unknown) => void;
+
+interface GrpcRaftClient {
+    close(): void;
+    RequestVote(payload: RequestVoteRequestPayload, metadata: grpc.Metadata, options: { deadline: Date }, callback: GrpcClientCallback): void;
+    AppendEntries(payload: GrpcAppendEntriesRequestPayload, metadata: grpc.Metadata, options: { deadline: Date }, callback: GrpcClientCallback): void;
+    InstallSnapshot(payload: GrpcInstallSnapshotRequestPayload, metadata: grpc.Metadata, options: { deadline: Date }, callback: GrpcClientCallback): void;
+}
+
+type GrpcTransportService = {
+    service: grpc.ServiceDefinition<grpc.UntypedServiceImplementation>;
+    new (address: string, credentials: grpc.ChannelCredentials, options?: grpc.ChannelOptions): GrpcRaftClient;
+};
+
+type LoadedGrpcProto = {
+    raft: {
+        RaftService: GrpcTransportService;
+    };
+};
+
+type CallWithMetadata<TRequest> = {
+    request: TRequest;
+    metadata: grpc.Metadata;
+};
+
+type GrpcRequestVoteCall = CallWithMetadata<RequestVoteRequestPayload>;
+type GrpcAppendEntriesCall = CallWithMetadata<Omit<AppendEntriesRequestPayload, "entries"> & { entries?: unknown[] }>;
+type GrpcInstallSnapshotCall = CallWithMetadata<Omit<InstallSnapshotRequestPayload, "data" | "config"> & { data: Buffer | Uint8Array; config?: string }>;
+
+type GrpcServiceCallback<T> = (err: grpc.ServiceError | null, value?: T) => void;
+
+function toRecord(value: unknown, label: string): Record<string, unknown> {
+    if (typeof value !== "object" || value === null) {
+        throw new NetworkError(`${label} must be an object`);
+    }
+    return value as Record<string, unknown>;
+}
+
+function toNumber(value: unknown, label: string): number {
+    if (typeof value !== "number") {
+        throw new NetworkError(`${label} must be a number`);
+    }
+    return value;
+}
+
+function toBoolean(value: unknown, label: string): boolean {
+    if (typeof value !== "boolean") {
+        throw new NetworkError(`${label} must be a boolean`);
+    }
+    return value;
+}
+
+function toStringValue(value: unknown, label: string): string {
+    if (typeof value !== "string") {
+        throw new NetworkError(`${label} must be a string`);
+    }
+    return value;
+}
+
+function toLogEntryType(value: unknown, label: string): LogEntryType {
+    if (value === LogEntryType.CONFIG || value === LogEntryType.NOOP || value === LogEntryType.COMMAND) {
+        return value;
+    }
+    throw new NetworkError(`${label} must be a valid log entry type`);
+}
+
+function makeServiceError(code: grpc.status, message: string): grpc.ServiceError {
+    const err = new Error(message) as grpc.ServiceError;
+    err.code = code;
+    err.details = message;
+    err.metadata = new grpc.Metadata();
+    return err;
+}
+
 const protoPath = path.resolve(__dirname, "../proto/raft.proto");
 
 /**
@@ -66,31 +171,42 @@ function serializeLogEntry(entry: LogEntry): object {
  * @param raw Raw protobuf entry payload.
  * @returns Deserialized raft-core log entry.
  */
-function deserializeLogEntry(raw: any): LogEntry {
-    if (raw.type === LogEntryType.CONFIG) {
+function deserializeLogEntry(raw: unknown): LogEntry {
+    const rawObj = toRecord(raw, "log entry");
+    const type = toLogEntryType(rawObj.type, "log entry.type");
+
+    if (type === LogEntryType.CONFIG) {
+        const config: unknown = typeof rawObj.config === "string" ? JSON.parse(rawObj.config) : rawObj.config;
         return {
-            term: raw.term,
-            index: raw.index,
+            term: toNumber(rawObj.term, "log entry.term"),
+            index: toNumber(rawObj.index, "log entry.index"),
             type: LogEntryType.CONFIG,
-            config: typeof raw.config === "string" ? JSON.parse(raw.config) : raw.config
+            config: config as LogEntry["config"],
         };
     }
 
-    if (raw.type === LogEntryType.NOOP) {
+    if (type === LogEntryType.NOOP) {
         return {
-            term: raw.term,
-            index: raw.index,
-            type: LogEntryType.NOOP
+            term: toNumber(rawObj.term, "log entry.term"),
+            index: toNumber(rawObj.index, "log entry.index"),
+            type: LogEntryType.NOOP,
         };
     }
+
+    const command = toRecord(rawObj.command, "log entry.command");
+    const payloadSource = command.payload;
+    const payloadText = Buffer.isBuffer(payloadSource)
+        ? payloadSource.toString()
+        : toStringValue(payloadSource, "log entry.command.payload");
+    const payload = JSON.parse(payloadText) as unknown;
 
     return {
-        term: raw.term,
-        index: raw.index,
+        term: toNumber(rawObj.term, "log entry.term"),
+        index: toNumber(rawObj.index, "log entry.index"),
         type: LogEntryType.COMMAND,
         command: {
-            type: raw.command.type,
-            payload: JSON.parse(raw.command.payload.toString()),
+            type: toStringValue(command.type, "log entry.command.type"),
+            payload,
         },
     };
 }
@@ -103,7 +219,7 @@ const packageDefinition = protoLoader.loadSync(protoPath, {
     oneofs: true,
 });
 
-const proto = grpc.loadPackageDefinition(packageDefinition) as any;
+const proto = grpc.loadPackageDefinition(packageDefinition) as unknown as LoadedGrpcProto;
 
 /**
  * Maps an outbound raft-core RPC request message to gRPC method and payload.
@@ -112,7 +228,7 @@ const proto = grpc.loadPackageDefinition(packageDefinition) as any;
  * @returns Target gRPC method and payload object.
  * @throws NetworkError When message type/direction is not supported.
  */
-export function rpcMessageToGrpc(message: RPCMessage): { method: string, payload: object} {
+export function rpcMessageToGrpc(message: RPCMessage): GrpcOutboundMessage {
     if (message.type === "RequestVote" && message.direction === "request") {
         return {
             method: "RequestVote",
@@ -123,8 +239,8 @@ export function rpcMessageToGrpc(message: RPCMessage): { method: string, payload
             method: "AppendEntries",
             payload: {
                 ...message.payload,
-                entries: message.payload.entries.map((entry: any) => serializeLogEntry(entry))
-            }
+                entries: message.payload.entries.map((entry) => serializeLogEntry(entry)),
+            },
         };
     } else if ( message.type === "InstallSnapshot" && message.direction === "request") {
         return {
@@ -132,8 +248,8 @@ export function rpcMessageToGrpc(message: RPCMessage): { method: string, payload
             payload: {
                 ...message.payload,
                 data: message.payload.data,
-                config: JSON.stringify(message.payload.config)
-            }
+                config: JSON.stringify(message.payload.config),
+            },
         };
     }
 
@@ -148,24 +264,29 @@ export function rpcMessageToGrpc(message: RPCMessage): { method: string, payload
  * @returns raft-core RPC response envelope.
  * @throws NetworkError When method is not supported.
  */
-export function grpcToRpcMessage(method: string, raw: any): RPCMessage {
+export function grpcToRpcMessage(method: string, raw: unknown): RPCMessage {
+    const rawObj = toRecord(raw, `gRPC ${method} response`);
+
     if (method === "RequestVote") {
+        const payload: RequestVoteResponsePayload = {
+            term: toNumber(rawObj.term, "RequestVote.term"),
+            voteGranted: toBoolean(rawObj.voteGranted, "RequestVote.voteGranted"),
+        };
+
         return {
             type: "RequestVote",
             direction: "response",
-            payload: {
-                term: raw.term,
-                voteGranted: raw.voteGranted
-            }
+            payload,
         };
     } else if (method === "AppendEntries") {
+        const appendRaw = rawObj as RawAppendEntriesResponse;
 
         const payload: AppendEntriesResponseLike = {
-            term: raw.term,
-            success: raw.success,
-            ...(raw.hasMatchIndex && { matchIndex: raw.matchIndex }),
-            ...(raw.hasConflictIndex && { conflictIndex: raw.conflictIndex }),
-            ...(raw.hasConflictTerm && { conflictTerm: raw.conflictTerm }),
+            term: toNumber(appendRaw.term, "AppendEntries.term"),
+            success: toBoolean(appendRaw.success, "AppendEntries.success"),
+            ...(appendRaw.hasMatchIndex === true && typeof appendRaw.matchIndex === "number" ? { matchIndex: appendRaw.matchIndex } : {}),
+            ...(appendRaw.hasConflictIndex === true && typeof appendRaw.conflictIndex === "number" ? { conflictIndex: appendRaw.conflictIndex } : {}),
+            ...(appendRaw.hasConflictTerm === true && typeof appendRaw.conflictTerm === "number" ? { conflictTerm: appendRaw.conflictTerm } : {}),
         };
 
         return {
@@ -175,13 +296,16 @@ export function grpcToRpcMessage(method: string, raw: any): RPCMessage {
         };
 
     } else if (method === "InstallSnapshot") {
+        const installRaw = rawObj as RawInstallSnapshotResponse;
+        const payload: InstallSnapshotResponsePayload = {
+            term: toNumber(installRaw.term, "InstallSnapshot.term"),
+            success: toBoolean(installRaw.success, "InstallSnapshot.success"),
+        };
+
         return {
             type: "InstallSnapshot",
             direction: "response",
-            payload: {
-                term: raw.term,
-                success: raw.success
-            }
+            payload,
         };
     }
 
@@ -218,7 +342,7 @@ export class GrpcTransport implements Transport {
     private handler: MessageHandler | null = null;
     private started: boolean = false;
     private server: grpc.Server | null = null;
-    private clients: Map<NodeId, any> = new Map();
+    private clients: Map<NodeId, GrpcRaftClient> = new Map();
 
     private readonly callTimeoutMs: number;
     private readonly shutdownTimeoutMs: number;
@@ -331,7 +455,7 @@ export class GrpcTransport implements Transport {
         }
         this.clients.clear();
 
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const forced = setTimeout(() => {
                 this.server!.forceShutdown();
                 this.finishStop();
@@ -380,13 +504,23 @@ export class GrpcTransport implements Transport {
         const deadline = new Date(Date.now() + this.callTimeoutMs);
 
         return new Promise((resolve, reject) => {
-            client[method](payload, metadata, { deadline }, (err: any, response: any) => {
+            const callback: GrpcClientCallback = (err, response) => {
                 if (err) {
                     reject(new NetworkError(`Failed to send message from ${this.nodeId} to ${peerId}: ${err.message}`, err));
                     return;
                 }
                 resolve(grpcToRpcMessage(method, response));
-            });
+            };
+
+            if (method === "RequestVote") {
+                client.RequestVote(payload, metadata, { deadline }, callback);
+                return;
+            }
+            if (method === "AppendEntries") {
+                client.AppendEntries(payload, metadata, { deadline }, callback);
+                return;
+            }
+            client.InstallSnapshot(payload, metadata, { deadline }, callback);
         });
     }
 
@@ -402,7 +536,7 @@ export class GrpcTransport implements Transport {
      * @param address Peer gRPC endpoint address.
      * @throws NetworkError When transport is not initialized.
      */
-    async addPeer(peerId: NodeId, address: string): Promise<void> {
+    addPeer(peerId: NodeId, address: string): Promise<void> {
 
         if (!this.cachedClientsCredentials) {
             throw new NetworkError("Transport is not initialized. Start the transport before adding peers.");
@@ -422,6 +556,8 @@ export class GrpcTransport implements Transport {
                 'grpc.max_send_message_length': this.maxGrpcMessageBytes,
             })
         );
+
+        return Promise.resolve();
     }
 
     /**
@@ -448,105 +584,133 @@ export class GrpcTransport implements Transport {
     /**
      * Builds gRPC service handlers that adapt protobuf payloads to raft-core RPC messages.
      */
-    private buildServiceImplementation() {
+    private buildServiceImplementation(): grpc.UntypedServiceImplementation {
         return {
-            RequestVote: async (call: any, callback: any) => {
+            RequestVote: (call: GrpcRequestVoteCall, callback: GrpcServiceCallback<RequestVoteResponsePayload>) => {
                 if (!this.handler) {
-                    callback({ code: grpc.status.UNAVAILABLE, message: "No message handler registered" });
+                    callback(makeServiceError(grpc.status.UNAVAILABLE, "No message handler registered"));
                     return;
                 }
+                const handler = this.handler;
 
-                try {
-                    const from = this.extractSender(call);
-                    const message: RPCMessage = {
-                        type: "RequestVote",
-                        direction: "request",
-                        payload: call.request
-                    };
+                void (async () => {
+                    try {
+                        const from = this.extractSender(call);
+                        const message: RPCMessage = {
+                            type: "RequestVote",
+                            direction: "request",
+                            payload: call.request
+                        };
 
-                    const response = await this.handler(from, message);
+                        const response = await handler(from, message);
 
-                    if (response.type !== "RequestVote" || response.direction !== "response") {
-                        callback({ code: grpc.status.INTERNAL, message: "Invalid response type from handler" });
-                        return;
-                    }
-
-                    callback(null, response.payload);
-                } catch (err) {
-                    callback({ code: grpc.status.INTERNAL, message: (err as Error).message });
-                }
-            },
-
-            AppendEntries: async (call: any, callback: any) => {
-                if (!this.handler) {
-                    callback({ code: grpc.status.UNAVAILABLE, message: "No message handler registered" });
-                    return;
-                }
-
-                try {
-                    const from = this.extractSender(call);
-                    const message: RPCMessage = {
-                        type: "AppendEntries",
-                        direction: "request",
-                        payload: {
-                            ...call.request,
-                            entries: (call.request.entries ?? []).map(deserializeLogEntry)
+                        if (response.type !== "RequestVote" || response.direction !== "response") {
+                            callback(makeServiceError(grpc.status.INTERNAL, "Invalid response type from handler"));
+                            return;
                         }
-                    };
 
-                    const response = await this.handler(from, message);
-
-                    if (response.type !== "AppendEntries" || response.direction !== "response") {
-                        callback({ code: grpc.status.INTERNAL, message: "Invalid response type from handler" });
-                        return;
+                        callback(null, response.payload);
+                    } catch (err) {
+                        callback(makeServiceError(grpc.status.INTERNAL, (err as Error).message));
                     }
-
-                    callback(null, serializeAppendEntriesResponse(response.payload));
-                } catch (err) {
-                    callback({ code: grpc.status.INTERNAL, message: (err as Error).message });
-                }
+                })();
             },
 
-            InstallSnapshot: async (call: any, callback: any) => {
+            AppendEntries: (call: GrpcAppendEntriesCall, callback: GrpcServiceCallback<object>) => {
                 if (!this.handler) {
-                    callback({ code: grpc.status.UNAVAILABLE, message: "No message handler registered" });
+                    callback(makeServiceError(grpc.status.UNAVAILABLE, "No message handler registered"));
                     return;
                 }
+                const handler = this.handler;
 
-                try {
-                    const from = this.extractSender(call);
-                    const message: RPCMessage = {
-                        type: "InstallSnapshot",
-                        direction: "request",
-                        payload: {
-                            ...call.request,
+                void (async () => {
+                    try {
+                        const from = this.extractSender(call);
+                        const entriesRaw = Array.isArray(call.request.entries) ? call.request.entries : [];
+                        const payload: AppendEntriesRequestPayload = {
+                            term: call.request.term,
+                            leaderId: call.request.leaderId,
+                            prevLogIndex: call.request.prevLogIndex,
+                            prevLogTerm: call.request.prevLogTerm,
+                            entries: entriesRaw.map((entry) => deserializeLogEntry(entry)),
+                            leaderCommit: call.request.leaderCommit,
+                        };
+
+                        const message: RPCMessage = {
+                            type: "AppendEntries",
+                            direction: "request",
+                            payload,
+                        };
+
+                        const response = await handler(from, message);
+
+                        if (response.type !== "AppendEntries" || response.direction !== "response") {
+                            callback(makeServiceError(grpc.status.INTERNAL, "Invalid response type from handler"));
+                            return;
+                        }
+
+                        callback(null, serializeAppendEntriesResponse(response.payload));
+                    } catch (err) {
+                        callback(makeServiceError(grpc.status.INTERNAL, (err as Error).message));
+                    }
+                })();
+            },
+
+            InstallSnapshot: (call: GrpcInstallSnapshotCall, callback: GrpcServiceCallback<InstallSnapshotResponsePayload>) => {
+                if (!this.handler) {
+                    callback(makeServiceError(grpc.status.UNAVAILABLE, "No message handler registered"));
+                    return;
+                }
+                const handler = this.handler;
+
+                void (async () => {
+                    try {
+                        const from = this.extractSender(call);
+                        const parsedConfig: unknown = call.request.config
+                            ? JSON.parse(call.request.config)
+                            : { voters: [], learners: [] };
+
+                        const payload: InstallSnapshotRequestPayload = {
+                            term: call.request.term,
+                            leaderId: call.request.leaderId,
+                            lastIncludedIndex: call.request.lastIncludedIndex,
+                            lastIncludedTerm: call.request.lastIncludedTerm,
+                            offset: call.request.offset,
+                            done: call.request.done,
                             data: Buffer.isBuffer(call.request.data)
-                                ? call.request.data 
+                                ? call.request.data
                                 : Buffer.from(call.request.data),
-                            config: call.request.config
-                                ? JSON.parse(call.request.config)
-                                : { voters: [], learners: []}
+                            config: parsedConfig as InstallSnapshotRequestPayload["config"],
+                        };
+
+                        const message: RPCMessage = {
+                            type: "InstallSnapshot",
+                            direction: "request",
+                            payload,
+                        };
+                        
+                        const response = await handler(from, message);
+
+                        if (response.type !== "InstallSnapshot" || response.direction !== "response") {
+                            callback(makeServiceError(grpc.status.INTERNAL, "Invalid response type from handler"));
+                            return;
                         }
-                    };
-                    
-                    const response = await this.handler(from, message);
 
-                    if (response.type !== "InstallSnapshot" || response.direction !== "response") {
-                        callback({ code: grpc.status.INTERNAL, message: "Invalid response type from handler" });
-                        return;
+                        callback(null, response.payload);
+                    } catch (err) {
+                        callback(makeServiceError(grpc.status.INTERNAL, (err as Error).message));
                     }
-
-                    callback(null, response.payload);
-                } catch (err) {
-                    callback({ code: grpc.status.INTERNAL, message: (err as Error).message });
-                }
-            }
+                })();
+            },
         };
     }
 
     /** Extracts sender node id from inbound gRPC metadata. */
-    private extractSender(call: any): NodeId {
+    private extractSender(call: { metadata?: grpc.Metadata }): NodeId {
         const values = call.metadata?.get('from-node');
-        return ( values && values.length > 0) ? (values[0] as NodeId) : ("unknown" as NodeId);
+        if (values && values.length > 0 && typeof values[0] === "string") {
+            return values[0];
+        }
+        return "unknown" as NodeId;
     }
 }

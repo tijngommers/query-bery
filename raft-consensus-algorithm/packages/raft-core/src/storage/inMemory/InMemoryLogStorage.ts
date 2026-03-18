@@ -17,12 +17,14 @@ export class InMemoryLogStorage implements LogStorage {
     async open(): Promise<void> {
         if (this.isOpenFlag) throw new StorageError("InMemoryLogStorage is already open");
         this.isOpenFlag = true;
+        await Promise.resolve();
     }
 
     /** Closes storage handle. */
     async close(): Promise<void> {
         this.ensureOpen();
         this.isOpenFlag = false;
+        await Promise.resolve();
     }
 
     /** Returns true when storage is open. */
@@ -33,6 +35,7 @@ export class InMemoryLogStorage implements LogStorage {
     /** Reads cached metadata for snapshot boundary and log tail. */
     async readMeta(): Promise<LogStorageMeta> {
         this.ensureOpen();
+        await Promise.resolve();
         return {
             snapshotIndex: this.snapshotIndex,
             snapshotTerm: this.snapshotTerm,
@@ -53,6 +56,8 @@ export class InMemoryLogStorage implements LogStorage {
         const last = entries[entries.length - 1];
         this.lastIndex = last.index;
         this.lastTerm = last.term;
+        await Promise.resolve();
+
     }
 
     /** Reads single entry by index, excluding compacted region. */
@@ -60,10 +65,12 @@ export class InMemoryLogStorage implements LogStorage {
         this.ensureOpen();
         if (index <= this.snapshotIndex || index > this.lastIndex) return null;
         return this.entries.get(index) ?? null;
+        await Promise.resolve();
     }
 
     /** Reads inclusive range of entries, throwing on missing indices. */
     async getEntries(from: number, to: number): Promise<LogEntry[]> {
+        await Promise.resolve();
         this.ensureOpen();
         const result: LogEntry[] = [];
         for (let i = from; i <= to; i++) {
@@ -94,6 +101,7 @@ export class InMemoryLogStorage implements LogStorage {
             const prev = this.entries.get(newLastIndex);
             this.lastTerm = prev ? prev.term : 0;
         }
+        await Promise.resolve();
     }
 
     /** Compacts entries up to index and updates snapshot boundary metadata. */
@@ -111,6 +119,7 @@ export class InMemoryLogStorage implements LogStorage {
             this.lastIndex = upToIndex;
             this.lastTerm = term;
         }
+        await Promise.resolve();
     }
 
     /** Resets storage to provided snapshot boundary and clears retained entries. */
@@ -121,6 +130,7 @@ export class InMemoryLogStorage implements LogStorage {
         this.snapshotTerm = snapshotTerm;
         this.lastIndex = snapshotIndex;
         this.lastTerm = snapshotTerm;
+        await Promise.resolve();
     }
 
     /** Throws when storage handle is not open. */

@@ -3,7 +3,7 @@ import { describe, it, beforeEach, afterEach, vi, expect } from "vitest";
 
 describe('Logger.ts, ConsoleLogger', () => {
 
-    let logSpy: ReturnType<typeof vi.spyOn>;
+    let logSpy: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});

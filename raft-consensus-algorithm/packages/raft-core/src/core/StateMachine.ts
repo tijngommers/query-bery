@@ -133,6 +133,7 @@ export class StateMachine implements StateMachineInterface {
         this.currentLeader = null;
         this.votesReceived.clear();
         this.leaderState = null;
+        await Promise.resolve();
     }
 
     /** Returns the current node role. */
@@ -402,7 +403,7 @@ export class StateMachine implements StateMachineInterface {
 
                 for (let i = currentCommitIndex + 1; i <= newCommitIndex; i++) {
                     const entry = await this.logManager.getEntry(i);
-                    if (entry && entry.type == LogEntryType.CONFIG && entry.config) {
+                    if (entry && entry.type === LogEntryType.CONFIG && entry.config) {
                         await this.configManager.commitConfig(entry.config);
                         this.logger.info(`Node ${this.nodeId} committed configuration entry at index ${i} from ${from}, new config: ${JSON.stringify(entry.config)}`);
                     }
@@ -453,7 +454,9 @@ export class StateMachine implements StateMachineInterface {
                 await this.becomeFollowerUnlocked(request.term, request.leaderId);
             } else {
                 this.currentLeader = from;
-                this.timerManager.startElectionTimer(() => this.handleElectionTimeoutlocked());
+                this.timerManager.startElectionTimer(() => {
+                    void this.handleElectionTimeoutlocked();
+                });
             }
 
             this.lastLeaderContactAt = performance.now();
@@ -631,7 +634,9 @@ export class StateMachine implements StateMachineInterface {
             this.logger.info(`Node ${this.nodeId} was previously a Leader, now a Follower`);
         }
 
-        this.timerManager.startElectionTimer(() => this.handleElectionTimeoutlocked());
+        this.timerManager.startElectionTimer(() => {
+            return this.handleElectionTimeoutlocked();
+        });
 
         this.logger.info(`Node ${this.nodeId} is now a Follower with term ${this.persistentState.getCurrentTerm()}`);
     }
@@ -689,7 +694,9 @@ export class StateMachine implements StateMachineInterface {
 
         this.logger.info(`Node ${this.nodeId} became Candidate for term ${newTerm}, votes needed: ${this.votesNeeded}`);
 
-        this.timerManager.startElectionTimer(() => this.handleElectionTimeoutlocked());
+        this.timerManager.startElectionTimer(() => {
+            return this.handleElectionTimeoutlocked();
+        });
 
         await this.requestVotes();
     }
@@ -740,7 +747,9 @@ export class StateMachine implements StateMachineInterface {
             this.logger.error(`Node ${this.nodeId} failed to append initial no-op entry as Leader: ${err instanceof Error ? err.message : String(err)}`);
         }
 
-        this.timerManager.startHeartbeatTimer(() => this.sendHeartbeatsLocked());
+        this.timerManager.startHeartbeatTimer(() => {
+            return this.sendHeartbeatsLocked();
+        });
 
         await this.sendHeartbeatsUnlocked();
     }
@@ -763,8 +772,9 @@ export class StateMachine implements StateMachineInterface {
         const voters = this.configManager.getVoters().filter(peerId => peerId !== this.nodeId);
 
         for (const peer of voters) {
-            this.sendRequestVote(peer, request)
+            void this.sendRequestVote(peer, request);
         }
+        await Promise.resolve();
     }
 
     /** Starts pre-vote round to reduce disruptive elections. */
@@ -784,7 +794,9 @@ export class StateMachine implements StateMachineInterface {
             return;
         }
 
-        this.timerManager.startElectionTimer(() => this.handleElectionTimeoutlocked());
+        this.timerManager.startElectionTimer(() => {
+            return this.handleElectionTimeoutlocked();
+        });
         await this.requestPreVotes();
     }
 
@@ -807,8 +819,9 @@ export class StateMachine implements StateMachineInterface {
         const voters = this.configManager.getVoters().filter(peerId => peerId !== this.nodeId);
 
         for (const peer of voters) {
-            this.sendPreVote(peer, request);
+            void this.sendPreVote(peer, request);
         }
+        await Promise.resolve();
     }
 
     /** Sends one pre-vote request and dispatches response handling. */
@@ -929,6 +942,7 @@ export class StateMachine implements StateMachineInterface {
      */
     private async sendHeartbeatsUnlocked(): Promise<void> {
         if (this.currentState !== RaftState.Leader) {
+            await Promise.resolve();
             return;
         }
 
@@ -947,7 +961,7 @@ export class StateMachine implements StateMachineInterface {
         }
 
         for (const peer of allPeers) {
-            this.sendAppendEntries(peer);
+            void this.sendAppendEntries(peer);
         }
     }
 
@@ -969,7 +983,7 @@ export class StateMachine implements StateMachineInterface {
                     return;
                 }
                 
-                const nextIndex = this.leaderState!.getNextIndex(peer);
+                const nextIndex = this.leaderState.getNextIndex(peer);
                 const snapshotIndex = this.snapshotManager.getSnapshotMetadata()?.lastIncludedIndex ?? 0;
 
                 if (nextIndex <= snapshotIndex) {
@@ -1209,7 +1223,7 @@ export class StateMachine implements StateMachineInterface {
                 if (response.conflictTerm !== undefined && response.conflictIndex !== undefined) {
                     this.logger.debug('using conflict info to backtrack nextIndex for peer', { peer: from, conflictTerm: response.conflictTerm, conflictIndex: response.conflictIndex, oldNextIndex: this.leaderState.getNextIndex(from) });
 
-                    this.leaderState.updateNextIndexWithConflict(from, response.conflictIndex, response.conflictTerm, this.logManager);
+                    await this.leaderState.updateNextIndexWithConflict(from, response.conflictIndex, response.conflictTerm, this.logManager);
 
                     this.logger.debug('updated nextIndex for peer after conflict', { peer: from, newNextIndex: this.leaderState.getNextIndex(from) });
 
@@ -1277,7 +1291,7 @@ export class StateMachine implements StateMachineInterface {
                 term: currentTerm
             });
 
-            this.onCommitIndexAdvanced?.(newCommitIndex);
+            void this.onCommitIndexAdvanced?.(newCommitIndex);
 
             if (!this.configManager.isVoter(this.nodeId)) {
                 this.logger.info(`Node ${this.nodeId} is not a voter, skipping check for configuration changes at new commit index ${newCommitIndex}`);

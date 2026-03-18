@@ -26,6 +26,7 @@ export class MockTransport implements Transport {
 
         this.started = true;
         MockTransport.transports.set(this.nodeId, this);
+        await Promise.resolve();
     }
 
     /** Stops this transport instance and unregisters it from the shared in-memory transport map. */
@@ -36,6 +37,7 @@ export class MockTransport implements Transport {
         this.started = false;
         this.handler = null;
         MockTransport.transports.delete(this.nodeId);
+        await Promise.resolve();
     }
 
     /** Returns true when transport is started. */

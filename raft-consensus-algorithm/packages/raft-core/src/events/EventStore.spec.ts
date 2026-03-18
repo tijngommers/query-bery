@@ -3,6 +3,8 @@ import { EventStore } from './EventStore';
 import { RaftEventBus, RaftEvent } from './RaftEvents';
 import { RaftState } from '../core/StateMachine';
 
+type EventWithTerm = RaftEvent & { term?: number };
+
 function makeBus(): RaftEventBus & { fire: (event: RaftEvent) => void } {
     const handlers: Array<(event: RaftEvent) => void> = [];
     return {
@@ -62,7 +64,7 @@ describe('EventStore.ts, EventStore', () => {
 
         const stored = store.getAllEvents();
 
-        expect(stored.map(e => (e as any).term)).toEqual([1, 2, 3, 4, 5]);
+        expect(stored.map(e => (e as EventWithTerm).term)).toEqual([1, 2, 3, 4, 5]);
     });
 
     it('should drop oldest event when over maxEvents', () => {
@@ -75,8 +77,8 @@ describe('EventStore.ts, EventStore', () => {
 
         const stored = store.getAllEvents();
 
-        expect((stored[0] as any).term).toBe(2);
-        expect((stored[2] as any).term).toBe(4);
+        expect((stored[0] as EventWithTerm).term).toBe(2);
+        expect((stored[2] as EventWithTerm).term).toBe(4);
     });
     
     it('never exceeds maxEvents', () => {
@@ -96,7 +98,7 @@ describe('EventStore.ts, EventStore', () => {
             bus.fire(makeEvent({ term: i}));
         }
 
-        const terms = store.getAllEvents().map(e => (e as any).term);
+        const terms = store.getAllEvents().map(e => (e as EventWithTerm).term);
         expect(terms).toEqual([8, 9, 10]);
     });
 
@@ -165,7 +167,7 @@ describe('EventStore.ts, EventStore', () => {
         bus.fire(makeEvent({ term: 2}));
 
         expect(received).toHaveLength(1);
-        expect((received[0] as any).term).toBe(1);
+        expect((received[0] as EventWithTerm).term).toBe(1);
     });
 
     it('should not affect others when unsubscribing', () => {

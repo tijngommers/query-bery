@@ -26,29 +26,37 @@ async function main() {
     console.log(`Cluster started in ${MODE} mode with ${NODE_COUNT} nodes`);
 
     let counter = 0;
-    setInterval(async () => {
-        try {
-            await cluster.submitCommand({ type: "set", payload: { key: `key${counter}`, value: `value${counter}` } });
-            counter++;
-        } catch (err) {}
+    setInterval(() => {
+        void (async () => {
+            try {
+                await cluster.submitCommand({ type: "set", payload: { key: `key${counter}`, value: `value${counter}` } });
+                counter++;
+            } catch {
+                void 0;
+            }
+        })();
     }, 5000);
 
-    setInterval(async () => {
-        const leader = cluster.getNodeIds().find(id => cluster.isLeader(id));
-        if (!leader) return;
+    setInterval(() => {
+        void (async () => {
+            const leader = cluster.getNodeIds().find(id => cluster.isLeader(id));
+            if (!leader) return;
 
-        await cluster.crashNode(leader);
+            await cluster.crashNode(leader);
 
-        setTimeout(async () => {
-            await cluster.recoverNode(leader);
-        }, 2000);
+            setTimeout(() => {
+                void cluster.recoverNode(leader);
+            }, 2000);
+        })();
     }, 30000);
 
-    process.on("SIGINT", async () => {
-        console.log("Shutting down...");
-        wsServer.stop();
-        await cluster.stop();
-        process.exit(0);
+    process.on("SIGINT", () => {
+        void (async () => {
+            console.log("Shutting down...");
+            wsServer.stop();
+            await cluster.stop();
+            process.exit(0);
+        })();
     });
 }
 

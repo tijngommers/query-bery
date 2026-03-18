@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RaftNode } from './RaftNode';
 import { RaftState } from './StateMachine';
@@ -35,13 +36,6 @@ describe('RaftNode.ts, RaftNode', () => {
     };
     let node: RaftNode;
     let config: ReturnType<typeof createConfig>;
-
-    let logger: {
-        info: ReturnType<typeof vi.fn>;
-        debug: ReturnType<typeof vi.fn>;
-        warn: ReturnType<typeof vi.fn>;
-        error: ReturnType<typeof vi.fn>;
-    };
 
     const forceLeader = (n: RaftNode, term = 1) => {
         const stateMachine = (n as any)['stateMachine'];
@@ -114,7 +108,8 @@ describe('RaftNode.ts, RaftNode', () => {
             if (node.isStarted()) {
                 await node.stop();
             }
-        } catch (e) {
+        } catch {
+            await Promise.resolve();
         }
     });
 
@@ -384,11 +379,9 @@ describe('RaftNode.ts, RaftNode', () => {
         forceLeader(node);
 
         const logManager = (node as any)['logManager'];
-        const originalAppendCommand = logManager.appendCommand.bind(logManager);
-        vi.spyOn(logManager, 'appendCommand').mockImplementation(async (...args: any[]) => {
-            const result = await originalAppendCommand(...args);
+        vi.spyOn(logManager, 'appendCommand').mockImplementation(() => {
             (node as any)['stateMachine']['currentState'] = RaftState.Follower;
-            return result;
+            return 1;
         });
 
         const result = await node.submitCommand(command);
@@ -401,11 +394,9 @@ describe('RaftNode.ts, RaftNode', () => {
         forceLeader(node, 1);
 
         const logManager = (node as any)['logManager'];
-        const originalAppendCommand = logManager.appendCommand.bind(logManager);
-        vi.spyOn(logManager, 'appendCommand').mockImplementation(async (...args: any[]) => {
-            const result = await originalAppendCommand(...args);
+        vi.spyOn(logManager, 'appendCommand').mockImplementation(() => {
             (node as any)['persistentState']['currentTerm'] = 2;
-            return result;
+            return 1;
         });
 
         const result = await node.submitCommand(command);
@@ -430,7 +421,7 @@ describe('RaftNode.ts, RaftNode', () => {
         await node.start();
         forceLeader(node, 1);
 
-        vi.spyOn(node as any, 'triggerReplication').mockImplementation(async () => {
+        vi.spyOn(node as any, 'triggerReplication').mockImplementation(() => {
             (node as any)['stateMachine']['currentState'] = RaftState.Follower;
         });
 
@@ -454,7 +445,7 @@ describe('RaftNode.ts, RaftNode', () => {
         await node.start();
         forceLeader(node, 1);
 
-        vi.spyOn(node as any, 'triggerReplication').mockImplementation(async () => {
+        vi.spyOn(node as any, 'triggerReplication').mockImplementation(() => {
             setTimeout(() => {
                 (node as any)['notifyCommitWaiters'](1);
             }, 0);
@@ -911,12 +902,10 @@ describe('RaftNode.ts, RaftNode', () => {
         forceLeader(node, 1);
 
         const logManager = (node as any)['logManager'];
-        const originalAppendCommand = logManager.appendCommand.bind(logManager);
-        vi.spyOn(logManager, 'appendCommand').mockImplementation(async (...args: any[]) => {
-            const result = await originalAppendCommand(...args);
+        vi.spyOn(logManager, 'appendCommand').mockImplementation(() => {
             (node as any)['stateMachine']['currentState'] = RaftState.Follower;
             (node as any)['stateMachine']['currentLeader'] = null;
-            return result;
+            return 1;
         });
 
         const result = await node.submitCommand(command);
@@ -929,7 +918,7 @@ describe('RaftNode.ts, RaftNode', () => {
         await node.start();
         forceLeader(node, 1);
 
-        vi.spyOn(node as any, 'triggerReplication').mockImplementation(async () => {
+        vi.spyOn(node as any, 'triggerReplication').mockImplementation(() => {
             (node as any)['stateMachine']['currentState'] = RaftState.Follower;
             (node as any)['stateMachine']['currentLeader'] = null;
         });
@@ -1003,7 +992,7 @@ describe('RaftNode.ts, RaftNode', () => {
 
         (node as any)['stateMachine']['currentState'] = RaftState.Follower;
         clock.advanceMs(150);
-        clock.tick();
+        await clock.tick();
     });
 
     it('should handle timeout when callback already removed by checkLeadership', async () => {
@@ -1097,7 +1086,7 @@ describe('RaftNode.ts, RaftNode', () => {
         (node as any)['snapshotThreshold'] = 2;
 
         const takeSnapshotSpy = vi.spyOn(node as any, 'takeSnapshot');
-        const saveSnapshotSpy = vi.spyOn(snapshotManager, 'saveSnapshot').mockResolvedValue(undefined);
+        vi.spyOn(snapshotManager, 'saveSnapshot').mockResolvedValue(undefined);
 
         appStateMachine.takeSnapshot = vi.fn().mockResolvedValue(Buffer.from('snap'));
 
@@ -1370,7 +1359,7 @@ describe('RaftNode.ts, RaftNode', () => {
 
         const logManager = (node as any)['logManager'];
 
-        vi.spyOn(logManager, 'appendConfigEntry').mockImplementation(async () => {
+        vi.spyOn(logManager, 'appendConfigEntry').mockImplementation(() => {
             (node as any)['stateMachine']['currentState'] = RaftState.Follower;
             return 1;
         });

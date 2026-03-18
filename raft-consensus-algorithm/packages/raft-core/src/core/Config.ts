@@ -30,16 +30,16 @@ export interface RaftConfig {
  * @throws Error When any required field is invalid.
  */
 export function validateConfig(config: RaftConfig): void {
-    if(!config.nodeId || typeof config.nodeId !== 'string') {
+    if (typeof config.nodeId !== "string" || config.nodeId.length === 0) {
         throw new Error(`Invalid nodeId: ${config.nodeId}. nodeId must be a non-empty string.`);
     }
 
-    if (!config.address || typeof config.address !== 'string') {
+    if (typeof config.address !== "string" || config.address.length === 0) {
         throw new Error(`Invalid address: ${config.address}. address must be a non-empty string.`);
     }
 
     if (!Array.isArray(config.peers)) {
-        throw new Error(`Invalid peers: ${config.peers}. peers must be an array of ClusterMember objects.`);
+        throw new Error(`Invalid peers: ${String(config.peers)}. peers must be an array of ClusterMember objects.`);
     }
 
     if (config.peers.some(peer => typeof peer.id !== 'string' || typeof peer.address !== 'string')) {
