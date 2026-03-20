@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FBChildCursor, FBNodeStorage } from './fb-node-storage.mjs';
 import { FreeBlockFile, NO_BLOCK } from '../freeblockfile.mjs';
 import { MockFile } from '../file/mockfile.mjs';
+import {
+  COMPRESSION_ENVELOPE_HEADER_SIZE,
+  CompressionService,
+  NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC,
+} from '../compression/compression.mjs';
 
 /**
  * Small TestAtomicFile wrapper used by FreeBlockFile in your test harness.
@@ -73,11 +78,7 @@ describe('FBNodeStorage', () => {
 
     const raw = await fb.readBlob(persistedId);
     expect(Buffer.isBuffer(raw)).toBeTruthy();
-    const parsed = JSON.parse(raw.toString('utf8')) as unknown;
-    if (typeof parsed !== 'object' || parsed === null) throw new Error('parsed payload is not an object');
-    const p = parsed as Record<string, unknown>;
-    expect(p['type']).toBe('leaf');
-    expect(Array.isArray(p['keys'])).toBeTruthy();
+    expect(raw.length).toBeGreaterThan(0);
 
     const loaded = await storage.loadNode(persistedId);
     expect(loaded.isLeaf).toBe(true);
@@ -85,6 +86,28 @@ describe('FBNodeStorage', () => {
       expect(loaded.keys).toEqual([5, 10, 20]);
       expect(loaded.values).toEqual(['v5', 'v10', 'v20']);
     }
+  });
+
+  it('rejects legacy node-storage envelope (v0 without algorithm id)', async () => {
+    const service = new CompressionService({ algorithm: 'zstd' });
+    const legacyPayload = {
+      type: 'leaf',
+      keys: [{ type: 'number', value: 42 }],
+      values: [{ t: 'json', value: JSON.stringify('legacy') }],
+    };
+    const json = Buffer.from(JSON.stringify(legacyPayload), 'utf-8');
+    const compressed = service.compress(json);
+
+    const legacyMeta = Buffer.alloc(COMPRESSION_ENVELOPE_HEADER_SIZE);
+    NODE_STORAGE_COMPRESSED_PAYLOAD_MAGIC.copy(legacyMeta, 0);
+    legacyMeta.writeUInt32LE(compressed.originalSize, 4);
+    legacyMeta.writeUInt32LE(compressed.compressedSize, 8);
+    const legacyBuffer = Buffer.concat([legacyMeta, compressed.payload]);
+
+    const blockId = await fb.allocateAndWrite(legacyBuffer);
+    await fb.commit();
+
+    await expect(storage.loadNode(blockId)).rejects.toThrow();
   });
 
   it('creates an internal node referencing two leaves and loads it', async () => {
@@ -102,16 +125,9 @@ describe('FBNodeStorage', () => {
     await storage.commitAndReclaim();
 
     expect(typeof internal.blockId).toBe('number');
-    // Diagnostic check: ensure the persisted internal payload actually contains keys
     const rawInternal = await fb.readBlob(internal.blockId!);
     expect(Buffer.isBuffer(rawInternal)).toBeTruthy();
-    const parsedInternal = JSON.parse(rawInternal.toString('utf8')) as unknown;
-    if (typeof parsedInternal !== 'object' || parsedInternal === null)
-      throw new Error('parsed internal payload is not an object');
-    const pi = parsedInternal as Record<string, unknown>;
-    expect(pi['type']).toBe('internal');
-    expect(Array.isArray(pi['keys'])).toBeTruthy();
-    expect((pi['keys'] as unknown[]).length).toBeGreaterThan(0);
+    expect(rawInternal.length).toBeGreaterThan(0);
     const loaded = await storage.loadNode(internal.blockId!);
     expect(loaded.isLeaf).toBe(false);
     if (!loaded.isLeaf) {
@@ -138,7 +154,8 @@ describe('FBNodeStorage', () => {
 
     await cur.insert(15, 'v15');
     const newId = leaf.blockId!;
-    expect(newId).not.toBe(firstId);
+    // With in-place updates (overwriteBlock), blockId stays the same
+    expect(newId).toBe(firstId);
 
     const freeHeadBefore = await fb.debug_getFreeListHead();
     expect(freeHeadBefore).toBe(NO_BLOCK);
@@ -146,8 +163,10 @@ describe('FBNodeStorage', () => {
     await storage.commitAndReclaim();
 
     const freeHeadAfter = await fb.debug_getFreeListHead();
-    expect(freeHeadAfter).toBe(firstId);
+    // No old block to reclaim since we overwrote in place
+    expect(freeHeadAfter).toBe(NO_BLOCK);
 
+    // Since no blocks were freed, allocating won't reuse firstId
     const alloc = await fb.allocateBlocks(1);
 
     let allocatedId: number;
@@ -159,7 +178,8 @@ describe('FBNodeStorage', () => {
       throw new Error(`unexpected allocateBlocks return value: ${String(alloc)}`);
     }
 
-    expect(allocatedId).toBe(firstId);
+    // New allocation gets a fresh block, not the reused firstId
+    expect(allocatedId).not.toBe(firstId);
   });
 
   it('returns maxKeySize', () => {
@@ -318,17 +338,19 @@ describe('FBNodeStorage', () => {
     const internal = await storage.allocateInternalNodeStorage([a, b], [3]);
     await storage.commitAndReclaim();
 
-    const rep = await storage.createLeaf();
-    await rep.getCursorBeforeFirst().insert(2, 'rep');
+    const repLeft = await storage.createLeaf();
+    await repLeft.getCursorBeforeFirst().insert(1, 'rep-left');
+    const repRight = await storage.createLeaf();
+    await repRight.getCursorBeforeFirst().insert(2, 'rep-right');
 
     const childCursor = (await internal.getChildCursorAtFirstChild()) as FBChildCursor<number, string>;
     childCursor.setPosition(0);
 
-    const res = await childCursor.replaceKeysAndChildrenAfterBy(1, [2], [rep]);
+    const res = await childCursor.replaceKeysAndChildrenAfterBy(1, [2], [repLeft, repRight]);
 
     expect(res.keys).toContain(2);
     expect(res.nodes.length).toBeGreaterThan(0);
-    expect(internal.childBlockIds.length).toBe(1);
+    expect(internal.childBlockIds.length).toBe(2);
     expect(internal.keys.length).toBe(1);
   });
 
@@ -337,12 +359,14 @@ describe('FBNodeStorage', () => {
     await l1.getCursorBeforeFirst().insert(5, 'x');
     const l2 = await storage.createLeaf();
     await l2.getCursorBeforeFirst().insert(15, 'y');
+    const l0 = await storage.createLeaf();
+    await l0.getCursorBeforeFirst().insert(1, 'z');
     await storage.commitAndReclaim();
 
     const parent = await storage.allocateInternalNodeStorage([l1, l2], [15]);
     await storage.commitAndReclaim();
 
-    const nextNode = await storage.createInternalNode([], []);
+    const nextNode = await storage.allocateInternalNodeStorage([l0], []);
     const returnedKey = await parent.moveLastChildTo(999, nextNode);
     expect(returnedKey).toBe(15);
     expect(nextNode.keys[0]).toBe(999);
@@ -366,5 +390,75 @@ describe('FBNodeStorage', () => {
     await left.mergeWithNext(0, right);
     expect(left.keys).toEqual([1, 2]);
     expect(typeof left.blockId).toBe('number');
+  });
+
+  it('persists and restores nextBlockId/prevBlockId pointers after reload (regression test)', async () => {
+    // Create a chain of 3 leaves with explicit pointer relationships
+    const leaf1 = await storage.createLeaf();
+    await leaf1.getCursorBeforeFirst().insert(1, 'a');
+    await storage.commitAndReclaim();
+
+    const leaf2 = await storage.createLeaf();
+    await leaf2.getCursorBeforeFirst().insert(2, 'b');
+    await storage.commitAndReclaim();
+
+    const leaf3 = await storage.createLeaf();
+    await leaf3.getCursorBeforeFirst().insert(3, 'c');
+    await storage.commitAndReclaim();
+
+    // Link them: leaf1 -> leaf2 -> leaf3
+    leaf1.nextLeaf = leaf2;
+    leaf2.prevLeaf = leaf1;
+    leaf2.nextLeaf = leaf3;
+    leaf3.prevLeaf = leaf2;
+
+    // Persist all three leaves (this should sync nextBlockId/prevBlockId)
+    await storage.persistLeaf(leaf1);
+    await storage.persistLeaf(leaf2);
+    await storage.persistLeaf(leaf3);
+    await storage.commitAndReclaim();
+
+    // Save blockIds before clearing cache
+    const leaf1Id = leaf1.blockId!;
+    const leaf2Id = leaf2.blockId!;
+    const leaf3Id = leaf3.blockId!;
+
+    expect(leaf1Id).toBeGreaterThan(0);
+    expect(leaf2Id).toBeGreaterThan(0);
+    expect(leaf3Id).toBeGreaterThan(0);
+
+    // Clear cache to force reload from disk
+    storage.debug_clearCache();
+
+    // Reload leaf1 from disk
+    const reloaded1 = await storage.loadNode(leaf1Id);
+    expect(reloaded1.isLeaf).toBe(true);
+    if (!reloaded1.isLeaf) throw new Error('expected leaf');
+
+    // Test nextBlockId was persisted correctly
+    expect(reloaded1.nextBlockId).toBe(leaf2Id);
+
+    // Test getNextLeaf() works after reload (this will load leaf2 from disk)
+    const next1 = await reloaded1.getNextLeaf();
+    expect(next1).not.toBeNull();
+    expect(next1?.keys).toEqual([2]);
+    expect(next1?.values).toEqual(['b']);
+    expect(next1?.blockId).toBe(leaf2Id);
+
+    // Test prevBlockId on the next leaf
+    expect(next1?.prevBlockId).toBe(leaf1Id);
+
+    // Continue to leaf3
+    const next2 = await next1?.getNextLeaf();
+    expect(next2).not.toBeNull();
+    expect(next2?.keys).toEqual([3]);
+    expect(next2?.values).toEqual(['c']);
+    expect(next2?.blockId).toBe(leaf3Id);
+    expect(next2?.prevBlockId).toBe(leaf2Id);
+
+    // Verify leaf3 has no next pointer
+    expect(next2?.nextBlockId).toBeUndefined();
+    const next3 = await next2?.getNextLeaf();
+    expect(next3).toBeNull();
   });
 });
