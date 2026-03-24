@@ -29,7 +29,10 @@ export type ASTNode =
 
 
 export interface BinaryExpression {
+    type: 'BinaryExpression';
     left: string;
     operator: string;
     right: string | number;
 }
+
+export const VALIDOPERATORS = [TokenType.EQUALS, TokenType.GREATER_THAN, TokenType.LESS_THAN];
