@@ -3,12 +3,15 @@
 
 import { ASTNode, ComparisonNode, ComparisonOperator, DeleteStatement, ExpressionNode, IdentifierNode, LiteralNode, LogicalNode, SelectStatement } from "./types.mts";
 import { Parser } from "./parser.mts";
+import { Lexer } from "./lexer.mts";
 
 export class Interpreter {
     private ast: ASTNode;
 
-    constructor(ast: ASTNode) {
-        this.ast = ast;
+    constructor(query: string) {
+        const lexer = new Lexer(query);
+        const parser = new Parser(lexer);
+        this.ast = parser.parse();
     }
 
     execute(): any {
