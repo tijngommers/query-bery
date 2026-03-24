@@ -13,8 +13,8 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            table: 'USERS',
-            columns: ['NAME'],
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined
         });
     });
@@ -25,13 +25,30 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            table: 'USERS',
-            columns: ['NAME'],
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
-                type: 'BinaryExpression',
-                left: 'ID',
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'ID' },
                 operator: '=',
-                right: 10
+                right: { type: 'Literal', valueType: 'number', value: 10 }
+            }
+        });
+    });
+
+    it("should parse a SELECT statement with >= in WHERE clause", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age >= 18");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
+                operator: '>=',
+                right: { type: 'Literal', valueType: 'number', value: 18 }
             }
         });
     });
@@ -42,7 +59,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'DeleteStatement',
-            table: 'USERS',
+            from: { type: 'Table', name: 'USERS' },
             where: undefined
         });
     });
@@ -53,12 +70,12 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'DeleteStatement',
-            table: 'USERS',
+            from: { type: 'Table', name: 'USERS' },
             where: {
-                type: 'BinaryExpression',
-                left: 'AGE',
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
                 operator: '>',
-                right: 20
+                right: { type: 'Literal', valueType: 'number', value: 20 }
             }
         });
     });
@@ -69,13 +86,13 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            table: 'USERS',
-            columns: ['NAME'],
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
-                type: 'BinaryExpression',
-                left: 'CITY',
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'CITY' },
                 operator: '=',
-                right: 'New York'
+                right: { type: 'Literal', valueType: 'string', value: 'New York' }
             }
         });
     });
@@ -86,13 +103,40 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            table: 'USERS',
-            columns: ['NAME'],
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
-                type: 'BinaryExpression',
-                left: 'CITY',
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'CITY' },
                 operator: '=',
-                right: 'HOMETOWN'
+                right: { type: 'Identifier', name: 'HOMETOWN' }
+            }
+        });
+    });
+
+    it("should parse a where clause with AND", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age >= 18 AND city = 'AMS'");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'AND',
+                left: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '>=',
+                    right: { type: 'Literal', valueType: 'number', value: 18 }
+                },
+                right: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'CITY' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'string', value: 'AMS' }
+                }
             }
         });
     });
@@ -106,7 +150,7 @@ describe("Parser", () => {
     it("should throw an error for unexpected token in WHERE clause", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE id =");
         const parser = new Parser(lexer);
-        expect(() => parser.parse()).toThrow("Unexpected token in WHERE clause: EOF");
+        expect(() => parser.parse()).toThrow("Expected value in WHERE clause but got EOF");
     });
 
     it("should throw an error for unexpected token in WHERE clause (non-identifier)", () => {

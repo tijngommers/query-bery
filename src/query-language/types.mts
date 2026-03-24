@@ -25,14 +25,51 @@ export interface Token {
     value: string;
 }
 
-export type ASTNode = 
-  | { type: 'SelectStatement'; table: string; columns: string[]; where?: BinaryExpression }
-    | { type: 'DeleteStatement'; table: string; where?: BinaryExpression };
+export type ASTNode = SelectStatement | DeleteStatement;
 
+export interface SelectStatement {
+    type: 'SelectStatement';
+    columns: IdentifierNode[];
+    from: TableNode;
+    where?: ExpressionNode;
+}
 
-export interface BinaryExpression {
-    type: 'BinaryExpression';
-    left: string;
-    operator: string;
-    right: string | number;
+export interface DeleteStatement {
+    type: 'DeleteStatement';
+    from: TableNode;
+    where?: ExpressionNode;
+}
+
+export interface TableNode {
+    type: 'Table';
+    name: string;
+}
+
+export interface IdentifierNode {
+    type: 'Identifier';
+    name: string;
+}
+
+export interface LiteralNode {
+    type: "Literal";
+    valueType: "number" | "string";
+    value: string | number;
+}
+
+export type ExpressionNode = ComparisonNode | LogicalNode;
+export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=';
+export type ValueNode = IdentifierNode | LiteralNode;
+
+export interface ComparisonNode {
+    type: "ComparisonExpression";
+    left: IdentifierNode;
+    operator: ComparisonOperator;
+    right: ValueNode;
+}
+
+export interface LogicalNode {
+    type: "LogicalExpression";
+    operator: "AND" | "OR";
+    left: ExpressionNode;
+    right: ExpressionNode;
 }

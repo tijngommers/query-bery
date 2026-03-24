@@ -1,7 +1,19 @@
 // @author Tijn Gommers
 // @date 2026-03-17
 
-import { Token, TokenType, ASTNode, BinaryExpression} from "./types.mts";
+import {
+    ASTNode,
+    ComparisonNode,
+    ComparisonOperator,
+    DeleteStatement,
+    ExpressionNode,
+    IdentifierNode,
+    LiteralNode,
+    LogicalNode,
+    SelectStatement,
+    Token,
+    TokenType,
+} from "./types.mts";
 import { Lexer } from "./lexer.mts";
 
 export class Parser {
@@ -23,73 +35,144 @@ export class Parser {
         }
     }
 
-    private parseSelect(): ASTNode {
+    private parseSelect(): SelectStatement {
         this.eat(TokenType.SELECT);
 
-        const columns: string[] = [];
+        const columns: IdentifierNode[] = [];
         while (this.currentToken.type === TokenType.IDENTIFIER) {
-            columns.push(this.currentToken.value);
+            columns.push(this.parseIdentifierNode());
             this.eat(TokenType.IDENTIFIER);
         }
-        const table = this.parseFrom();
+        const from = this.parseFrom();
 
         if (this.currentToken.type === TokenType.WHERE) {
             const where = this.parseWhere();
-            return { type: 'SelectStatement', table, columns, where };
+            return { type: 'SelectStatement', from, columns, where };
         }
-        return { type: 'SelectStatement', table, columns, where: undefined };
+        return { type: 'SelectStatement', from, columns, where: undefined };
 
     }
 
-    private parseDelete(): ASTNode {
+    private parseDelete(): DeleteStatement {
         this.eat(TokenType.DELETE);
 
-        const table = this.parseFrom();
+        const from = this.parseFrom();
 
         if (this.currentToken.type === TokenType.WHERE) {
             const where = this.parseWhere();
-            return { type: 'DeleteStatement', table, where };
+            return { type: 'DeleteStatement', from, where };
         }
 
-        return { type: 'DeleteStatement', table, where: undefined };
+        return { type: 'DeleteStatement', from, where: undefined };
     }
 
-    private parseFrom(): string {
+    private parseFrom(): { type: 'Table'; name: string } {
         this.eat(TokenType.FROM);
         const table = this.currentToken.value;
         this.eat(TokenType.IDENTIFIER);
-        return table;
+        return { type: 'Table', name: table };
     }
 
-    private parseWhere(): BinaryExpression {
+    private parseWhere(): ExpressionNode {
         this.eat(TokenType.WHERE);
+        return this.parseLogicalExpression();
+    }
 
+    private parseLogicalExpression(): ExpressionNode {
+        let left: ExpressionNode = this.parseComparisonExpression();
+
+        while (this.currentToken.type === TokenType.AND || this.currentToken.type === TokenType.OR) {
+            const operator = this.currentToken.type === TokenType.AND ? 'AND' : 'OR';
+            this.eat(this.currentToken.type);
+            const right = this.parseComparisonExpression();
+            left = {
+                type: 'LogicalExpression',
+                operator,
+                left,
+                right,
+            };
+        }
+
+        return left;
+    }
+
+    private parseComparisonExpression(): ComparisonNode {
+        const left = this.parseIdentifierNode();
+        this.eat(TokenType.IDENTIFIER);
+
+        const operator = this.parseComparisonOperator();
+        const right = this.parseValueNode();
+
+        return {
+            type: 'ComparisonExpression',
+            left,
+            operator,
+            right,
+        };
+    }
+
+    private parseComparisonOperator(): ComparisonOperator {
+        switch (this.currentToken.type) {
+            case TokenType.EQUALS:
+                this.eat(TokenType.EQUALS);
+                return '=';
+            case TokenType.GREATER_THAN:
+                this.eat(TokenType.GREATER_THAN);
+                return '>';
+            case TokenType.LESS_THAN:
+                this.eat(TokenType.LESS_THAN);
+                return '<';
+            case TokenType.GREATER_THAN_OR_EQUALS:
+                this.eat(TokenType.GREATER_THAN_OR_EQUALS);
+                return '>=';
+            case TokenType.LESS_THAN_OR_EQUALS:
+                this.eat(TokenType.LESS_THAN_OR_EQUALS);
+                return '<=';
+            default:
+                throw new Error(`Expected comparison operator but got ${this.currentToken.type}`);
+        }
+    }
+
+    private parseValueNode(): IdentifierNode | LiteralNode {
+        const token = this.currentToken;
+
+        if (token.type === TokenType.NUMBER) {
+            this.eat(TokenType.NUMBER);
+            return {
+                type: 'Literal',
+                valueType: 'number',
+                value: Number(token.value),
+            };
+        }
+
+        if (token.type === TokenType.STRING) {
+            this.eat(TokenType.STRING);
+            return {
+                type: 'Literal',
+                valueType: 'string',
+                value: token.value,
+            };
+        }
+
+        if (token.type === TokenType.IDENTIFIER) {
+            this.eat(TokenType.IDENTIFIER);
+            return {
+                type: 'Identifier',
+                name: token.value,
+            };
+        }
+
+        throw new Error(`Expected value in WHERE clause but got ${token.type}`);
+    }
+
+    private parseIdentifierNode(): IdentifierNode {
         if (this.currentToken.type !== TokenType.IDENTIFIER) {
             throw new Error(`Expected identifier in WHERE clause but got ${this.currentToken.type}`);
         }
-        const left = this.currentToken.value;
-        this.eat(TokenType.IDENTIFIER);
-
-        let operator: string;
-        operator = this.currentToken.value;
-        this.eat(this.currentToken.type);
-
-        let right: string | number;
-        const rightToken = this.currentToken;
-        if (rightToken.type === TokenType.NUMBER) {
-            right = Number(rightToken.value);
-            this.eat(TokenType.NUMBER);
-        } else if (rightToken.type === TokenType.STRING) {
-            right = rightToken.value;
-            this.eat(TokenType.STRING);
-        } else if (rightToken.type === TokenType.IDENTIFIER) {
-            right = rightToken.value;
-            this.eat(TokenType.IDENTIFIER);
-        } else {
-            throw new Error(`Unexpected token in WHERE clause: ${rightToken.type}`);
-        }
-
-        return { type: 'BinaryExpression', left, operator, right };
+        return {
+            type: 'Identifier',
+            name: this.currentToken.value,
+        };
     }
 
 
