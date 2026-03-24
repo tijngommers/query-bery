@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 // @date 2026-03-24
 
-import { ASTNode, ComparisonNode, ComparisonOperator, DeleteStatement, ExpressionNode, IdentifierNode, LiteralNode, LogicalNode, SelectStatement } from "./types.mts";
+import { ASTNode, DeleteStatement, SelectStatement } from "./types.mts";
 import { Parser } from "./parser.mts";
 import { Lexer } from "./lexer.mts";
 
