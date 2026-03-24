@@ -3,9 +3,11 @@
 ## 0.2.1 - 2026-03-24
 
 ### Added
+
 - Documentation
 
 ### Fixed
+
 - Initial config for in-memory cluster runner
 - Visual bug: incorrect quorum display when learners are present
 - Leader not included in voters array in `tryAdvanceCommitIndex`

@@ -25,11 +25,11 @@ export function ClusterPanel() {
   const term = Math.max(0, ...allNodes.map((n) => n.term));
   const voterCount = clusterConfig.voters.length;
   const voterQuorum = voterCount === 0 ? 0 : Math.floor(voterCount / 2) + 1;
-  const votersUpCount = clusterConfig.voters.filter(v => {
-      const node = nodes[v.id];
-      return node && !node.crashed;
+  const votersUpCount = clusterConfig.voters.filter((v) => {
+    const node = nodes[v.id];
+    return node && !node.crashed;
   }).length;
-  const healthy    = voterQuorum === 0 || votersUpCount >= voterQuorum;
+  const healthy = voterQuorum === 0 || votersUpCount >= voterQuorum;
   const selectedNodeId = useRaftStore((s) => s.selectedNodeId);
   const detailWidth = selectedNodeId ? 330 : 0;
   const rightOffset = detailWidth + 12;

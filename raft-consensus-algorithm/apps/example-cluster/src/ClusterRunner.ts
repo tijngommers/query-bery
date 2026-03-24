@@ -48,8 +48,8 @@ export class ClusterRunner implements ClusterRunnerInterface {
     this.nodeIds = Array.from({ length: nodeCount }, (_, i) => `node${i + 1}`);
 
     this.committedConfig = {
-        voters: this.nodeIds.map((id, index) => ({ id, address: `localhost:${52000 + index}` })),
-        learners: []
+      voters: this.nodeIds.map((id, index) => ({ id, address: `localhost:${52000 + index}` })),
+      learners: [],
     };
 
     for (const nodeId of this.nodeIds) {
