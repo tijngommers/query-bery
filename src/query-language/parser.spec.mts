@@ -36,6 +36,21 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse multiple columns separated by commas", () => {
+        const lexer = new Lexer("SELECT name, age FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [
+                { type: 'Identifier', name: 'NAME' },
+                { type: 'Identifier', name: 'AGE' }
+            ],
+            where: undefined
+        });
+    });
+
     it("should parse a SELECT statement with >= in WHERE clause", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE age >= 18");
         const parser = new Parser(lexer);
@@ -144,7 +159,13 @@ describe("Parser", () => {
     it("should throw an error for invalid syntax", () => {
         const lexer = new Lexer("SELECT name users");
         const parser = new Parser(lexer);
-        expect(() => parser.parse()).toThrow("Expected token FROM but got EOF");
+        expect(() => parser.parse()).toThrow("Expected token FROM but got IDENTIFIER");
+    });
+
+    it("should throw an error for trailing comma in select list", () => {
+        const lexer = new Lexer("SELECT name, FROM users");
+        const parser = new Parser(lexer);
+        expect(() => parser.parse()).toThrow("Expected column name after COMMA but got FROM");
     });
 
     it("should throw an error for unexpected token in WHERE clause", () => {

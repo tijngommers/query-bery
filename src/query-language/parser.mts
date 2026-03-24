@@ -38,14 +38,26 @@ export class Parser {
     private parseSelect(): SelectStatement {
         this.eat(TokenType.SELECT);
 
+        if (this.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected at least one column after SELECT but got ${this.currentType()}`);
+        }
+
         const columns: IdentifierNode[] = [];
-        while (this.currentToken.type === TokenType.IDENTIFIER) {
+        columns.push(this.parseIdentifierNode());
+        this.eat(TokenType.IDENTIFIER);
+
+        while (this.currentType() === TokenType.COMMA) {
+            this.eat(TokenType.COMMA);
+            if (this.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected column name after COMMA but got ${this.currentType()}`);
+            }
             columns.push(this.parseIdentifierNode());
             this.eat(TokenType.IDENTIFIER);
         }
         const from = this.parseFrom();
+        const nextType = this.currentType();
 
-        if (this.currentToken.type === TokenType.WHERE) {
+        if (nextType === TokenType.WHERE) {
             const where = this.parseWhere();
             return { type: 'SelectStatement', from, columns, where };
         }
@@ -57,8 +69,9 @@ export class Parser {
         this.eat(TokenType.DELETE);
 
         const from = this.parseFrom();
+        const nextType = this.currentType();
 
-        if (this.currentToken.type === TokenType.WHERE) {
+        if (nextType === TokenType.WHERE) {
             const where = this.parseWhere();
             return { type: 'DeleteStatement', from, where };
         }
@@ -166,13 +179,17 @@ export class Parser {
     }
 
     private parseIdentifierNode(): IdentifierNode {
-        if (this.currentToken.type !== TokenType.IDENTIFIER) {
-            throw new Error(`Expected identifier in WHERE clause but got ${this.currentToken.type}`);
+        if (this.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected identifier in WHERE clause but got ${this.currentType()}`);
         }
         return {
             type: 'Identifier',
             name: this.currentToken.value,
         };
+    }
+
+    private currentType(): TokenType {
+        return this.currentToken.type;
     }
 
 

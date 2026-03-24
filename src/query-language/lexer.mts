@@ -131,6 +131,9 @@ export class Lexer {
 
         const char = this.input[this.cursor];
         switch (char) {
+            case ',':
+                this.cursor++;
+                return { type: TokenType.COMMA, value: ',' };
             case '=':
                 this.cursor++;
                 return { type: TokenType.EQUALS, value: '=' };

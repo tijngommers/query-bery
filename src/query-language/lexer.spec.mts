@@ -63,6 +63,24 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize commas in column lists", () => {
+        const lexer = new Lexer("SELECT name, age FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
+
 
     it("should handle whitespace correctly", () => {
         const lexer = new Lexer("   SELECT   name   FROM   users   ");

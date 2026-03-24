@@ -17,7 +17,7 @@ export enum TokenType {
     LESS_THAN_OR_EQUALS = 'LESS_THAN_OR_EQUALS',
     EOF = 'EOF',
     STRING = 'STRING',
-
+    COMMA = 'COMMA',
 }
 
 export interface Token {
