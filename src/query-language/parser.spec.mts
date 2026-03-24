@@ -164,4 +164,38 @@ describe("Parser", () => {
         const parser = new Parser(lexer);
         expect(() => parser.parse()).toThrow("Unexpected token: IDENTIFIER");
     });
+
+    it("should correctly parse a < operator in WHERE clause", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age < 30");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
+                operator: '<',
+                right: { type: 'Literal', valueType: 'number', value: 30 }
+            }
+        });
+    });
+
+    it("should correctly parse a <= operator in WHERE clause", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age <= 65");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
+                operator: '<=',
+                right: { type: 'Literal', valueType: 'number', value: 65 }
+            }
+        });
+    });
 });
