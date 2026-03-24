@@ -44,7 +44,7 @@ export class Lexer {
         }
 
         //check for operators
-        const operatorToken = this.checkOperators(char);
+        const operatorToken = this.checkOperators();
         if (operatorToken) {
             return operatorToken;
         }
@@ -115,11 +115,21 @@ export class Lexer {
     }
 
     /**
-     * Checks if a character is an operator and returns the corresponding token.
-     * @param char The character to check
-     * @returns A token if the character is an operator, null otherwise
+     * Checks if the current cursor position starts with an operator token.
+     * @returns A token if an operator is found, null otherwise
      */
-    private checkOperators(char: string): Token | null {
+    private checkOperators(): Token | null {
+        const twoChars = this.input.slice(this.cursor, this.cursor + 2);
+        if (twoChars === '<=') {
+            this.cursor += 2;
+            return { type: TokenType.LESS_THAN_OR_EQUALS, value: '<=' };
+        }
+        if (twoChars === '>=') {
+            this.cursor += 2;
+            return { type: TokenType.GREATER_THAN_OR_EQUALS, value: '>=' };
+        }
+
+        const char = this.input[this.cursor];
         switch (char) {
             case '=':
                 this.cursor++;
@@ -130,8 +140,9 @@ export class Lexer {
             case '<':
                 this.cursor++;
                 return { type: TokenType.LESS_THAN, value: '<' };
+            default:
+                return null;
         }
-        return null;
     }
 
     private readString(): Token {
