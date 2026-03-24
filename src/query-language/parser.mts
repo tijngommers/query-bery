@@ -1,7 +1,7 @@
 // @author Tijn Gommers
 // @date 2026-03-17
 
-import { Token, TokenType, ASTNode, BinaryExpression, VALIDOPERATORS} from "./types.mts";
+import { Token, TokenType, ASTNode, BinaryExpression} from "./types.mts";
 import { Lexer } from "./lexer.mts";
 
 export class Parser {
@@ -71,9 +71,6 @@ export class Parser {
         this.eat(TokenType.IDENTIFIER);
 
         let operator: string;
-        if (!VALIDOPERATORS.includes(this.currentToken.type)) {
-            throw new Error(`Invalid operator in WHERE clause: ${this.currentToken.type}`);
-        }
         operator = this.currentToken.value;
         this.eat(this.currentToken.type);
 

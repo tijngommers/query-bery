@@ -34,5 +34,3 @@ export interface BinaryExpression {
     operator: string;
     right: string | number;
 }
-
-export const VALIDOPERATORS = [TokenType.EQUALS, TokenType.GREATER_THAN, TokenType.LESS_THAN];

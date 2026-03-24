@@ -72,6 +72,8 @@ export class Lexer {
         switch (id) {
             case 'SELECT':
                 return { type: TokenType.SELECT, value: id };
+            case 'DELETE':
+                return { type: TokenType.DELETE, value: id };
             case 'FROM':
                 return { type: TokenType.FROM, value: id };
             case 'WHERE':
