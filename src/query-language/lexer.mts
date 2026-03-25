@@ -82,6 +82,8 @@ export class Lexer {
                 return { type: TokenType.AND, value: id };
             case 'OR':
                 return { type: TokenType.OR, value: id };
+            case 'NOT':
+                return { type: TokenType.NOT, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

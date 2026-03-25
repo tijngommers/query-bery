@@ -19,6 +19,7 @@ export enum TokenType {
     STRING = 'STRING',
     COMMA = 'COMMA',
     STAR = 'STAR',
+    NOT = 'NOT'
 }
 
 export interface Token {
@@ -57,7 +58,7 @@ export interface LiteralNode {
     value: string | number;
 }
 
-export type ExpressionNode = ComparisonNode | LogicalNode;
+export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode;
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=';
 export type ValueNode = IdentifierNode | LiteralNode;
 
@@ -70,7 +71,13 @@ export interface ComparisonNode {
 
 export interface LogicalNode {
     type: "LogicalExpression";
-    operator: "AND" | "OR";
+    operator: "AND" | "OR" | "NOT";
     left: ExpressionNode;
     right: ExpressionNode;
+}
+
+export interface NotExpressionNode {
+    type: "NotExpression";
+    operator: "NOT";
+    expression: ExpressionNode;
 }

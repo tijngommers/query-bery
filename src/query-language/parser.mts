@@ -99,12 +99,12 @@ export class Parser {
     }
 
     private parseLogicalExpression(): ExpressionNode {
-        let left: ExpressionNode = this.parseComparisonExpression();
+        let left: ExpressionNode = this.parseUnaryExpression();
 
         while (this.currentToken.type === TokenType.AND || this.currentToken.type === TokenType.OR) {
             const operator = this.currentToken.type === TokenType.AND ? 'AND' : 'OR';
             this.eat(this.currentToken.type);
-            const right = this.parseComparisonExpression();
+            const right = this.parseUnaryExpression();
             left = {
                 type: 'LogicalExpression',
                 operator,
@@ -114,6 +114,19 @@ export class Parser {
         }
 
         return left;
+    }
+
+    private parseUnaryExpression(): ExpressionNode {
+        if (this.currentType() === TokenType.NOT) {
+            this.eat(TokenType.NOT);
+            const expression = this.parseUnaryExpression();
+            return {
+                type: 'NotExpression',
+                operator: 'NOT',
+                expression,
+            };
+        }
+        return this.parseComparisonExpression();
     }
 
     private parseComparisonExpression(): ComparisonNode {

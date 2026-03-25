@@ -168,6 +168,86 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse a where clause with NOT", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE NOT age = 18");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'NotExpression',
+                operator: 'NOT',
+                expression: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'number', value: 18 }
+                }
+            }
+        });
+    });
+
+    it("should parse chained NOT expressions", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE NOT NOT age = 18");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'NotExpression',
+                operator: 'NOT',
+                expression: {
+                    type: 'NotExpression',
+                    operator: 'NOT',
+                    expression: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'AGE' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'number', value: 18 }
+                    }
+                }
+            }
+        });
+    });
+
+    it("should parse NOT on the right side of AND", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age = 18 AND NOT city = 'AMS'");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'AND',
+                left: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'number', value: 18 }
+                },
+                right: {
+                    type: 'NotExpression',
+                    operator: 'NOT',
+                    expression: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'CITY' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'string', value: 'AMS' }
+                    }
+                }
+            }
+        });
+    });
+
     it("should throw an error for invalid syntax", () => {
         const lexer = new Lexer("SELECT name users");
         const parser = new Parser(lexer);

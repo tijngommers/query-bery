@@ -97,6 +97,27 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize NOT as keyword", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE NOT age = 18");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.NOT, value: "NOT" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.EQUALS, value: "=" },
+            { type: TokenType.NUMBER, value: "18" },
+        ]);
+    });
+
 
     it("should handle whitespace correctly", () => {
         const lexer = new Lexer("   SELECT   name   FROM   users   ");
