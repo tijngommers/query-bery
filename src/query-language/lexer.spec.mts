@@ -138,6 +138,47 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize IS NULL", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE city IS NULL");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.IS, value: "IS" },
+            { type: TokenType.NULL, value: "NULL" },
+        ]);
+    });
+
+    it("should tokenize IS NOT NULL", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE city IS NOT NULL");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.IS, value: "IS" },
+            { type: TokenType.NOT, value: "NOT" },
+            { type: TokenType.NULL, value: "NULL" },
+        ]);
+    });
+
 
     it("should handle whitespace correctly", () => {
         const lexer = new Lexer("   SELECT   name   FROM   users   ");

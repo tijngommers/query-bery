@@ -50,4 +50,23 @@ describe('Interpreter', () => {
             }
         });
     });
+
+    it('should execute a SELECT query with IS NOT NULL', () => {
+        const query = "SELECT name FROM users WHERE city IS NOT NULL";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            columns: [
+                { type: 'Identifier', name: 'NAME' }
+            ],
+            from: { type: 'Table', name: 'USERS' },
+            where: {
+                type: 'NullCheckExpression',
+                left: { type: 'Identifier', name: 'CITY' },
+                isNegated: true
+            }
+        });
+    });
 });

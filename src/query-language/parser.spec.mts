@@ -293,10 +293,50 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse a where clause with IS NULL", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE city IS NULL");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'NullCheckExpression',
+                left: { type: 'Identifier', name: 'CITY' },
+                isNegated: false
+            }
+        });
+    });
+
+    it("should parse a where clause with IS NOT NULL", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE city IS NOT NULL");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'NullCheckExpression',
+                left: { type: 'Identifier', name: 'CITY' },
+                isNegated: true
+            }
+        });
+    });
+
     it("should throw an error for invalid syntax", () => {
         const lexer = new Lexer("SELECT name users");
         const parser = new Parser(lexer);
         expect(() => parser.parse()).toThrow("Expected token FROM but got IDENTIFIER");
+    });
+
+    it("should throw when SELECT has no columns", () => {
+        const lexer = new Lexer("SELECT FROM users");
+        const parser = new Parser(lexer);
+        expect(() => parser.parse()).toThrow("Expected at least one column after SELECT but got FROM");
     });
 
     it("should throw an error for trailing comma in select list", () => {
@@ -311,10 +351,40 @@ describe("Parser", () => {
         expect(() => parser.parse()).toThrow("Expected value in WHERE clause but got EOF");
     });
 
+    it("should throw when IS is not followed by NULL", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE city IS 10");
+        const parser = new Parser(lexer);
+        expect(() => parser.parse()).toThrow("Expected NULL after IS (NOT) but got NUMBER");
+    });
+
     it("should throw an error for unexpected token in WHERE clause (non-identifier)", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE 10 = 20");
         const parser = new Parser(lexer);
         expect(() => parser.parse()).toThrow("Expected identifier in WHERE clause but got NUMBER");
+    });
+
+    it("should throw an error for unexpected comparison operator token", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE id NULL");
+        const parser = new Parser(lexer);
+        expect(() => parser.parse()).toThrow("Expected comparison operator but got NULL");
+    });
+
+    it("should parse a comparison with NULL as right operand", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE city = NULL");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'CITY' },
+                operator: '=',
+                right: { type: 'Literal', valueType: 'null', value: null }
+            }
+        });
     });
 
     it("Should throw an error for unexpected first token", () => {

@@ -21,6 +21,8 @@ export enum TokenType {
     STAR = 'STAR',
     NOT = 'NOT',
     NOT_EQUALS = 'NOT_EQUALS',
+    IS = 'IS',
+    NULL = 'NULL',
 }
 
 export interface Token {
@@ -55,11 +57,11 @@ export interface IdentifierNode {
 
 export interface LiteralNode {
     type: "Literal";
-    valueType: "number" | "string";
-    value: string | number;
+    valueType: "number" | "string" | "null";
+    value: string | number | null;
 }
 
-export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode;
+export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode | NullCheckExpressionNode;
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!=';
 export type ValueNode = IdentifierNode | LiteralNode;
 
@@ -82,3 +84,10 @@ export interface NotExpressionNode {
     operator: "NOT";
     expression: ExpressionNode;
 }
+
+export interface NullCheckExpressionNode {
+    type: "NullCheckExpression";
+    left: IdentifierNode;
+    isNegated: boolean; // true for IS NOT NULL, false for IS NULL
+}
+    

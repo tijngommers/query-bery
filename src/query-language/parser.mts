@@ -10,6 +10,7 @@ import {
     IdentifierNode,
     LiteralNode,
     LogicalNode,
+    NullCheckExpressionNode,
     SelectStatement,
     Token,
     TokenType,
@@ -129,9 +130,27 @@ export class Parser {
         return this.parseComparisonExpression();
     }
 
-    private parseComparisonExpression(): ComparisonNode {
+    private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode {
         const left = this.parseIdentifierNode();
         this.eat(TokenType.IDENTIFIER);
+
+        if (this.currentType() === TokenType.IS) {
+            this.eat(TokenType.IS);
+            let isNegated = false;
+            if (this.currentType() === TokenType.NOT) {
+                this.eat(TokenType.NOT);
+                isNegated = true;
+            }
+            if (this.currentType() !== TokenType.NULL) {
+                throw new Error(`Expected NULL after IS (NOT) but got ${this.currentType()}`);
+            }
+            this.eat(TokenType.NULL);
+            return {
+                type: 'NullCheckExpression',
+                left,
+                isNegated,
+            };
+        }
 
         const operator = this.parseComparisonOperator();
         const right = this.parseValueNode();
@@ -195,6 +214,15 @@ export class Parser {
             return {
                 type: 'Identifier',
                 name: token.value,
+            };
+        }
+
+        if (token.type === TokenType.NULL) {
+            this.eat(TokenType.NULL);
+            return {
+                type: 'Literal',
+                valueType: 'null',
+                value: null,
             };
         }
 

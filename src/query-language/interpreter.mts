@@ -1,5 +1,5 @@
 //@author Tijn Gommers
-// @date 2026-03-24
+//@date 2026-03-24
 
 import { ASTNode, DeleteStatement, SelectStatement } from "./types.mts";
 import { Parser } from "./parser.mts";
