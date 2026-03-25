@@ -125,10 +125,12 @@ export class Lexer {
         if (twoChars === '<=') {
             this.cursor += 2;
             return { type: TokenType.LESS_THAN_OR_EQUALS, value: '<=' };
-        }
-        if (twoChars === '>=') {
+        } else if (twoChars === '>=') {
             this.cursor += 2;
             return { type: TokenType.GREATER_THAN_OR_EQUALS, value: '>=' };
+        } else if (twoChars === '!=') {
+            this.cursor += 2;
+            return { type: TokenType.NOT_EQUALS, value: '!=' };
         }
 
         const char = this.input[this.cursor];

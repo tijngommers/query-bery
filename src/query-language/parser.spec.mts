@@ -80,6 +80,23 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse a SELECT statement with != in WHERE clause", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age != 18");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
+                operator: '!=',
+                right: { type: 'Literal', valueType: 'number', value: 18 }
+            }
+        });
+    });
+
     it("should parse a DELETE statement without WHERE clause", () => {
         const lexer = new Lexer("DELETE FROM users");
         const parser = new Parser(lexer);
@@ -243,6 +260,34 @@ describe("Parser", () => {
                         operator: '=',
                         right: { type: 'Literal', valueType: 'string', value: 'AMS' }
                     }
+                }
+            }
+        });
+    });
+
+    it("should parse a where clause with != and AND", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age != 18 AND city = 'AMS'");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'AND',
+                left: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '!=',
+                    right: { type: 'Literal', valueType: 'number', value: 18 }
+                },
+                right: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'CITY' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'string', value: 'AMS' }
                 }
             }
         });

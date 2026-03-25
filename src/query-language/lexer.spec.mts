@@ -63,6 +63,26 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should correctly tokenize !=", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age != 18");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.NOT_EQUALS, value: "!=" },
+            { type: TokenType.NUMBER, value: "18" },
+        ]);
+    });
+
     it("should tokenize commas in column lists", () => {
         const lexer = new Lexer("SELECT name, age FROM users");
         const tokens = [];
@@ -147,6 +167,11 @@ describe("Lexer", () => {
     it("should throw an error for unknown characters", () => {
         const lexer = new Lexer("@");
         expect(() => lexer.nextToken()).toThrow("Unexpected character: @");
+    });
+
+    it("should throw an error for standalone !", () => {
+        const lexer = new Lexer("!");
+        expect(() => lexer.nextToken()).toThrow("Unexpected character: !");
     });
 
     it("should throw an error for unclosed string literals", () => {

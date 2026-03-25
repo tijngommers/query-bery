@@ -161,6 +161,9 @@ export class Parser {
             case TokenType.LESS_THAN_OR_EQUALS:
                 this.eat(TokenType.LESS_THAN_OR_EQUALS);
                 return '<=';
+            case TokenType.NOT_EQUALS:
+                this.eat(TokenType.NOT_EQUALS);
+                return '!=';
             default:
                 throw new Error(`Expected comparison operator but got ${this.currentToken.type}`);
         }
