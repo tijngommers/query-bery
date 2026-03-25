@@ -81,6 +81,22 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize star in select list", () => {
+        const lexer = new Lexer("SELECT * FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
+
 
     it("should handle whitespace correctly", () => {
         const lexer = new Lexer("   SELECT   name   FROM   users   ");

@@ -18,6 +18,7 @@ export enum TokenType {
     EOF = 'EOF',
     STRING = 'STRING',
     COMMA = 'COMMA',
+    STAR = 'STAR',
 }
 
 export interface Token {

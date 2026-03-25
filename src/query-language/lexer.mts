@@ -134,6 +134,9 @@ export class Lexer {
             case ',':
                 this.cursor++;
                 return { type: TokenType.COMMA, value: ',' };
+            case '*':
+                this.cursor++;
+                return { type: TokenType.STAR, value: '*' };
             case '=':
                 this.cursor++;
                 return { type: TokenType.EQUALS, value: '=' };

@@ -38,22 +38,29 @@ export class Parser {
     private parseSelect(): SelectStatement {
         this.eat(TokenType.SELECT);
 
-        if (this.currentType() !== TokenType.IDENTIFIER) {
-            throw new Error(`Expected at least one column after SELECT but got ${this.currentType()}`);
-        }
-
         const columns: IdentifierNode[] = [];
-        columns.push(this.parseIdentifierNode());
-        this.eat(TokenType.IDENTIFIER);
 
-        while (this.currentType() === TokenType.COMMA) {
-            this.eat(TokenType.COMMA);
+        if (this.currentType() === TokenType.STAR) {
+            columns.push({ type: 'Identifier', name: '*' });
+            this.eat(TokenType.STAR);
+        } else {
             if (this.currentType() !== TokenType.IDENTIFIER) {
-                throw new Error(`Expected column name after COMMA but got ${this.currentType()}`);
+                throw new Error(`Expected at least one column after SELECT but got ${this.currentType()}`);
             }
+
             columns.push(this.parseIdentifierNode());
             this.eat(TokenType.IDENTIFIER);
+
+            while (this.currentType() === TokenType.COMMA) {
+                this.eat(TokenType.COMMA);
+                if (this.currentType() !== TokenType.IDENTIFIER) {
+                    throw new Error(`Expected column name after COMMA but got ${this.currentType()}`);
+                }
+                columns.push(this.parseIdentifierNode());
+                this.eat(TokenType.IDENTIFIER);
+            }
         }
+
         const from = this.parseFrom();
         const nextType = this.currentType();
 

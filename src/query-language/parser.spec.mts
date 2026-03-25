@@ -51,6 +51,18 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse SELECT * as all columns", () => {
+        const lexer = new Lexer("SELECT * FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined
+        });
+    });
+
     it("should parse a SELECT statement with >= in WHERE clause", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE age >= 18");
         const parser = new Parser(lexer);
