@@ -242,4 +242,43 @@ describe("Lexer", () => {
         const lexer = new Lexer("'Unclosed string");
         expect(() => lexer.nextToken()).toThrow("Unterminated string literal");
     });
+
+    it("should tokenize CROSS JOIN keywords", () => {
+        const lexer = new Lexer("SELECT * FROM users CROSS JOIN orders");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.CROSS, value: "CROSS" },
+            { type: TokenType.JOIN, value: "JOIN" },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+        ]);
+    });
+
+    it("should tokenize comma-separated table names", () => {
+        const lexer = new Lexer("SELECT * FROM users, orders, products");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "PRODUCTS" },
+        ]);
+    });
 });

@@ -13,7 +13,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined
         });
@@ -25,7 +25,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -42,7 +42,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [
                 { type: 'Identifier', name: 'NAME' },
                 { type: 'Identifier', name: 'AGE' }
@@ -57,7 +57,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: '*' }],
             where: undefined
         });
@@ -69,7 +69,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -86,7 +86,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -103,7 +103,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'DeleteStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             where: undefined
         });
     });
@@ -114,7 +114,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'DeleteStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             where: {
                 type: 'ComparisonExpression',
                 left: { type: 'Identifier', name: 'AGE' },
@@ -130,7 +130,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -147,7 +147,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -164,7 +164,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'LogicalExpression',
@@ -192,7 +192,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'NotExpression',
@@ -214,7 +214,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'NotExpression',
@@ -240,7 +240,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'LogicalExpression',
@@ -272,7 +272,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'LogicalExpression',
@@ -300,7 +300,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'NullCheckExpression',
@@ -317,7 +317,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'NullCheckExpression',
@@ -376,7 +376,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -399,7 +399,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -416,7 +416,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -434,7 +434,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
             orderBy: {
@@ -455,7 +455,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
             orderBy: {
@@ -476,7 +476,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
             orderBy: {
@@ -497,7 +497,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
             orderBy: {
@@ -518,7 +518,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
                 type: 'ComparisonExpression',
@@ -549,5 +549,59 @@ describe("Parser", () => {
         const parser = new Parser(lexer);
 
         expect(() => parser.parse()).toThrow("Expected column name after COMMA but got EOF");
+    });
+
+    it("should parse CROSS JOIN with two tables", () => {
+        const lexer = new Lexer("SELECT * FROM users CROSS JOIN orders");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [
+                { type: 'Table', name: 'USERS' },
+                { type: 'Table', name: 'ORDERS' }
+            ],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined,
+            orderBy: undefined
+        });
+    });
+
+    it("should parse comma-separated tables", () => {
+        const lexer = new Lexer("SELECT * FROM users, orders, products");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [
+                { type: 'Table', name: 'USERS' },
+                { type: 'Table', name: 'ORDERS' },
+                { type: 'Table', name: 'PRODUCTS' }
+            ],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined,
+            orderBy: undefined
+        });
+    });
+
+    it("should parse multiple CROSS JOINs", () => {
+        const lexer = new Lexer("SELECT * FROM users CROSS JOIN orders CROSS JOIN products");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast.from).toEqual([
+            { type: 'Table', name: 'USERS' },
+            { type: 'Table', name: 'ORDERS' },
+            { type: 'Table', name: 'PRODUCTS' }
+        ]);
+    });
+
+    it("should throw error for CROSS without JOIN", () => {
+        const lexer = new Lexer("SELECT * FROM users CROSS orders");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected JOIN after CROSS but got IDENTIFIER");
     });
 });

@@ -93,11 +93,42 @@ export class Parser {
         return { type: 'DeleteStatement', from, where: undefined };
     }
 
-    private parseFrom(): { type: 'Table'; name: string } {
+    private parseFrom(): { type: 'Table'; name: string }[] {
         this.eat(TokenType.FROM);
-        const table = this.currentToken.value;
+        const tables: { type: 'Table'; name: string }[] = [];
+        
+        // first table is mandatory
+        if (this.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected table name after FROM but got ${this.currentType()}`);
+        }
+        tables.push({ type: 'Table', name: this.currentToken.value });
         this.eat(TokenType.IDENTIFIER);
-        return { type: 'Table', name: table };
+
+        // comma separated additional tables (for JOINs)
+        while (this.currentType() === TokenType.COMMA) {
+            this.eat(TokenType.COMMA);
+            if (this.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected table name after COMMA but got ${this.currentType()}`);
+            }
+            tables.push({ type: 'Table', name: this.currentToken.value });
+            this.eat(TokenType.IDENTIFIER);
+        }
+
+        // cross join syntax: additional tables can also be specified with CROSS JOIN
+        while (this.currentType() === TokenType.CROSS) {
+            this.eat(TokenType.CROSS);
+            if (this.currentType() !== TokenType.JOIN) {
+                throw new Error(`Expected JOIN after CROSS but got ${this.currentType()}`);
+            }
+            this.eat(TokenType.JOIN);
+            if (this.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected table name after CROSS JOIN but got ${this.currentType()}`);
+            }
+            tables.push({ type: 'Table', name: this.currentToken.value });
+            this.eat(TokenType.IDENTIFIER);
+        }
+
+        return tables;
     }
 
     private parseWhere(): ExpressionNode {

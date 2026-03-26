@@ -27,6 +27,8 @@ export enum TokenType {
     BY = 'BY',
     ASC = 'ASC',
     DESC = 'DESC',
+    CROSS = 'CROSS',
+    JOIN = 'JOIN',
 }
 
 export interface Token {
@@ -39,14 +41,14 @@ export type ASTNode = SelectStatement | DeleteStatement;
 export interface SelectStatement {
     type: 'SelectStatement';
     columns: IdentifierNode[];
-    from: TableNode;
+    from: TableNode[];
     where?: ExpressionNode;
     orderBy?: OrderByStatement;
 }
 
 export interface DeleteStatement {
     type: 'DeleteStatement';
-    from: TableNode;
+    from: TableNode[];
     where?: ExpressionNode;
 }
 

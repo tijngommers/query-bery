@@ -15,7 +15,7 @@ describe('Interpreter', () => {
                 { type: 'Identifier', name: 'NAME' },
                 { type: 'Identifier', name: 'AGE' }
             ],
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             where: {
                 type: 'LogicalExpression',
                 operator: 'AND',
@@ -41,7 +41,7 @@ describe('Interpreter', () => {
         const result = interpreter.execute();
         expect(result).toEqual({
             type: 'DeleteResult',
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             where: {
                 type: 'ComparisonExpression',
                 operator: '=',
@@ -61,7 +61,7 @@ describe('Interpreter', () => {
             columns: [
                 { type: 'Identifier', name: 'NAME' }
             ],
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             where: {
                 type: 'NullCheckExpression',
                 left: { type: 'Identifier', name: 'CITY' },
@@ -80,7 +80,7 @@ describe('Interpreter', () => {
             columns: [
                 { type: 'Identifier', name: 'NAME' }
             ],
-            from: { type: 'Table', name: 'USERS' },
+            from: [{ type: 'Table', name: 'USERS' }],
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
@@ -89,6 +89,61 @@ describe('Interpreter', () => {
                     { type: 'Identifier', name: 'CITY' }
                 ],
                 direction: 'DESC'
+            }
+        });
+    });
+
+    it('should execute a SELECT with CROSS JOIN', () => {
+        const query = "SELECT * FROM users CROSS JOIN orders";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            columns: [{ type: 'Identifier', name: '*' }],
+            from: [
+                { type: 'Table', name: 'USERS' },
+                { type: 'Table', name: 'ORDERS' }
+            ],
+            where: undefined,
+            orderBy: undefined
+        });
+    });
+
+    it('should execute a SELECT with comma-separated tables', () => {
+        const query = "SELECT * FROM users, orders, products";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            columns: [{ type: 'Identifier', name: '*' }],
+            from: [
+                { type: 'Table', name: 'USERS' },
+                { type: 'Table', name: 'ORDERS' },
+                { type: 'Table', name: 'PRODUCTS' }
+            ],
+            where: undefined,
+            orderBy: undefined
+        });
+    });
+
+    it('should execute a DELETE with multiple comma-separated tables', () => {
+        const query = "DELETE FROM users, orders WHERE active = 1";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'DeleteResult',
+            from: [
+                { type: 'Table', name: 'USERS' },
+                { type: 'Table', name: 'ORDERS' }
+            ],
+            where: {
+                type: 'ComparisonExpression',
+                operator: '=',
+                left: { type: 'Identifier', name: 'ACTIVE' },
+                right: { type: 'Literal', valueType: 'number', value: 1 }
             }
         });
     });
