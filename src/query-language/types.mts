@@ -29,6 +29,7 @@ export enum TokenType {
     DESC = 'DESC',
     CROSS = 'CROSS',
     JOIN = 'JOIN',
+    DOT = 'DOT',
 }
 
 export interface Token {

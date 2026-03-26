@@ -167,6 +167,9 @@ export class Lexer {
             case '<':
                 this.cursor++;
                 return { type: TokenType.LESS_THAN, value: '<' };
+            case '.':
+                this.cursor++;
+                return { type: TokenType.DOT, value: '.' };
             default:
                 return null;
         }

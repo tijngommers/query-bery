@@ -604,4 +604,47 @@ describe("Parser", () => {
 
         expect(() => parser.parse()).toThrow("Expected JOIN after CROSS but got IDENTIFIER");
     });
+
+    it("should parse dot notation in SELECT columns", () => {
+        const lexer = new Lexer("SELECT users.id FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'USERS.ID' }],
+            where: undefined,
+            orderBy: undefined,
+        });
+    });
+
+    it("should parse dot notation on both sides of comparison", () => {
+        const lexer = new Lexer("SELECT * FROM users, orders WHERE users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [
+                { type: 'Table', name: 'USERS' },
+                { type: 'Table', name: 'ORDERS' },
+            ],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' },
+            },
+            orderBy: undefined,
+        });
+    });
+
+    it("should throw when dot is not followed by identifier", () => {
+        const lexer = new Lexer("SELECT users. FROM users");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected identifier after dot but got FROM");
+    });
 });

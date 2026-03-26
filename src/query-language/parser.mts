@@ -51,7 +51,6 @@ export class Parser {
             }
 
             columns.push(this.parseIdentifierNode());
-            this.eat(TokenType.IDENTIFIER);
 
             while (this.currentType() === TokenType.COMMA) {
                 this.eat(TokenType.COMMA);
@@ -59,7 +58,6 @@ export class Parser {
                     throw new Error(`Expected column name after COMMA but got ${this.currentType()}`);
                 }
                 columns.push(this.parseIdentifierNode());
-                this.eat(TokenType.IDENTIFIER);
             }
         }
 
@@ -169,7 +167,6 @@ export class Parser {
 
     private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode {
         const left = this.parseIdentifierNode();
-        this.eat(TokenType.IDENTIFIER);
 
         if (this.currentType() === TokenType.IS) {
             this.eat(TokenType.IS);
@@ -247,11 +244,7 @@ export class Parser {
         }
 
         if (token.type === TokenType.IDENTIFIER) {
-            this.eat(TokenType.IDENTIFIER);
-            return {
-                type: 'Identifier',
-                name: token.value,
-            };
+            return this.parseIdentifierNode();
         }
 
         if (token.type === TokenType.NULL) {
@@ -270,9 +263,22 @@ export class Parser {
         if (this.currentType() !== TokenType.IDENTIFIER) {
             throw new Error(`Expected identifier in WHERE clause but got ${this.currentType()}`);
         }
+
+        let name = this.currentToken.value;
+        this.eat(TokenType.IDENTIFIER);
+
+        while (this.currentType() === TokenType.DOT) {
+            this.eat(TokenType.DOT);
+            if (this.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected identifier after dot but got ${this.currentType()}`);
+            }
+            name = `${name}.${this.currentToken.value}`;
+            this.eat(TokenType.IDENTIFIER);
+        }
+
         return {
             type: 'Identifier',
-            name: this.currentToken.value,
+            name,
         };
     }
 
@@ -286,7 +292,6 @@ export class Parser {
             throw new Error(`Expected at least one column after ORDER BY but got ${this.currentType()}`);
         }
         columns.push(this.parseIdentifierNode());
-        this.eat(TokenType.IDENTIFIER);
 
         let direction: 'ASC' | 'DESC' | undefined;
 
@@ -304,7 +309,6 @@ export class Parser {
                 throw new Error(`Expected column name after COMMA but got ${this.currentType()}`);
             }
             columns.push(this.parseIdentifierNode());
-            this.eat(TokenType.IDENTIFIER);
         }
 
         if (direction === undefined && this.currentType() === TokenType.ASC) {
