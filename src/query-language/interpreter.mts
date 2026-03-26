@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 //@date 2026-03-24
 
-import { ASTNode, DeleteStatement, OrderByStatement, SelectStatement } from "./types.mts";
+import { ASTNode, DeleteStatement, SelectStatement } from "./types.mts";
 import { Parser } from "./parser.mts";
 import { Lexer } from "./lexer.mts";
 
@@ -20,8 +20,6 @@ export class Interpreter {
                 return this.executeSelect(this.ast);
             case 'DeleteStatement':
                 return this.executeDelete(this.ast);
-            case 'OrderByStatement':
-                return this.executeOrderBy(this.ast);
             default:
                 return this.assertNever(this.ast);
         }
@@ -58,18 +56,6 @@ export class Interpreter {
             type: 'DeleteResult',
             from,
             where
-        };
-    }
-
-    private executeOrderBy(node: OrderByStatement): any {
-        const columns = node.columns;
-        const direction = node.direction || 'ASC';
-        //pass here your own function to execute the query on your data source, for example:
-        // return database.query({ type: 'orderBy', columns, direction });
-        return {
-            type: 'OrderByResult',
-            columns,
-            direction
         };
     }
 }

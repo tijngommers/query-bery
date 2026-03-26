@@ -34,7 +34,7 @@ export interface Token {
     value: string;
 }
 
-export type ASTNode = SelectStatement | DeleteStatement | OrderByStatement;
+export type ASTNode = SelectStatement | DeleteStatement;
 
 export interface SelectStatement {
     type: 'SelectStatement';
