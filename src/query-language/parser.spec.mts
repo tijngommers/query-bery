@@ -448,6 +448,69 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse ORDER BY with ASC directly after the first column", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY age ASC, city");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: undefined,
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [
+                    { type: 'Identifier', name: 'AGE' },
+                    { type: 'Identifier', name: 'CITY' }
+                ],
+                direction: 'ASC'
+            }
+        });
+    });
+
+    it("should parse ORDER BY with ASC after the full column list", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY age, city ASC");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: undefined,
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [
+                    { type: 'Identifier', name: 'AGE' },
+                    { type: 'Identifier', name: 'CITY' }
+                ],
+                direction: 'ASC'
+            }
+        });
+    });
+
+    it("should default ORDER BY direction to ASC when omitted", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY age, city");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: undefined,
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [
+                    { type: 'Identifier', name: 'AGE' },
+                    { type: 'Identifier', name: 'CITY' }
+                ],
+                direction: 'ASC'
+            }
+        });
+    });
+
     it("should parse SELECT with WHERE and ORDER BY", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE age >= 18 ORDER BY age DESC, city");
         const parser = new Parser(lexer);
