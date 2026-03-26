@@ -126,15 +126,16 @@ export class Lexer {
      */
     private checkOperators(): Token | null {
         const twoChars = this.input.slice(this.cursor, this.cursor + 2);
-        if (twoChars === '<=') {
-            this.cursor += 2;
-            return { type: TokenType.LESS_THAN_OR_EQUALS, value: '<=' };
-        } else if (twoChars === '>=') {
-            this.cursor += 2;
-            return { type: TokenType.GREATER_THAN_OR_EQUALS, value: '>=' };
-        } else if (twoChars === '!=') {
-            this.cursor += 2;
-            return { type: TokenType.NOT_EQUALS, value: '!=' };
+        switch (twoChars) {
+            case '<=':
+                this.cursor += 2;
+                return { type: TokenType.LESS_THAN_OR_EQUALS, value: '<=' };
+            case '>=':
+                this.cursor += 2;
+                return { type: TokenType.GREATER_THAN_OR_EQUALS, value: '>=' };
+            case '!=':
+                this.cursor += 2;
+                return { type: TokenType.NOT_EQUALS, value: '!=' };
         }
 
         const char = this.input[this.cursor];
