@@ -64,20 +64,18 @@ export class Parser {
         }
 
         const from = this.parseFrom();
-        const nextType = this.currentType();
+        let where: ExpressionNode | undefined;
+        let orderBy: OrderByStatement | undefined;
 
-        if (nextType === TokenType.WHERE) {
-            const where = this.parseWhere();
-            return { type: 'SelectStatement', from, columns, where };
+        if (this.currentType() === TokenType.WHERE) {
+            where = this.parseWhere();
         }
 
-        if (nextType === TokenType.ORDER) {
-            const orderBy = this.parseOrderBy();
-            return { type: 'SelectStatement', from, columns, where: undefined, orderBy };
+        if (this.currentType() === TokenType.ORDER) {
+            orderBy = this.parseOrderBy();
         }
 
-
-        return { type: 'SelectStatement', from, columns, where: undefined, orderBy: undefined };
+        return { type: 'SelectStatement', from, columns, where, orderBy };
 
     }
 
@@ -259,6 +257,16 @@ export class Parser {
         columns.push(this.parseIdentifierNode());
         this.eat(TokenType.IDENTIFIER);
 
+        let direction: 'ASC' | 'DESC' | undefined;
+
+        if (this.currentType() === TokenType.ASC) {
+            this.eat(TokenType.ASC);
+            direction = 'ASC';
+        } else if (this.currentType() === TokenType.DESC) {
+            this.eat(TokenType.DESC);
+            direction = 'DESC';
+        }
+
         while (this.currentType() === TokenType.COMMA) {
             this.eat(TokenType.COMMA);
             if (this.currentType() !== TokenType.IDENTIFIER) {
@@ -268,11 +276,18 @@ export class Parser {
             this.eat(TokenType.IDENTIFIER);
         }
 
-        let direction: 'ASC' | 'DESC' = 'ASC';
-        if (this.currentType() === TokenType.DESC) {
+        if (direction === undefined && this.currentType() === TokenType.ASC) {
+            this.eat(TokenType.ASC);
+            direction = 'ASC';
+        } else if (direction === undefined && this.currentType() === TokenType.DESC) {
             this.eat(TokenType.DESC);
             direction = 'DESC';
         }
+
+        if (direction === undefined) {
+            direction = 'ASC';
+        }
+
         return { type: 'OrderByStatement', columns, direction };
     }
 
