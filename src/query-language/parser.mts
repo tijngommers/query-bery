@@ -11,6 +11,7 @@ import {
     LiteralNode,
     LogicalNode,
     NullCheckExpressionNode,
+    OrderByStatement,
     SelectStatement,
     Token,
     TokenType,
@@ -69,7 +70,14 @@ export class Parser {
             const where = this.parseWhere();
             return { type: 'SelectStatement', from, columns, where };
         }
-        return { type: 'SelectStatement', from, columns, where: undefined };
+
+        if (nextType === TokenType.ORDER) {
+            const orderBy = this.parseOrderBy();
+            return { type: 'SelectStatement', from, columns, where: undefined, orderBy };
+        }
+
+
+        return { type: 'SelectStatement', from, columns, where: undefined, orderBy: undefined };
 
     }
 
@@ -237,6 +245,35 @@ export class Parser {
             type: 'Identifier',
             name: this.currentToken.value,
         };
+    }
+
+    private parseOrderBy(): OrderByStatement {
+        this.eat(TokenType.ORDER);
+        this.eat(TokenType.BY);
+
+        const columns: IdentifierNode[] = [];
+
+        if (this.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected at least one column after ORDER BY but got ${this.currentType()}`);
+        }
+        columns.push(this.parseIdentifierNode());
+        this.eat(TokenType.IDENTIFIER);
+
+        while (this.currentType() === TokenType.COMMA) {
+            this.eat(TokenType.COMMA);
+            if (this.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected column name after COMMA but got ${this.currentType()}`);
+            }
+            columns.push(this.parseIdentifierNode());
+            this.eat(TokenType.IDENTIFIER);
+        }
+
+        let direction: 'ASC' | 'DESC' = 'ASC';
+        if (this.currentType() === TokenType.DESC) {
+            this.eat(TokenType.DESC);
+            direction = 'DESC';
+        }
+        return { type: 'OrderByStatement', columns, direction };
     }
 
     private currentType(): TokenType {

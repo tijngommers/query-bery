@@ -88,6 +88,15 @@ export class Lexer {
                 return { type: TokenType.NULL, value: id };
             case 'IS':
                 return { type: TokenType.IS, value: id };
+            case 'ORDER':
+                return { type: TokenType.ORDER, value: id };
+            case 'BY':
+                return { type: TokenType.BY, value: id };
+            case 'ASC':
+                return { type: TokenType.ASC, value: id };
+            case 'DESC':
+                return { type: TokenType.DESC, value: id };
+
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

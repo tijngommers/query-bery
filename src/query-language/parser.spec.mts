@@ -426,4 +426,65 @@ describe("Parser", () => {
             }
         });
     });
+
+    it("should parse ORDER BY with multiple columns", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY age, city DESC");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: undefined,
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [
+                    { type: 'Identifier', name: 'AGE' },
+                    { type: 'Identifier', name: 'CITY' }
+                ],
+                direction: 'DESC'
+            }
+        });
+    });
+
+    it("should parse SELECT with WHERE and ORDER BY", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age >= 18 ORDER BY age DESC, city");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: { type: 'Table', name: 'USERS' },
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
+                operator: '>=',
+                right: { type: 'Literal', valueType: 'number', value: 18 }
+            },
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [
+                    { type: 'Identifier', name: 'AGE' },
+                    { type: 'Identifier', name: 'CITY' }
+                ],
+                direction: 'DESC'
+            }
+        });
+    });
+
+    it("should throw when ORDER BY has no columns", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected at least one column after ORDER BY but got EOF");
+    });
+
+    it("should throw when ORDER BY has trailing comma", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY age,");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected column name after COMMA but got EOF");
+    });
 });

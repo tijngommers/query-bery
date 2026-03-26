@@ -23,6 +23,10 @@ export enum TokenType {
     NOT_EQUALS = 'NOT_EQUALS',
     IS = 'IS',
     NULL = 'NULL',
+    ORDER = 'ORDER',
+    BY = 'BY',
+    ASC = 'ASC',
+    DESC = 'DESC',
 }
 
 export interface Token {
@@ -30,19 +34,26 @@ export interface Token {
     value: string;
 }
 
-export type ASTNode = SelectStatement | DeleteStatement;
+export type ASTNode = SelectStatement | DeleteStatement | OrderByStatement;
 
 export interface SelectStatement {
     type: 'SelectStatement';
     columns: IdentifierNode[];
     from: TableNode;
     where?: ExpressionNode;
+    orderBy?: OrderByStatement;
 }
 
 export interface DeleteStatement {
     type: 'DeleteStatement';
     from: TableNode;
     where?: ExpressionNode;
+}
+
+export interface OrderByStatement {
+    type: 'OrderByStatement';
+    columns: IdentifierNode[];
+    direction?: 'ASC' | 'DESC';
 }
 
 export interface TableNode {

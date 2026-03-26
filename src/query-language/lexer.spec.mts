@@ -179,6 +179,29 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize ORDER BY with multiple columns and directions", () => {
+        const lexer = new Lexer("SELECT name FROM users ORDER BY age DESC, city ASC");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.ORDER, value: "ORDER" },
+            { type: TokenType.BY, value: "BY" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.DESC, value: "DESC" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.ASC, value: "ASC" },
+        ]);
+    });
+
 
     it("should handle whitespace correctly", () => {
         const lexer = new Lexer("   SELECT   name   FROM   users   ");

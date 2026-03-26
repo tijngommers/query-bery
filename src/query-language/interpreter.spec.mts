@@ -69,4 +69,27 @@ describe('Interpreter', () => {
             }
         });
     });
+
+    it('should execute a SELECT query with ORDER BY multiple columns', () => {
+        const query = "SELECT name FROM users ORDER BY age DESC, city";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            columns: [
+                { type: 'Identifier', name: 'NAME' }
+            ],
+            from: { type: 'Table', name: 'USERS' },
+            where: undefined,
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [
+                    { type: 'Identifier', name: 'AGE' },
+                    { type: 'Identifier', name: 'CITY' }
+                ],
+                direction: 'DESC'
+            }
+        });
+    });
 });
