@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 //@date 2026-03-27
 
-import { DeleteStatement } from "../types.mjs";
+import { DeleteStatement, ExpressionNode } from "../types.mjs";
 
 /**
  * DeleteExecutor handles the execution of DELETE statements.
@@ -20,7 +20,7 @@ export class DeleteExecutor {
         this.validateDelete(node);
 
         const from = node.from;
-        const where = node.where;
+        const where = this.normalizeWhereExpression(node.where);
 
         // Future optimization points:
         // - Generate safe deletion plan
@@ -33,6 +33,30 @@ export class DeleteExecutor {
             from,
             where
         };
+    }
+
+    private normalizeWhereExpression(where?: ExpressionNode): ExpressionNode | undefined {
+        if (!where) {
+            return undefined;
+        }
+
+        if (where.type === 'LogicalExpression') {
+            return {
+                ...where,
+                left: this.normalizeWhereExpression(where.left) as ExpressionNode,
+                right: this.normalizeWhereExpression(where.right) as ExpressionNode,
+            };
+        }
+
+        if (where.type === 'NotExpression') {
+            return {
+                ...where,
+                expression: this.normalizeWhereExpression(where.expression) as ExpressionNode,
+            };
+        }
+
+        // ComparisonExpression, NullCheckExpression and InExpression are returned unchanged.
+        return where;
     }
 
     /**

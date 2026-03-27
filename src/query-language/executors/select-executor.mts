@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 //@date 2026-03-27
 
-import { SelectStatement, FromNode, JoinNode } from "../types.mjs";
+import { SelectStatement, FromNode, JoinNode, ExpressionNode } from "../types.mjs";
 import { JoinExecutor } from "./join-executor.mjs";
 
 /**
@@ -29,7 +29,7 @@ export class SelectExecutor {
         const columns = node.columns;
         const distinct = node.distinct;
         const from = this.processFromClause(node.from);
-        const where = node.where;
+        const where = this.normalizeWhereExpression(node.where);
         const orderBy = node.orderBy;
         const limit = node.limit;
 
@@ -49,6 +49,30 @@ export class SelectExecutor {
             orderBy,
             limit
         };
+    }
+
+    private normalizeWhereExpression(where?: ExpressionNode): ExpressionNode | undefined {
+        if (!where) {
+            return undefined;
+        }
+
+        if (where.type === 'LogicalExpression') {
+            return {
+                ...where,
+                left: this.normalizeWhereExpression(where.left) as ExpressionNode,
+                right: this.normalizeWhereExpression(where.right) as ExpressionNode,
+            };
+        }
+
+        if (where.type === 'NotExpression') {
+            return {
+                ...where,
+                expression: this.normalizeWhereExpression(where.expression) as ExpressionNode,
+            };
+        }
+
+        // ComparisonExpression, NullCheckExpression and InExpression are returned unchanged.
+        return where;
     }
 
     /**

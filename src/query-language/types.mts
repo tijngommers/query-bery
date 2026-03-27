@@ -37,7 +37,10 @@ export enum TokenType {
     OUTER = 'OUTER',
     LIMIT = 'LIMIT',
     OFFSET = 'OFFSET',
-    DISTINCT = 'DISTINCT'
+    DISTINCT = 'DISTINCT',
+    IN = 'IN',
+    LEFT_PAREN = 'LEFT_PAREN',
+    RIGHT_PAREN = 'RIGHT_PAREN'
 }
 
 export interface Token {
@@ -93,7 +96,7 @@ export interface LiteralNode {
     value: string | number | null;
 }
 
-export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode | NullCheckExpressionNode;
+export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode |  NullCheckExpressionNode | InExpressionNode;
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!=';
 export type ValueNode = IdentifierNode | LiteralNode;
 
@@ -128,5 +131,11 @@ export interface JoinNode {
     table: TableNode;
     joinType: "CROSS" | "INNER" | "LEFT" | "RIGHT" | "OUTER";
     on: ComparisonNode;
+}
+
+export interface InExpressionNode {
+    type: "InExpression";
+    left: IdentifierNode;
+    values: ValueNode[];
 }
     

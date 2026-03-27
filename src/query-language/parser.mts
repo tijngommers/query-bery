@@ -9,6 +9,7 @@ import {
     ExpressionNode,
     FromNode,
     IdentifierNode,
+    InExpressionNode,
     JoinNode,
     LimitOffsetNode,
     LiteralNode,
@@ -18,6 +19,7 @@ import {
     TableNode,
     Token,
     TokenType,
+    ValueNode,
 } from "./types.mts";
 import { Lexer } from "./lexer.mts";
 
@@ -209,8 +211,29 @@ export class Parser {
         return this.parseComparisonExpression();
     }
 
-    private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode {
+    private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode | InExpressionNode {
         const left = this.parseIdentifierNode();
+
+        if (this.currentType() === TokenType.IN) {
+            this.eat(TokenType.IN);
+            if (this.currentType() !== TokenType.LEFT_PAREN) {
+                throw new Error(`Expected LEFT_PAREN after IN but got ${this.currentType()}`);
+            }
+            this.eat(TokenType.LEFT_PAREN);
+            const values: ValueNode[] = [];
+            while (this.currentType() !== TokenType.RIGHT_PAREN) {
+                values.push(this.parseValueNode());
+                if (this.currentType() === TokenType.COMMA) {
+                    this.eat(TokenType.COMMA);
+                }
+            }
+            this.eat(TokenType.RIGHT_PAREN);
+            return {
+                type: "InExpression",
+                left,
+                values,
+            };
+        }
 
         if (this.currentType() === TokenType.IS) {
             this.eat(TokenType.IS);

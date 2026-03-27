@@ -995,5 +995,43 @@ describe("Parser", () => {
         expect(ast.from).toHaveLength(2);
         expect(ast.from[1].type).toBe('Join');
     });
+
+    it("should parse WHERE IN with numeric values", () => {
+        const lexer = new Lexer("SELECT * FROM users WHERE id IN (1, 2, 3)");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.where).toEqual({
+            type: 'InExpression',
+            left: { type: 'Identifier', name: 'ID' },
+            values: [
+                { type: 'Literal', valueType: 'number', value: 1 },
+                { type: 'Literal', valueType: 'number', value: 2 },
+                { type: 'Literal', valueType: 'number', value: 3 }
+            ]
+        });
+    });
+
+    it("should parse WHERE IN with string values", () => {
+        const lexer = new Lexer("SELECT * FROM users WHERE city IN ('AMS', 'RTM')");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.where).toEqual({
+            type: 'InExpression',
+            left: { type: 'Identifier', name: 'CITY' },
+            values: [
+                { type: 'Literal', valueType: 'string', value: 'AMS' },
+                { type: 'Literal', valueType: 'string', value: 'RTM' }
+            ]
+        });
+    });
+
+    it("should throw when IN list is not closed", () => {
+        const lexer = new Lexer("SELECT * FROM users WHERE id IN (1, 2, 3");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow();
+    });
 });
 

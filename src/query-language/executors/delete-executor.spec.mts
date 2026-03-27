@@ -225,4 +225,32 @@ describe('DeleteExecutor', () => {
         expect(result.type).toBe('DeleteResult');
         expect(isSafe).toBe(true);
     });
+
+    it('should execute DELETE with IN expression in WHERE clause', () => {
+        const deleteNode: DeleteStatement = {
+            type: 'DeleteStatement',
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'InExpression',
+                left: { type: 'Identifier', name: 'ID' },
+                values: [
+                    { type: 'Literal', valueType: 'number', value: 10 },
+                    { type: 'Literal', valueType: 'number', value: 20 },
+                    { type: 'Literal', valueType: 'number', value: 30 }
+                ]
+            }
+        };
+
+        const result = deleteExecutor.executeDelete(deleteNode);
+
+        expect(result.where).toEqual({
+            type: 'InExpression',
+            left: { type: 'Identifier', name: 'ID' },
+            values: [
+                { type: 'Literal', valueType: 'number', value: 10 },
+                { type: 'Literal', valueType: 'number', value: 20 },
+                { type: 'Literal', valueType: 'number', value: 30 }
+            ]
+        });
+    });
 });

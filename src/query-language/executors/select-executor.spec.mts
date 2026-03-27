@@ -494,4 +494,36 @@ describe('SelectExecutor', () => {
         expect(result.distinct).toBe(true);
         expect(result.type).toBe('SelectResult');
     });
+
+    it('should execute SELECT with IN expression in WHERE clause', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'InExpression',
+                left: { type: 'Identifier', name: 'ID' },
+                values: [
+                    { type: 'Literal', valueType: 'number', value: 1 },
+                    { type: 'Literal', valueType: 'number', value: 2 },
+                    { type: 'Literal', valueType: 'number', value: 3 }
+                ]
+            },
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.where).toEqual({
+            type: 'InExpression',
+            left: { type: 'Identifier', name: 'ID' },
+            values: [
+                { type: 'Literal', valueType: 'number', value: 1 },
+                { type: 'Literal', valueType: 'number', value: 2 },
+                { type: 'Literal', valueType: 'number', value: 3 }
+            ]
+        });
+    });
 });

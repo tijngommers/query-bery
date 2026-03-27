@@ -30,12 +30,20 @@ export class Interpreter {
     execute(): any {
         switch (this.ast.type) {
             case 'SelectStatement':
-                return this.selectExecutor.executeSelect(this.ast as SelectStatement);
+                return this.executeSelectStatement(this.ast as SelectStatement);
             case 'DeleteStatement':
-                return this.deleteExecutor.executeDelete(this.ast as DeleteStatement);
+                return this.executeDeleteStatement(this.ast as DeleteStatement);
             default:
                 return this.assertNever(this.ast);
         }
+    }
+
+    private executeSelectStatement(ast: SelectStatement): any {
+        return this.selectExecutor.executeSelect(ast);
+    }
+
+    private executeDeleteStatement(ast: DeleteStatement): any {
+        return this.deleteExecutor.executeDelete(ast);
     }
 
     private assertNever(value: never): never {

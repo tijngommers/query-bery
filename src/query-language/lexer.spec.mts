@@ -482,4 +482,54 @@ describe("Lexer", () => {
             { type: TokenType.IDENTIFIER, value: "USERS" },
         ]);
     });
+
+    it("should tokenize WHERE IN with numeric list", () => {
+        const lexer = new Lexer("SELECT * FROM users WHERE id IN (1, 2, 3)");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.IDENTIFIER, value: "ID" },
+            { type: TokenType.IN, value: "IN" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.NUMBER, value: "1" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.NUMBER, value: "2" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.NUMBER, value: "3" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+        ]);
+    });
+
+    it("should tokenize WHERE IN with string list", () => {
+        const lexer = new Lexer("SELECT * FROM users WHERE city IN ('AMS', 'RTM')");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.IN, value: "IN" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.STRING, value: "AMS" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.STRING, value: "RTM" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+        ]);
+    });
 });

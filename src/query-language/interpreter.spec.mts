@@ -472,4 +472,22 @@ describe('Interpreter', () => {
         expect(result.distinct).toBe(true);
         expect(result.from).toHaveLength(2);
     });
+
+    it('should execute SELECT with IN operator in WHERE clause', () => {
+        const query = "SELECT name FROM users WHERE id IN (1, 2, 3)";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(false);
+        expect(result.where).toEqual({
+            type: 'InExpression',
+            left: { type: 'Identifier', name: 'ID' },
+            values: [
+                { type: 'Literal', valueType: 'number', value: 1 },
+                { type: 'Literal', valueType: 'number', value: 2 },
+                { type: 'Literal', valueType: 'number', value: 3 }
+            ]
+        });
+    });
 });

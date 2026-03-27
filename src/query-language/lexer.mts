@@ -116,6 +116,8 @@ export class Lexer {
                 return { type: TokenType.OFFSET, value: id };
             case 'DISTINCT':
                 return { type: TokenType.DISTINCT, value: id };
+            case 'IN':
+                return { type: TokenType.IN, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }
@@ -186,6 +188,12 @@ export class Lexer {
             case '.':
                 this.cursor++;
                 return { type: TokenType.DOT, value: '.' };
+            case '(':
+                this.cursor++;
+                return { type: TokenType.LEFT_PAREN, value: '(' };
+            case ')':
+                this.cursor++;
+                return { type: TokenType.RIGHT_PAREN, value: ')' };
             default:
                 return null;
         }
