@@ -174,4 +174,61 @@ describe('Interpreter', () => {
             orderBy: undefined
         });
     });
+
+    it('should execute a SELECT with INNER JOIN ... ON', () => {
+        const query = "SELECT * FROM users INNER JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'INNER',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+    });
+
+    it('should execute a SELECT with LEFT JOIN ... ON', () => {
+        const query = "SELECT * FROM users LEFT JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'LEFT',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+    });
+
+    it('should execute a SELECT with RIGHT JOIN ... ON', () => {
+        const query = "SELECT * FROM users RIGHT JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'RIGHT',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+    });
 });

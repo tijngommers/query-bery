@@ -288,6 +288,64 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize INNER JOIN keyword", () => {
+        const lexer = new Lexer("SELECT * FROM users INNER JOIN orders");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.INNER, value: "INNER" },
+            { type: TokenType.JOIN, value: "JOIN" },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+        ]);
+    });
+
+    it("should tokenize LEFT OUTER JOIN keywords", () => {
+        const lexer = new Lexer("SELECT * FROM users LEFT OUTER JOIN orders");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.LEFT, value: "LEFT" },
+            { type: TokenType.OUTER, value: "OUTER" },
+            { type: TokenType.JOIN, value: "JOIN" },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+        ]);
+    });
+
+    it("should tokenize RIGHT JOIN keyword", () => {
+        const lexer = new Lexer("SELECT * FROM users RIGHT JOIN orders");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.RIGHT, value: "RIGHT" },
+            { type: TokenType.JOIN, value: "JOIN" },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+        ]);
+    });
+
     it("should tokenize comma-separated table names", () => {
         const lexer = new Lexer("SELECT * FROM users, orders, products");
         const tokens = [];

@@ -150,7 +150,11 @@ export class Parser {
             this.eat(TokenType.IDENTIFIER);
         }
 
-        while (this.currentType() === TokenType.JOIN) {
+        while (this.currentType() === TokenType.JOIN || 
+               this.currentType() === TokenType.INNER || 
+               this.currentType() === TokenType.LEFT || 
+               this.currentType() === TokenType.RIGHT || 
+               this.currentType() === TokenType.OUTER) {
             tables.push(this.parseJoin());
         }
 
@@ -355,6 +359,40 @@ export class Parser {
     }
 
     private parseJoin(): JoinNode {
+        let joinType: "CROSS" | "INNER" | "LEFT" | "RIGHT" | "OUTER" = "INNER";
+        
+        switch (this.currentType()) {
+            case TokenType.CROSS:
+                this.eat(TokenType.CROSS);
+                joinType = "CROSS";
+                break;
+            case TokenType.INNER:
+                this.eat(TokenType.INNER);
+                joinType = "INNER";
+                break;
+            case TokenType.LEFT:
+                this.eat(TokenType.LEFT);
+                joinType = "LEFT";
+                break;
+            case TokenType.RIGHT:
+                this.eat(TokenType.RIGHT);
+                joinType = "RIGHT";
+                break;
+            case TokenType.OUTER:
+                this.eat(TokenType.OUTER);
+                joinType = "OUTER";
+                break;
+        }
+
+        // LEFT OUTER JOIN, RIGHT OUTER JOIN are valid, so we need to check for OUTER after checking for LEFT/RIGHT
+        if (this.currentType() === TokenType.OUTER) {
+            this.eat(TokenType.OUTER);
+        }
+
+        if (this.currentType() !== TokenType.JOIN) {
+            throw new Error(`Expected JOIN after ${joinType} but got ${this.currentType()}`);
+        }
+
         this.eat(TokenType.JOIN);
         if (this.currentType() !== TokenType.IDENTIFIER) {
             throw new Error(`Expected table name after JOIN but got ${this.currentType()}`);
@@ -374,7 +412,7 @@ export class Parser {
         return {
             type: "Join",
             table: { type: "Table", name: tableName },
-            joinType: "INNER",
+            joinType: joinType,
             on: { type: "ComparisonExpression", left, operator, right },
         };
     }

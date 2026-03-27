@@ -719,4 +719,94 @@ describe("Parser", () => {
 
         expect(() => parser.parse()).toThrow("Expected identifier after dot but got FROM");
     });
+
+    it("should parse INNER JOIN with ON clause", () => {
+        const lexer = new Lexer("SELECT * FROM users INNER JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast.from[1]).toEqual({
+            type: "Join",
+            table: { type: "Table", name: "ORDERS" },
+            joinType: "INNER",
+            on: {
+                type: "ComparisonExpression",
+                left: { type: "Identifier", name: "USERS.ID" },
+                operator: "=",
+                right: { type: "Identifier", name: "ORDERS.USER_ID" }
+            }
+        });
+    });
+
+    it("should parse LEFT JOIN with ON clause", () => {
+        const lexer = new Lexer("SELECT * FROM users LEFT JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast.from[1]).toEqual({
+            type: "Join",
+            table: { type: "Table", name: "ORDERS" },
+            joinType: "LEFT",
+            on: {
+                type: "ComparisonExpression",
+                left: { type: "Identifier", name: "USERS.ID" },
+                operator: "=",
+                right: { type: "Identifier", name: "ORDERS.USER_ID" }
+            }
+        });
+    });
+
+    it("should parse LEFT OUTER JOIN with ON clause", () => {
+        const lexer = new Lexer("SELECT * FROM users LEFT OUTER JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast.from[1]).toEqual({
+            type: "Join",
+            table: { type: "Table", name: "ORDERS" },
+            joinType: "LEFT",
+            on: {
+                type: "ComparisonExpression",
+                left: { type: "Identifier", name: "USERS.ID" },
+                operator: "=",
+                right: { type: "Identifier", name: "ORDERS.USER_ID" }
+            }
+        });
+    });
+
+    it("should parse RIGHT JOIN with ON clause", () => {
+        const lexer = new Lexer("SELECT * FROM users RIGHT JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast.from[1]).toEqual({
+            type: "Join",
+            table: { type: "Table", name: "ORDERS" },
+            joinType: "RIGHT",
+            on: {
+                type: "ComparisonExpression",
+                left: { type: "Identifier", name: "USERS.ID" },
+                operator: "=",
+                right: { type: "Identifier", name: "ORDERS.USER_ID" }
+            }
+        });
+    });
+
+    it("should parse RIGHT OUTER JOIN with ON clause", () => {
+        const lexer = new Lexer("SELECT * FROM users RIGHT OUTER JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast.from[1]).toEqual({
+            type: "Join",
+            table: { type: "Table", name: "ORDERS" },
+            joinType: "RIGHT",
+            on: {
+                type: "ComparisonExpression",
+                left: { type: "Identifier", name: "USERS.ID" },
+                operator: "=",
+                right: { type: "Identifier", name: "ORDERS.USER_ID" }
+            }
+        });
+    });
 });

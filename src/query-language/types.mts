@@ -31,6 +31,10 @@ export enum TokenType {
     JOIN = 'JOIN',
     ON = 'ON',
     DOT = 'DOT',
+    INNER = 'INNER',
+    LEFT = 'LEFT',
+    RIGHT = 'RIGHT',
+    OUTER = 'OUTER',
 }
 
 export interface Token {
@@ -111,7 +115,7 @@ export interface NullCheckExpressionNode {
 export interface JoinNode {
     type: "Join";
     table: TableNode;
-    joinType: "CROSS" | "INNER" | "LEFT" | "RIGHT";
+    joinType: "CROSS" | "INNER" | "LEFT" | "RIGHT" | "OUTER";
     on: ComparisonNode;
 }
     

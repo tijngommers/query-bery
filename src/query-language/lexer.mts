@@ -102,6 +102,14 @@ export class Lexer {
                 return { type: TokenType.JOIN, value: id };
             case 'ON':
                 return { type: TokenType.ON, value: id };
+            case 'INNER':
+                return { type: TokenType.INNER, value: id };
+            case 'LEFT':
+                return { type: TokenType.LEFT, value: id };
+            case 'RIGHT':
+                return { type: TokenType.RIGHT, value: id };
+            case 'OUTER':
+                return { type: TokenType.OUTER, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }
