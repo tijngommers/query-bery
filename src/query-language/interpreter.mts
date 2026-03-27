@@ -1,25 +1,38 @@
 //@author Tijn Gommers
 //@date 2026-03-24
 
-import { ASTNode, DeleteStatement, JoinNode, SelectStatement } from "./types.mjs";
+import { ASTNode, DeleteStatement, SelectStatement } from "./types.mjs";
 import { Parser } from "./parser.mjs";
 import { Lexer } from "./lexer.mjs";
+import { SelectExecutor } from "./executors/select-executor.mjs";
+import { DeleteExecutor } from "./executors/delete-executor.mjs";
 
+/**
+ * Main Interpreter orchestrates query execution.
+ * Delegates to specialized executors for each statement type:
+ * - SelectExecutor: SELECT statements
+ * - DeleteExecutor: DELETE statements
+ * - JoinExecutor: JOIN operations (used by SelectExecutor)
+ */
 export class Interpreter {
     private ast: ASTNode;
+    private selectExecutor: SelectExecutor;
+    private deleteExecutor: DeleteExecutor;
 
     constructor(query: string) {
         const lexer = new Lexer(query);
         const parser = new Parser(lexer);
         this.ast = parser.parse();
+        this.selectExecutor = new SelectExecutor();
+        this.deleteExecutor = new DeleteExecutor();
     }
 
     execute(): any {
         switch (this.ast.type) {
             case 'SelectStatement':
-                return this.executeSelect(this.ast);
+                return this.selectExecutor.executeSelect(this.ast as SelectStatement);
             case 'DeleteStatement':
-                return this.executeDelete(this.ast);
+                return this.deleteExecutor.executeDelete(this.ast as DeleteStatement);
             default:
                 return this.assertNever(this.ast);
         }
@@ -27,51 +40,5 @@ export class Interpreter {
 
     private assertNever(value: never): never {
         throw new Error(`Unknown AST node: ${JSON.stringify(value)}`);
-    }
-
-    private executeSelect(node: SelectStatement): any {
-        const columns = node.columns;
-        const from = node.from;
-        const where = node.where;
-        const orderBy = node.orderBy;
-        const limit = node.limit;
-
-        //pass here your own function to execute the query on your data source, for example:
-        // return database.query({ type: 'select', columns, from, where, orderBy, limit });
-        return {
-            type: 'SelectResult',
-            columns,
-            from,
-            where,
-            orderBy,
-            limit
-        };
-    }
-
-    private executeDelete(node: DeleteStatement): any {
-        const from = node.from;
-        const where = node.where;
-        
-        //pass here your own function to execute the query on your data source, for example:
-        // return database.query({ type: 'delete', from, where });
-        return {
-            type: 'DeleteResult',
-            from,
-            where
-        };
-    }
-
-    private executeJoin(node: JoinNode): any {
-        const table = node.table;
-        const joinType = node.joinType;
-        const on = node.on;
-        //pass here your own function to execute the join on your data source, for example:
-        // return database.join({ table, joinType, on });
-        return {
-            type: 'JoinResult',
-            table,
-            joinType,
-            on
-        };
     }
 }

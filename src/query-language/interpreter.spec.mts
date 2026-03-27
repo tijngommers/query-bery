@@ -257,4 +257,112 @@ describe('Interpreter', () => {
             offset: 5
         });
     });
+
+    it('should execute a SELECT with LEFT OUTER JOIN ... ON', () => {
+        const query = "SELECT * FROM users LEFT OUTER JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'LEFT',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+    });
+
+    it('should execute a SELECT with RIGHT OUTER JOIN ... ON', () => {
+        const query = "SELECT * FROM users RIGHT OUTER JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'RIGHT',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+    });
+
+    it('should execute a SELECT with multiple JOINs', () => {
+        const query = "SELECT * FROM users JOIN orders ON users.id = orders.user_id JOIN products ON orders.product_id = products.id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from.length).toBe(3);
+        expect(result.from[0]).toEqual({ type: 'Table', name: 'USERS' });
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'INNER',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+        expect(result.from[2]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'PRODUCTS' },
+            joinType: 'INNER',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'ORDERS.PRODUCT_ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'PRODUCTS.ID' }
+            }
+        });
+    });
+
+    it('should execute a SELECT with JOIN and WHERE clause', () => {
+        const query = "SELECT * FROM users JOIN orders ON users.id = orders.user_id WHERE orders.status = 'completed'";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[1]).toEqual({
+            type: 'Join',
+            table: { type: 'Table', name: 'ORDERS' },
+            joinType: 'INNER',
+            on: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'USERS.ID' },
+                operator: '=',
+                right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+            }
+        });
+        expect(result.where).toEqual({
+            type: 'ComparisonExpression',
+            operator: '=',
+            left: { type: 'Identifier', name: 'ORDERS.STATUS' },
+            right: { type: 'Literal', valueType: 'string', value: 'completed' }
+        });
+    });
+
+    it('should execute a SELECT with JOIN, WHERE and ORDER BY', () => {
+        const query = "SELECT * FROM users JOIN orders ON users.id = orders.user_id WHERE users.active = 1 ORDER BY orders.created_at DESC";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.from[0]).toEqual({ type: 'Table', name: 'USERS' });
+        expect(result.from[1].type).toBe('Join');
+        expect(result.where).toBeDefined();
+        expect(result.orderBy).toBeDefined();
+        expect(result.orderBy?.direction).toBe('DESC');
+    });
 });
