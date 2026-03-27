@@ -231,4 +231,30 @@ describe('Interpreter', () => {
             }
         });
     });
+
+    it('should execute a SELECT with LIMIT clause', () => {
+        const query = "SELECT * FROM users LIMIT 10";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.limit).toEqual({
+            type: 'LimitOffset',
+            limit: 10,
+            offset: undefined
+        });
+    });
+
+    it('should execute a SELECT with LIMIT and OFFSET', () => {
+        const query = "SELECT * FROM users LIMIT 10 OFFSET 5";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.limit).toEqual({
+            type: 'LimitOffset',
+            limit: 10,
+            offset: 5
+        });
+    });
 });

@@ -34,15 +34,17 @@ export class Interpreter {
         const from = node.from;
         const where = node.where;
         const orderBy = node.orderBy;
+        const limit = node.limit;
 
         //pass here your own function to execute the query on your data source, for example:
-        // return database.query({ type: 'select', columns, from, where, orderBy });
+        // return database.query({ type: 'select', columns, from, where, orderBy, limit });
         return {
             type: 'SelectResult',
             columns,
             from,
             where,
-            orderBy
+            orderBy,
+            limit
         };
     }
 

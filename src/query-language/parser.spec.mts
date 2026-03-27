@@ -809,4 +809,55 @@ describe("Parser", () => {
             }
         });
     });
+
+    it("should parse SELECT with LIMIT clause", () => {
+        const lexer = new Lexer("SELECT * FROM users LIMIT 10");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: {
+                type: 'LimitOffset',
+                limit: 10,
+                offset: undefined
+            }
+        });
+    });
+
+    it("should parse SELECT with LIMIT and OFFSET clause", () => {
+        const lexer = new Lexer("SELECT * FROM users LIMIT 10 OFFSET 5");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: {
+                type: 'LimitOffset',
+                limit: 10,
+                offset: 5
+            }
+        });
+    });
+
+    it("should parse SELECT with WHERE, ORDER BY and LIMIT OFFSET", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age > 30 ORDER BY name ASC LIMIT 20 OFFSET 10");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.limit).toEqual({
+            type: 'LimitOffset',
+            limit: 20,
+            offset: 10
+        });
+    });
 });
+

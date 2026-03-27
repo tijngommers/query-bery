@@ -35,6 +35,8 @@ export enum TokenType {
     LEFT = 'LEFT',
     RIGHT = 'RIGHT',
     OUTER = 'OUTER',
+    LIMIT = 'LIMIT',
+    OFFSET = 'OFFSET',
 }
 
 export interface Token {
@@ -50,6 +52,7 @@ export interface SelectStatement {
     from: FromNode[];
     where?: ExpressionNode;
     orderBy?: OrderByStatement;
+    limit?: LimitOffsetNode;
 }
 
 export interface DeleteStatement {
@@ -62,6 +65,12 @@ export interface OrderByStatement {
     type: 'OrderByStatement';
     columns: IdentifierNode[];
     direction?: 'ASC' | 'DESC';
+}
+
+export interface LimitOffsetNode {
+    type: 'LimitOffset';
+    limit: number;
+    offset?: number;
 }
 
 export interface TableNode {

@@ -10,6 +10,7 @@ import {
     FromNode,
     IdentifierNode,
     JoinNode,
+    LimitOffsetNode,
     LiteralNode,
     NullCheckExpressionNode,
     OrderByStatement,
@@ -66,6 +67,7 @@ export class Parser {
         const from = this.parseSelectFrom();
         let where: ExpressionNode | undefined;
         let orderBy: OrderByStatement | undefined;
+        let limit: LimitOffsetNode | undefined;
 
         if (this.currentType() === TokenType.WHERE) {
             where = this.parseWhere();
@@ -75,7 +77,11 @@ export class Parser {
             orderBy = this.parseOrderBy();
         }
 
-        return { type: "SelectStatement", from, columns, where, orderBy };
+        if (this.currentType() === TokenType.LIMIT) {
+            limit = this.parseLimitOffset();
+        }
+
+        return { type: "SelectStatement", from, columns, where, orderBy, limit };
     }
 
     private parseDelete(): DeleteStatement {
@@ -356,6 +362,32 @@ export class Parser {
         }
 
         return { type: "OrderByStatement", columns, direction };
+    }
+
+    private parseLimitOffset(): LimitOffsetNode {
+        this.eat(TokenType.LIMIT);
+        
+        if (this.currentType() !== TokenType.NUMBER) {
+            throw new Error(`Expected number after LIMIT but got ${this.currentType()}`);
+        }
+        
+        const limit = parseInt(this.currentToken.value, 10);
+        this.eat(TokenType.NUMBER);
+        
+        let offset: number | undefined;
+        
+        if (this.currentType() === TokenType.OFFSET) {
+            this.eat(TokenType.OFFSET);
+            
+            if (this.currentType() !== TokenType.NUMBER) {
+                throw new Error(`Expected number after OFFSET but got ${this.currentType()}`);
+            }
+            
+            offset = parseInt(this.currentToken.value, 10);
+            this.eat(TokenType.NUMBER);
+        }
+        
+        return { type: "LimitOffset", limit, offset };
     }
 
     private parseJoin(): JoinNode {

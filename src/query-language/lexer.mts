@@ -110,6 +110,10 @@ export class Lexer {
                 return { type: TokenType.RIGHT, value: id };
             case 'OUTER':
                 return { type: TokenType.OUTER, value: id };
+            case 'LIMIT':
+                return { type: TokenType.LIMIT, value: id };
+            case 'OFFSET':
+                return { type: TokenType.OFFSET, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

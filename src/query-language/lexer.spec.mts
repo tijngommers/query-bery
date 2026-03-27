@@ -391,4 +391,42 @@ describe("Lexer", () => {
             { type: TokenType.IDENTIFIER, value: "USER_ID" },
         ]);
     });
+
+    it("should tokenize LIMIT clause", () => {
+        const lexer = new Lexer("SELECT * FROM users LIMIT 10");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.LIMIT, value: "LIMIT" },
+            { type: TokenType.NUMBER, value: "10" },
+        ]);
+    });
+
+    it("should tokenize LIMIT and OFFSET clause", () => {
+        const lexer = new Lexer("SELECT * FROM users LIMIT 10 OFFSET 5");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.LIMIT, value: "LIMIT" },
+            { type: TokenType.NUMBER, value: "10" },
+            { type: TokenType.OFFSET, value: "OFFSET" },
+            { type: TokenType.NUMBER, value: "5" },
+        ]);
+    });
 });
