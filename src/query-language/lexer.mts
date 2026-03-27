@@ -114,6 +114,8 @@ export class Lexer {
                 return { type: TokenType.LIMIT, value: id };
             case 'OFFSET':
                 return { type: TokenType.OFFSET, value: id };
+            case 'DISTINCT':
+                return { type: TokenType.DISTINCT, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

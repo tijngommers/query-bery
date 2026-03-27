@@ -15,6 +15,7 @@ describe('SelectExecutor', () => {
     it('should execute a simple SELECT statement', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: 'NAME' }],
             from: [{ type: 'Table', name: 'USERS' }],
             where: undefined,
@@ -32,6 +33,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with WHERE clause', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: 'NAME' }],
             from: [{ type: 'Table', name: 'USERS' }],
             where: {
@@ -53,6 +55,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with ORDER BY clause', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: 'NAME' }],
             from: [{ type: 'Table', name: 'USERS' }],
             where: undefined,
@@ -73,6 +76,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with LIMIT clause', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [{ type: 'Table', name: 'USERS' }],
             where: undefined,
@@ -93,6 +97,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with LIMIT and OFFSET', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [{ type: 'Table', name: 'USERS' }],
             where: undefined,
@@ -113,6 +118,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with JOIN', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
@@ -143,6 +149,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with multiple JOINs', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
@@ -184,6 +191,7 @@ describe('SelectExecutor', () => {
     it('should execute SELECT with all clauses', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [
                 { type: 'Identifier', name: 'NAME' },
                 { type: 'Identifier', name: 'EMAIL' }
@@ -241,6 +249,7 @@ describe('SelectExecutor', () => {
     it('should validate valid SELECT statement', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: 'NAME' }],
             from: [{ type: 'Table', name: 'USERS' }],
             where: undefined,
@@ -254,6 +263,7 @@ describe('SelectExecutor', () => {
     it('should process FROM clause with tables only', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
@@ -274,6 +284,7 @@ describe('SelectExecutor', () => {
     it('should handle LEFT JOIN in SELECT', () => {
         const selectNode: SelectStatement = {
             type: 'SelectStatement',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
@@ -297,5 +308,190 @@ describe('SelectExecutor', () => {
         const result = selectExecutor.executeSelect(selectNode);
 
         expect(result.from[1].joinType).toBe('LEFT');
+    });
+
+    it('should execute SELECT DISTINCT', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.columns).toEqual([{ type: 'Identifier', name: 'NAME' }]);
+    });
+
+    it('should execute SELECT without DISTINCT', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [{ type: 'Identifier', name: 'EMAIL' }],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(false);
+    });
+
+    it('should execute SELECT DISTINCT with multiple columns', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [
+                { type: 'Identifier', name: 'NAME' },
+                { type: 'Identifier', name: 'EMAIL' }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.columns).toHaveLength(2);
+    });
+
+    it('should execute SELECT DISTINCT * ', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: '*' }],
+            from: [{ type: 'Table', name: 'PRODUCTS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.columns[0].name).toBe('*');
+    });
+
+    it('should execute SELECT DISTINCT with WHERE clause', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: 'EMAIL' }],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'VERIFIED' },
+                operator: '=',
+                right: { type: 'Literal', valueType: 'number', value: 1 }
+            },
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.where).toBeDefined();
+    });
+
+    it('should execute SELECT DISTINCT with ORDER BY', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: 'CATEGORY' }],
+            from: [{ type: 'Table', name: 'PRODUCTS' }],
+            where: undefined,
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [{ type: 'Identifier', name: 'CATEGORY' }],
+                direction: 'ASC'
+            },
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.orderBy).toBeDefined();
+        expect(result.orderBy?.direction).toBe('ASC');
+    });
+
+    it('should execute SELECT DISTINCT with LIMIT', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: 'COUNTRY' }],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: {
+                type: 'LimitOffset',
+                limit: 10,
+                offset: undefined
+            }
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.limit?.limit).toBe(10);
+    });
+
+    it('should execute SELECT DISTINCT with all clauses', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: 'DEPARTMENT' }],
+            from: [{ type: 'Table', name: 'EMPLOYEES' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'ACTIVE' },
+                operator: '=',
+                right: { type: 'Literal', valueType: 'number', value: 1 }
+            },
+            orderBy: {
+                type: 'OrderByStatement',
+                columns: [{ type: 'Identifier', name: 'DEPARTMENT' }],
+                direction: 'DESC'
+            },
+            limit: {
+                type: 'LimitOffset',
+                limit: 50,
+                offset: 5
+            }
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.where).toBeDefined();
+        expect(result.orderBy).toBeDefined();
+        expect(result.limit).toBeDefined();
+    });
+
+    it('should preserve distinct flag in result', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: true,
+            columns: [{ type: 'Identifier', name: 'ID' }],
+            from: [{ type: 'Table', name: 'TRANSACTIONS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode);
+
+        expect(result.distinct).toBe(true);
+        expect(result.type).toBe('SelectResult');
     });
 });

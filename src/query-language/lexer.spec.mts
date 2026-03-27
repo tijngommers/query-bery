@@ -429,4 +429,57 @@ describe("Lexer", () => {
             { type: TokenType.NUMBER, value: "5" },
         ]);
     });
+
+    it("should tokenize DISTINCT keyword", () => {
+        const lexer = new Lexer("SELECT DISTINCT name FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.DISTINCT, value: "DISTINCT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
+
+    it("should tokenize SELECT DISTINCT * ", () => {
+        const lexer = new Lexer("SELECT DISTINCT * FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.DISTINCT, value: "DISTINCT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
+
+    it("should tokenize SELECT DISTINCT with multiple columns", () => {
+        const lexer = new Lexer("SELECT DISTINCT id, email FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.DISTINCT, value: "DISTINCT" },
+            { type: TokenType.IDENTIFIER, value: "ID" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "EMAIL" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
 });

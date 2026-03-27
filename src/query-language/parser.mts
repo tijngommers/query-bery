@@ -42,6 +42,12 @@ export class Parser {
 
     private parseSelect(): SelectStatement {
         this.eat(TokenType.SELECT);
+        
+        let distinct = false;
+        if (this.currentType() === TokenType.DISTINCT) {
+            distinct = true;
+            this.eat(TokenType.DISTINCT);
+        }
 
         const columns: IdentifierNode[] = [];
 
@@ -81,7 +87,7 @@ export class Parser {
             limit = this.parseLimitOffset();
         }
 
-        return { type: "SelectStatement", from, columns, where, orderBy, limit };
+        return { type: "SelectStatement", distinct, from, columns, where, orderBy, limit };
     }
 
     private parseDelete(): DeleteStatement {

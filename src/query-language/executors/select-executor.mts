@@ -27,6 +27,7 @@ export class SelectExecutor {
      */
     executeSelect(node: SelectStatement): any {
         const columns = node.columns;
+        const distinct = node.distinct;
         const from = this.processFromClause(node.from);
         const where = node.where;
         const orderBy = node.orderBy;
@@ -37,10 +38,12 @@ export class SelectExecutor {
         // - Optimize column selection (projection pushdown)
         // - Generate execution plan
         // - Apply statistics-based optimization
+        // - Implement DISTINCT efficiently (hash-based deduplication)
 
         return {
             type: 'SelectResult',
             columns,
+            distinct,
             from,
             where,
             orderBy,

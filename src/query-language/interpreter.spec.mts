@@ -11,6 +11,7 @@ describe('Interpreter', () => {
         const result = interpreter.execute();
         expect(result).toEqual({
             type: 'SelectResult',
+            distinct: false,
             columns: [
                 { type: 'Identifier', name: 'NAME' },
                 { type: 'Identifier', name: 'AGE' }
@@ -31,7 +32,9 @@ describe('Interpreter', () => {
                     left: { type: 'Identifier', name: 'CITY' },
                     right: { type: 'Literal', valueType: 'string', value: 'New York' }
                 }
-            }
+            },
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -58,6 +61,7 @@ describe('Interpreter', () => {
 
         expect(result).toEqual({
             type: 'SelectResult',
+            distinct: false,
             columns: [
                 { type: 'Identifier', name: 'NAME' }
             ],
@@ -66,7 +70,9 @@ describe('Interpreter', () => {
                 type: 'NullCheckExpression',
                 left: { type: 'Identifier', name: 'CITY' },
                 isNegated: true
-            }
+            },
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -77,6 +83,7 @@ describe('Interpreter', () => {
 
         expect(result).toEqual({
             type: 'SelectResult',
+            distinct: false,
             columns: [
                 { type: 'Identifier', name: 'NAME' }
             ],
@@ -89,7 +96,8 @@ describe('Interpreter', () => {
                     { type: 'Identifier', name: 'CITY' }
                 ],
                 direction: 'DESC'
-            }
+            },
+            limit: undefined
         });
     });
 
@@ -100,13 +108,15 @@ describe('Interpreter', () => {
 
         expect(result).toEqual({
             type: 'SelectResult',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
                 { type: 'Table', name: 'ORDERS' }
             ],
             where: undefined,
-            orderBy: undefined
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -117,6 +127,7 @@ describe('Interpreter', () => {
 
         expect(result).toEqual({
             type: 'SelectResult',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
@@ -124,7 +135,8 @@ describe('Interpreter', () => {
                 { type: 'Table', name: 'PRODUCTS' }
             ],
             where: undefined,
-            orderBy: undefined
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -155,6 +167,7 @@ describe('Interpreter', () => {
 
         expect(result).toEqual({
             type: 'SelectResult',
+            distinct: false,
             columns: [{ type: 'Identifier', name: '*' }],
             from: [
                 { type: 'Table', name: 'USERS' },
@@ -171,7 +184,8 @@ describe('Interpreter', () => {
                 }
             ],
             where: undefined,
-            orderBy: undefined
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -364,5 +378,98 @@ describe('Interpreter', () => {
         expect(result.where).toBeDefined();
         expect(result.orderBy).toBeDefined();
         expect(result.orderBy?.direction).toBe('DESC');
+    });
+
+    it('should execute SELECT DISTINCT', () => {
+        const query = "SELECT DISTINCT name FROM users";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.columns).toEqual([{ type: 'Identifier', name: 'NAME' }]);
+    });
+
+    it('should execute SELECT without DISTINCT', () => {
+        const query = "SELECT name FROM users";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(false);
+    });
+
+    it('should execute SELECT DISTINCT with multiple columns', () => {
+        const query = "SELECT DISTINCT name, email FROM users";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.columns).toHaveLength(2);
+        expect(result.columns[0].name).toBe('NAME');
+        expect(result.columns[1].name).toBe('EMAIL');
+    });
+
+    it('should execute SELECT DISTINCT * FROM users', () => {
+        const query = "SELECT DISTINCT * FROM users";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.columns[0].name).toBe('*');
+    });
+
+    it('should execute SELECT DISTINCT with WHERE clause', () => {
+        const query = "SELECT DISTINCT email FROM users WHERE active = 1";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.where).toBeDefined();
+    });
+
+    it('should execute SELECT DISTINCT with ORDER BY', () => {
+        const query = "SELECT DISTINCT name FROM users ORDER BY name DESC";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.orderBy?.direction).toBe('DESC');
+    });
+
+    it('should execute SELECT DISTINCT with LIMIT', () => {
+        const query = "SELECT DISTINCT category FROM products LIMIT 5";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.limit?.limit).toBe(5);
+    });
+
+    it('should execute SELECT DISTINCT with WHERE, ORDER BY and LIMIT', () => {
+        const query = "SELECT DISTINCT email FROM users WHERE verified = 1 ORDER BY email ASC LIMIT 100";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.where).toBeDefined();
+        expect(result.orderBy).toBeDefined();
+        expect(result.limit).toBeDefined();
+    });
+
+    it('should execute SELECT DISTINCT with JOIN', () => {
+        const query = "SELECT DISTINCT users.name FROM users JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.distinct).toBe(true);
+        expect(result.from).toHaveLength(2);
     });
 });

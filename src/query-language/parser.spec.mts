@@ -13,9 +13,12 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
-            where: undefined
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -25,6 +28,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -32,7 +36,9 @@ describe("Parser", () => {
                 left: { type: 'Identifier', name: 'ID' },
                 operator: '=',
                 right: { type: 'Literal', valueType: 'number', value: 10 }
-            }
+            },
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -42,12 +48,15 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [
                 { type: 'Identifier', name: 'NAME' },
                 { type: 'Identifier', name: 'AGE' }
             ],
-            where: undefined
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -57,9 +66,12 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: '*' }],
-            where: undefined
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -69,6 +81,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -76,7 +89,9 @@ describe("Parser", () => {
                 left: { type: 'Identifier', name: 'AGE' },
                 operator: '>=',
                 right: { type: 'Literal', valueType: 'number', value: 18 }
-            }
+            },
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -86,6 +101,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -93,7 +109,9 @@ describe("Parser", () => {
                 left: { type: 'Identifier', name: 'AGE' },
                 operator: '!=',
                 right: { type: 'Literal', valueType: 'number', value: 18 }
-            }
+            },
+            orderBy: undefined,
+            limit: undefined
         });
     });
 
@@ -130,6 +148,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -147,6 +166,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -164,6 +184,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -192,6 +213,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -214,6 +236,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -240,6 +263,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -272,6 +296,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -300,6 +325,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -317,6 +343,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -376,6 +403,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -399,6 +427,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -416,6 +445,7 @@ describe("Parser", () => {
         const ast = parser.parse();
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -434,6 +464,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
@@ -455,6 +486,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
@@ -476,6 +508,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
@@ -497,6 +530,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: undefined,
@@ -518,6 +552,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'NAME' }],
             where: {
@@ -558,6 +593,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [
                 { type: 'Table', name: 'USERS' },
                 { type: 'Table', name: 'ORDERS' }
@@ -575,6 +611,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [
                 { type: 'Table', name: 'USERS' },
                 { type: 'Table', name: 'ORDERS' },
@@ -612,6 +649,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [
                 { type: 'Table', name: 'USERS' },
                 {
@@ -639,6 +677,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [
                 { type: 'Table', name: 'USERS' },
                 {
@@ -684,6 +723,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: 'USERS.ID' }],
             where: undefined,
@@ -698,6 +738,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [
                 { type: 'Table', name: 'USERS' },
                 { type: 'Table', name: 'ORDERS' },
@@ -817,6 +858,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: '*' }],
             where: undefined,
@@ -836,6 +878,7 @@ describe("Parser", () => {
 
         expect(ast).toEqual({
             type: 'SelectStatement',
+            distinct: false,
             from: [{ type: 'Table', name: 'USERS' }],
             columns: [{ type: 'Identifier', name: '*' }],
             where: undefined,
@@ -858,6 +901,99 @@ describe("Parser", () => {
             limit: 20,
             offset: 10
         });
+    });
+
+    it("should parse SELECT DISTINCT", () => {
+        const lexer = new Lexer("SELECT DISTINCT name FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.columns).toEqual([{ type: 'Identifier', name: 'NAME' }]);
+    });
+
+    it("should parse SELECT without DISTINCT as false", () => {
+        const lexer = new Lexer("SELECT name FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(false);
+        expect(ast.columns).toEqual([{ type: 'Identifier', name: 'NAME' }]);
+    });
+
+    it("should parse SELECT DISTINCT with multiple columns", () => {
+        const lexer = new Lexer("SELECT DISTINCT name, email FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.columns).toEqual([
+            { type: 'Identifier', name: 'NAME' },
+            { type: 'Identifier', name: 'EMAIL' }
+        ]);
+    });
+
+    it("should parse SELECT DISTINCT * FROM users", () => {
+        const lexer = new Lexer("SELECT DISTINCT * FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.columns).toEqual([{ type: 'Identifier', name: '*' }]);
+    });
+
+    it("should parse SELECT DISTINCT with WHERE clause", () => {
+        const lexer = new Lexer("SELECT DISTINCT email FROM users WHERE active = 1");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.where).toBeDefined();
+        expect(ast.where?.left?.name).toBe('ACTIVE');
+    });
+
+    it("should parse SELECT DISTINCT with ORDER BY", () => {
+        const lexer = new Lexer("SELECT DISTINCT name FROM users ORDER BY name ASC");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.orderBy).toBeDefined();
+        expect(ast.orderBy?.direction).toBe('ASC');
+    });
+
+    it("should parse SELECT DISTINCT with LIMIT", () => {
+        const lexer = new Lexer("SELECT DISTINCT name FROM users LIMIT 10");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.limit).toEqual({
+            type: 'LimitOffset',
+            limit: 10,
+            offset: undefined
+        });
+    });
+
+    it("should parse SELECT DISTINCT with WHERE, ORDER BY and LIMIT", () => {
+        const lexer = new Lexer("SELECT DISTINCT email FROM users WHERE status = 'active' ORDER BY email DESC LIMIT 50");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.where).toBeDefined();
+        expect(ast.orderBy).toBeDefined();
+        expect(ast.limit).toBeDefined();
+    });
+
+    it("should parse SELECT DISTINCT with JOIN", () => {
+        const lexer = new Lexer("SELECT DISTINCT users.name FROM users JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.distinct).toBe(true);
+        expect(ast.from).toHaveLength(2);
+        expect(ast.from[1].type).toBe('Join');
     });
 });
 

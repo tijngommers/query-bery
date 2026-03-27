@@ -37,6 +37,7 @@ export enum TokenType {
     OUTER = 'OUTER',
     LIMIT = 'LIMIT',
     OFFSET = 'OFFSET',
+    DISTINCT = 'DISTINCT'
 }
 
 export interface Token {
@@ -48,6 +49,7 @@ export type ASTNode = SelectStatement | DeleteStatement;
 
 export interface SelectStatement {
     type: 'SelectStatement';
+    distinct: boolean;
     columns: IdentifierNode[];
     from: FromNode[];
     where?: ExpressionNode;
