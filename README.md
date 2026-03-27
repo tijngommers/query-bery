@@ -1,10 +1,10 @@
-# Query-Bery 🍓
+# Query-Bery
 
 A lightweight, extensible query language interpreter that parses and executes SQL-like queries in JavaScript/TypeScript environments. Perfect for building query-based applications, data filters, and custom query languages.
 
 ## Features
 
-### ✅ Currently Supported
+### Currently Supported
 
 - **SELECT statements** - Data retrieval with powerful filtering
 
@@ -45,7 +45,7 @@ A lightweight, extensible query language interpreter that parses and executes SQ
 
 - **Fully Tested** - Comprehensive test coverage with Vitest
 
-### 🚀 Roadmap
+### Roadmap
 
 #### Version 1.1 - Core Enhancements
 
@@ -228,10 +228,10 @@ We welcome contributions! Please ensure:
 
 Query-Bery is building towards a complete data query ecosystem:
 
-1. **Smart Query Parsing** ✅ (Current)
-2. **Advanced Features** 🚀 (Q2 2026)
-3. **Query Optimization** 🔬 (Q3 2026)
-4. **AI-Powered Translation** 🤖 (Q4 2026)
+1. **Smart Query Parsing** (Current)
+2. **Advanced Features**
+3. **Query Optimization**
+4. **AI-Powered Translation**
 
 Our goal is to make querying data as natural as conversation while maintaining performance and security.
 
