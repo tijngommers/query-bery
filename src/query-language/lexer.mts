@@ -100,6 +100,8 @@ export class Lexer {
                 return { type: TokenType.CROSS, value: id };
             case 'JOIN':
                 return { type: TokenType.JOIN, value: id };
+            case 'ON':
+                return { type: TokenType.ON, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

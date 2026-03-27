@@ -7,12 +7,14 @@ import {
     ComparisonOperator,
     DeleteStatement,
     ExpressionNode,
+    FromNode,
     IdentifierNode,
+    JoinNode,
     LiteralNode,
-    LogicalNode,
     NullCheckExpressionNode,
     OrderByStatement,
     SelectStatement,
+    TableNode,
     Token,
     TokenType,
 } from "./types.mts";
@@ -32,9 +34,9 @@ export class Parser {
             return this.parseSelect();
         } else if (this.currentToken.type === TokenType.DELETE) {
             return this.parseDelete();
-        } else {
-            throw new Error(`Unexpected token: ${this.currentToken.type}`);
         }
+
+        throw new Error(`Unexpected token: ${this.currentToken.type}`);
     }
 
     private parseSelect(): SelectStatement {
@@ -43,7 +45,7 @@ export class Parser {
         const columns: IdentifierNode[] = [];
 
         if (this.currentType() === TokenType.STAR) {
-            columns.push({ type: 'Identifier', name: '*' });
+            columns.push({ type: "Identifier", name: "*" });
             this.eat(TokenType.STAR);
         } else {
             if (this.currentType() !== TokenType.IDENTIFIER) {
@@ -61,7 +63,7 @@ export class Parser {
             }
         }
 
-        const from = this.parseFrom();
+        const from = this.parseSelectFrom();
         let where: ExpressionNode | undefined;
         let orderBy: OrderByStatement | undefined;
 
@@ -73,46 +75,68 @@ export class Parser {
             orderBy = this.parseOrderBy();
         }
 
-        return { type: 'SelectStatement', from, columns, where, orderBy };
-
+        return { type: "SelectStatement", from, columns, where, orderBy };
     }
 
     private parseDelete(): DeleteStatement {
         this.eat(TokenType.DELETE);
 
-        const from = this.parseFrom();
+        const from = this.parseDeleteFrom();
         const nextType = this.currentType();
 
         if (nextType === TokenType.WHERE) {
             const where = this.parseWhere();
-            return { type: 'DeleteStatement', from, where };
+            return { type: "DeleteStatement", from, where };
         }
 
-        return { type: 'DeleteStatement', from, where: undefined };
+        return { type: "DeleteStatement", from, where: undefined };
     }
 
-    private parseFrom(): { type: 'Table'; name: string }[] {
+    private parseDeleteFrom(): TableNode[] {
         this.eat(TokenType.FROM);
-        const tables: { type: 'Table'; name: string }[] = [];
-        
-        // first table is mandatory
+        const tables: TableNode[] = [];
+
         if (this.currentType() !== TokenType.IDENTIFIER) {
             throw new Error(`Expected table name after FROM but got ${this.currentType()}`);
         }
-        tables.push({ type: 'Table', name: this.currentToken.value });
+        tables.push({ type: "Table", name: this.currentToken.value });
         this.eat(TokenType.IDENTIFIER);
 
-        // comma separated additional tables (for JOINs)
         while (this.currentType() === TokenType.COMMA) {
             this.eat(TokenType.COMMA);
             if (this.currentType() !== TokenType.IDENTIFIER) {
                 throw new Error(`Expected table name after COMMA but got ${this.currentType()}`);
             }
-            tables.push({ type: 'Table', name: this.currentToken.value });
+            tables.push({ type: "Table", name: this.currentToken.value });
             this.eat(TokenType.IDENTIFIER);
         }
 
-        // cross join syntax: additional tables can also be specified with CROSS JOIN
+        if (this.currentType() === TokenType.JOIN || this.currentType() === TokenType.CROSS) {
+            throw new Error(`JOIN is not supported in DELETE statements`);
+        }
+
+        return tables;
+    }
+
+    private parseSelectFrom(): FromNode[] {
+        this.eat(TokenType.FROM);
+        const tables: FromNode[] = [];
+
+        if (this.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected table name after FROM but got ${this.currentType()}`);
+        }
+        tables.push({ type: "Table", name: this.currentToken.value });
+        this.eat(TokenType.IDENTIFIER);
+
+        while (this.currentType() === TokenType.COMMA) {
+            this.eat(TokenType.COMMA);
+            if (this.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected table name after COMMA but got ${this.currentType()}`);
+            }
+            tables.push({ type: "Table", name: this.currentToken.value });
+            this.eat(TokenType.IDENTIFIER);
+        }
+
         while (this.currentType() === TokenType.CROSS) {
             this.eat(TokenType.CROSS);
             if (this.currentType() !== TokenType.JOIN) {
@@ -122,8 +146,12 @@ export class Parser {
             if (this.currentType() !== TokenType.IDENTIFIER) {
                 throw new Error(`Expected table name after CROSS JOIN but got ${this.currentType()}`);
             }
-            tables.push({ type: 'Table', name: this.currentToken.value });
+            tables.push({ type: "Table", name: this.currentToken.value });
             this.eat(TokenType.IDENTIFIER);
+        }
+
+        while (this.currentType() === TokenType.JOIN) {
+            tables.push(this.parseJoin());
         }
 
         return tables;
@@ -138,11 +166,11 @@ export class Parser {
         let left: ExpressionNode = this.parseUnaryExpression();
 
         while (this.currentToken.type === TokenType.AND || this.currentToken.type === TokenType.OR) {
-            const operator = this.currentToken.type === TokenType.AND ? 'AND' : 'OR';
+            const operator = this.currentToken.type === TokenType.AND ? "AND" : "OR";
             this.eat(this.currentToken.type);
             const right = this.parseUnaryExpression();
             left = {
-                type: 'LogicalExpression',
+                type: "LogicalExpression",
                 operator,
                 left,
                 right,
@@ -157,8 +185,8 @@ export class Parser {
             this.eat(TokenType.NOT);
             const expression = this.parseUnaryExpression();
             return {
-                type: 'NotExpression',
-                operator: 'NOT',
+                type: "NotExpression",
+                operator: "NOT",
                 expression,
             };
         }
@@ -180,7 +208,7 @@ export class Parser {
             }
             this.eat(TokenType.NULL);
             return {
-                type: 'NullCheckExpression',
+                type: "NullCheckExpression",
                 left,
                 isNegated,
             };
@@ -190,7 +218,7 @@ export class Parser {
         const right = this.parseValueNode();
 
         return {
-            type: 'ComparisonExpression',
+            type: "ComparisonExpression",
             left,
             operator,
             right,
@@ -201,22 +229,22 @@ export class Parser {
         switch (this.currentToken.type) {
             case TokenType.EQUALS:
                 this.eat(TokenType.EQUALS);
-                return '=';
+                return "=";
             case TokenType.GREATER_THAN:
                 this.eat(TokenType.GREATER_THAN);
-                return '>';
+                return ">";
             case TokenType.LESS_THAN:
                 this.eat(TokenType.LESS_THAN);
-                return '<';
+                return "<";
             case TokenType.GREATER_THAN_OR_EQUALS:
                 this.eat(TokenType.GREATER_THAN_OR_EQUALS);
-                return '>=';
+                return ">=";
             case TokenType.LESS_THAN_OR_EQUALS:
                 this.eat(TokenType.LESS_THAN_OR_EQUALS);
-                return '<=';
+                return "<=";
             case TokenType.NOT_EQUALS:
                 this.eat(TokenType.NOT_EQUALS);
-                return '!=';
+                return "!=";
             default:
                 throw new Error(`Expected comparison operator but got ${this.currentToken.type}`);
         }
@@ -228,8 +256,8 @@ export class Parser {
         if (token.type === TokenType.NUMBER) {
             this.eat(TokenType.NUMBER);
             return {
-                type: 'Literal',
-                valueType: 'number',
+                type: "Literal",
+                valueType: "number",
                 value: Number(token.value),
             };
         }
@@ -237,8 +265,8 @@ export class Parser {
         if (token.type === TokenType.STRING) {
             this.eat(TokenType.STRING);
             return {
-                type: 'Literal',
-                valueType: 'string',
+                type: "Literal",
+                valueType: "string",
                 value: token.value,
             };
         }
@@ -250,8 +278,8 @@ export class Parser {
         if (token.type === TokenType.NULL) {
             this.eat(TokenType.NULL);
             return {
-                type: 'Literal',
-                valueType: 'null',
+                type: "Literal",
+                valueType: "null",
                 value: null,
             };
         }
@@ -277,7 +305,7 @@ export class Parser {
         }
 
         return {
-            type: 'Identifier',
+            type: "Identifier",
             name,
         };
     }
@@ -293,14 +321,14 @@ export class Parser {
         }
         columns.push(this.parseIdentifierNode());
 
-        let direction: 'ASC' | 'DESC' | undefined;
+        let direction: "ASC" | "DESC" | undefined;
 
         if (this.currentType() === TokenType.ASC) {
             this.eat(TokenType.ASC);
-            direction = 'ASC';
+            direction = "ASC";
         } else if (this.currentType() === TokenType.DESC) {
             this.eat(TokenType.DESC);
-            direction = 'DESC';
+            direction = "DESC";
         }
 
         while (this.currentType() === TokenType.COMMA) {
@@ -313,23 +341,47 @@ export class Parser {
 
         if (direction === undefined && this.currentType() === TokenType.ASC) {
             this.eat(TokenType.ASC);
-            direction = 'ASC';
+            direction = "ASC";
         } else if (direction === undefined && this.currentType() === TokenType.DESC) {
             this.eat(TokenType.DESC);
-            direction = 'DESC';
+            direction = "DESC";
         }
 
         if (direction === undefined) {
-            direction = 'ASC';
+            direction = "ASC";
         }
 
-        return { type: 'OrderByStatement', columns, direction };
+        return { type: "OrderByStatement", columns, direction };
+    }
+
+    private parseJoin(): JoinNode {
+        this.eat(TokenType.JOIN);
+        if (this.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected table name after JOIN but got ${this.currentType()}`);
+        }
+        const tableName = this.currentToken.value;
+        this.eat(TokenType.IDENTIFIER);
+
+        if (this.currentType() !== TokenType.ON) {
+            throw new Error(`Expected ON after JOIN but got ${this.currentType()}`);
+        }
+        this.eat(TokenType.ON);
+
+        const left = this.parseIdentifierNode();
+        const operator = this.parseComparisonOperator();
+        const right = this.parseValueNode();
+
+        return {
+            type: "Join",
+            table: { type: "Table", name: tableName },
+            joinType: "INNER",
+            on: { type: "ComparisonExpression", left, operator, right },
+        };
     }
 
     private currentType(): TokenType {
         return this.currentToken.type;
     }
-
 
     private eat(tokenType: TokenType) {
         if (this.currentToken.type === tokenType) {
@@ -338,5 +390,4 @@ export class Parser {
             throw new Error(`Expected token ${tokenType} but got ${this.currentToken.type}`);
         }
     }
-    
 }

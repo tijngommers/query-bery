@@ -262,6 +262,32 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize JOIN ... ON clauses", () => {
+        const lexer = new Lexer("SELECT * FROM users JOIN orders ON users.id = orders.user_id");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.JOIN, value: "JOIN" },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+            { type: TokenType.ON, value: "ON" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.DOT, value: "." },
+            { type: TokenType.IDENTIFIER, value: "ID" },
+            { type: TokenType.EQUALS, value: "=" },
+            { type: TokenType.IDENTIFIER, value: "ORDERS" },
+            { type: TokenType.DOT, value: "." },
+            { type: TokenType.IDENTIFIER, value: "USER_ID" },
+        ]);
+    });
+
     it("should tokenize comma-separated table names", () => {
         const lexer = new Lexer("SELECT * FROM users, orders, products");
         const tokens = [];

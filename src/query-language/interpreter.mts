@@ -1,9 +1,9 @@
 //@author Tijn Gommers
 //@date 2026-03-24
 
-import { ASTNode, DeleteStatement, SelectStatement } from "./types.mts";
-import { Parser } from "./parser.mts";
-import { Lexer } from "./lexer.mts";
+import { ASTNode, DeleteStatement, JoinNode, SelectStatement } from "./types.mjs";
+import { Parser } from "./parser.mjs";
+import { Lexer } from "./lexer.mjs";
 
 export class Interpreter {
     private ast: ASTNode;
@@ -56,6 +56,20 @@ export class Interpreter {
             type: 'DeleteResult',
             from,
             where
+        };
+    }
+
+    private executeJoin(node: JoinNode): any {
+        const table = node.table;
+        const joinType = node.joinType;
+        const on = node.on;
+        //pass here your own function to execute the join on your data source, for example:
+        // return database.join({ table, joinType, on });
+        return {
+            type: 'JoinResult',
+            table,
+            joinType,
+            on
         };
     }
 }

@@ -1,8 +1,8 @@
 //@author Tijn Gommers
 // @date 2026-03-24
 
-import { Parser } from "./parser.mts";
-import { Lexer } from "./lexer.mts";
+import { Parser } from "./parser.mjs";
+import { Lexer } from "./lexer.mjs";
 import { describe, it, expect } from "vitest";
 
 describe("Parser", () => {
@@ -603,6 +603,78 @@ describe("Parser", () => {
         const parser = new Parser(lexer);
 
         expect(() => parser.parse()).toThrow("Expected JOIN after CROSS but got IDENTIFIER");
+    });
+
+    it("should parse JOIN with ON clause", () => {
+        const lexer = new Lexer("SELECT * FROM users JOIN orders ON users.id = orders.user_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [
+                { type: 'Table', name: 'USERS' },
+                {
+                    type: 'Join',
+                    table: { type: 'Table', name: 'ORDERS' },
+                    joinType: 'INNER',
+                    on: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'USERS.ID' },
+                        operator: '=',
+                        right: { type: 'Identifier', name: 'ORDERS.USER_ID' },
+                    },
+                },
+            ],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined,
+            orderBy: undefined,
+        });
+    });
+
+    it("should parse multiple JOIN ... ON clauses", () => {
+        const lexer = new Lexer("SELECT * FROM users JOIN orders ON users.id = orders.user_id JOIN payments ON orders.id = payments.order_id");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            from: [
+                { type: 'Table', name: 'USERS' },
+                {
+                    type: 'Join',
+                    table: { type: 'Table', name: 'ORDERS' },
+                    joinType: 'INNER',
+                    on: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'USERS.ID' },
+                        operator: '=',
+                        right: { type: 'Identifier', name: 'ORDERS.USER_ID' },
+                    },
+                },
+                {
+                    type: 'Join',
+                    table: { type: 'Table', name: 'PAYMENTS' },
+                    joinType: 'INNER',
+                    on: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'ORDERS.ID' },
+                        operator: '=',
+                        right: { type: 'Identifier', name: 'PAYMENTS.ORDER_ID' },
+                    },
+                },
+            ],
+            columns: [{ type: 'Identifier', name: '*' }],
+            where: undefined,
+            orderBy: undefined,
+        });
+    });
+
+    it("should throw when JOIN is missing ON", () => {
+        const lexer = new Lexer("SELECT * FROM users JOIN orders");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow(/Expected ON/);
     });
 
     it("should parse dot notation in SELECT columns", () => {

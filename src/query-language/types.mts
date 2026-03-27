@@ -29,6 +29,7 @@ export enum TokenType {
     DESC = 'DESC',
     CROSS = 'CROSS',
     JOIN = 'JOIN',
+    ON = 'ON',
     DOT = 'DOT',
 }
 
@@ -42,7 +43,7 @@ export type ASTNode = SelectStatement | DeleteStatement;
 export interface SelectStatement {
     type: 'SelectStatement';
     columns: IdentifierNode[];
-    from: TableNode[];
+    from: FromNode[];
     where?: ExpressionNode;
     orderBy?: OrderByStatement;
 }
@@ -63,6 +64,8 @@ export interface TableNode {
     type: 'Table';
     name: string;
 }
+
+export type FromNode = TableNode | JoinNode;
 
 export interface IdentifierNode {
     type: 'Identifier';
@@ -103,5 +106,12 @@ export interface NullCheckExpressionNode {
     type: "NullCheckExpression";
     left: IdentifierNode;
     isNegated: boolean; // true for IS NOT NULL, false for IS NULL
+}
+
+export interface JoinNode {
+    type: "Join";
+    table: TableNode;
+    joinType: "CROSS" | "INNER" | "LEFT" | "RIGHT";
+    on: ComparisonNode;
 }
     

@@ -147,4 +147,31 @@ describe('Interpreter', () => {
             }
         });
     });
+
+    it('should execute a SELECT with JOIN ... ON', () => {
+        const query = "SELECT * FROM users JOIN orders ON users.id = orders.user_id";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            columns: [{ type: 'Identifier', name: '*' }],
+            from: [
+                { type: 'Table', name: 'USERS' },
+                {
+                    type: 'Join',
+                    table: { type: 'Table', name: 'ORDERS' },
+                    joinType: 'INNER',
+                    on: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'USERS.ID' },
+                        operator: '=',
+                        right: { type: 'Identifier', name: 'ORDERS.USER_ID' }
+                    }
+                }
+            ],
+            where: undefined,
+            orderBy: undefined
+        });
+    });
 });
