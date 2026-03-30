@@ -38,6 +38,49 @@ describe('Interpreter', () => {
         });
     });
 
+    it('should execute a SELECT query with parenthesized WHERE expression', () => {
+        const query = "SELECT name FROM users WHERE (age > 18 AND city = 'AMS') OR status = 'active'";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            distinct: false,
+            columns: [
+                { type: 'Identifier', name: 'NAME' }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'OR',
+                left: {
+                    type: 'LogicalExpression',
+                    operator: 'AND',
+                    left: {
+                        type: 'ComparisonExpression',
+                        operator: '>',
+                        left: { type: 'Identifier', name: 'AGE' },
+                        right: { type: 'Literal', valueType: 'number', value: 18 }
+                    },
+                    right: {
+                        type: 'ComparisonExpression',
+                        operator: '=',
+                        left: { type: 'Identifier', name: 'CITY' },
+                        right: { type: 'Literal', valueType: 'string', value: 'AMS' }
+                    }
+                },
+                right: {
+                    type: 'ComparisonExpression',
+                    operator: '=',
+                    left: { type: 'Identifier', name: 'STATUS' },
+                    right: { type: 'Literal', valueType: 'string', value: 'active' }
+                }
+            },
+            orderBy: undefined,
+            limit: undefined
+        });
+    });
+
     it('should execute a simple DELETE query', () => {
         const query = "DELETE FROM users WHERE id = 10";
         const interpreter = new Interpreter(query);

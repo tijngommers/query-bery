@@ -138,6 +138,36 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize parenthesized WHERE expression", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE (age > 18 AND city = 'AMS') OR status = 'active'");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.GREATER_THAN, value: ">" },
+            { type: TokenType.NUMBER, value: "18" },
+            { type: TokenType.AND, value: "AND" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.EQUALS, value: "=" },
+            { type: TokenType.STRING, value: "AMS" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.OR, value: "OR" },
+            { type: TokenType.IDENTIFIER, value: "STATUS" },
+            { type: TokenType.EQUALS, value: "=" },
+            { type: TokenType.STRING, value: "active" },
+        ]);
+    });
+
     it("should tokenize IS NULL", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE city IS NULL");
         const tokens = [];

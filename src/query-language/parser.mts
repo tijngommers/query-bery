@@ -177,22 +177,32 @@ export class Parser {
 
     private parseWhere(): ExpressionNode {
         this.eat(TokenType.WHERE);
-        return this.parseLogicalExpression();
+        return this.parseOrExpression();
     }
 
-    private parseLogicalExpression(): ExpressionNode {
-        let left: ExpressionNode = this.parseUnaryExpression();
+    /**
+     * Grammar precedence for WHERE expressions:
+     * OR (lowest) -> AND -> NOT -> primary (comparison or parenthesized expression)
+     */
+    private parseOrExpression(): ExpressionNode {
+        let left = this.parseAndExpression();
 
-        while (this.currentToken.type === TokenType.AND || this.currentToken.type === TokenType.OR) {
-            const operator = this.currentToken.type === TokenType.AND ? "AND" : "OR";
-            this.eat(this.currentToken.type);
+        while (this.currentType() === TokenType.OR) {
+            this.eat(TokenType.OR);
+            const right = this.parseAndExpression();
+            left = this.buildLogicalExpression("OR", left, right);
+        }
+
+        return left;
+    }
+
+    private parseAndExpression(): ExpressionNode {
+        let left = this.parseUnaryExpression();
+
+        while (this.currentType() === TokenType.AND) {
+            this.eat(TokenType.AND);
             const right = this.parseUnaryExpression();
-            left = {
-                type: "LogicalExpression",
-                operator,
-                left,
-                right,
-            };
+            left = this.buildLogicalExpression("AND", left, right);
         }
 
         return left;
@@ -208,7 +218,28 @@ export class Parser {
                 expression,
             };
         }
+
+        return this.parsePrimaryExpression();
+    }
+
+    private parsePrimaryExpression(): ExpressionNode {
+        if (this.currentType() === TokenType.LEFT_PAREN) {
+            this.eat(TokenType.LEFT_PAREN);
+            const expression = this.parseOrExpression();
+            this.eat(TokenType.RIGHT_PAREN);
+            return expression;
+        }
+
         return this.parseComparisonExpression();
+    }
+
+    private buildLogicalExpression(operator: "AND" | "OR", left: ExpressionNode, right: ExpressionNode): ExpressionNode {
+        return {
+            type: "LogicalExpression",
+            operator,
+            left,
+            right,
+        };
     }
 
     private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode | InExpressionNode {

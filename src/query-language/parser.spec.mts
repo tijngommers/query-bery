@@ -206,6 +206,123 @@ describe("Parser", () => {
         });
     });
 
+    it("should respect AND precedence over OR in WHERE clause", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age > 18 OR city = 'AMS' AND status = 'active'");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'OR',
+                left: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '>',
+                    right: { type: 'Literal', valueType: 'number', value: 18 }
+                },
+                right: {
+                    type: 'LogicalExpression',
+                    operator: 'AND',
+                    left: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'CITY' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'string', value: 'AMS' }
+                    },
+                    right: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'STATUS' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'string', value: 'active' }
+                    }
+                }
+            }
+        });
+    });
+
+    it("should parse parenthesized group on the left side of OR", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE (age > 18 AND city = 'AMS') OR status = 'active'");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'OR',
+                left: {
+                    type: 'LogicalExpression',
+                    operator: 'AND',
+                    left: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'AGE' },
+                        operator: '>',
+                        right: { type: 'Literal', valueType: 'number', value: 18 }
+                    },
+                    right: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'CITY' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'string', value: 'AMS' }
+                    }
+                },
+                right: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'STATUS' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'string', value: 'active' }
+                }
+            }
+        });
+    });
+
+    it("should parse parenthesized group on the right side of AND", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age > 18 AND (city = 'AMS' OR status = 'active')");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'AND',
+                left: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '>',
+                    right: { type: 'Literal', valueType: 'number', value: 18 }
+                },
+                right: {
+                    type: 'LogicalExpression',
+                    operator: 'OR',
+                    left: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'CITY' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'string', value: 'AMS' }
+                    },
+                    right: {
+                        type: 'ComparisonExpression',
+                        left: { type: 'Identifier', name: 'STATUS' },
+                        operator: '=',
+                        right: { type: 'Literal', valueType: 'string', value: 'active' }
+                    }
+                }
+            }
+        });
+    });
+
     it("should parse a where clause with NOT", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE NOT age = 18");
         const parser = new Parser(lexer);
@@ -376,6 +493,12 @@ describe("Parser", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE id =");
         const parser = new Parser(lexer);
         expect(() => parser.parse()).toThrow("Expected value in WHERE clause but got EOF");
+    });
+
+    it("should throw when parenthesized WHERE expression is not closed", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE (age > 18 AND city = 'AMS'");
+        const parser = new Parser(lexer);
+        expect(() => parser.parse()).toThrow("Expected token RIGHT_PAREN but got EOF");
     });
 
     it("should throw when IS is not followed by NULL", () => {
