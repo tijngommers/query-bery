@@ -1,8 +1,8 @@
 //@author Tijn Gommers
 // @date 2026-03-24
 
-import { Parser } from "./parser.mjs";
-import { Lexer } from "./lexer.mjs";
+import { Parser } from "../../src/query-language/parser/index.mjs";
+import { Lexer } from "../../src/query-language/lexer/index.mjs";
 import { describe, it, expect } from "vitest";
 
 describe("Parser", () => {

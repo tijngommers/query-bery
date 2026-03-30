@@ -1,55 +1,5 @@
 // @author Tijn Gommers
-// @date 2026-03-17
-
-export enum TokenType {
-    SELECT = 'SELECT',
-    DELETE = 'DELETE',
-    FROM = 'FROM',
-    WHERE = 'WHERE',
-    AND = 'AND',
-    OR = 'OR',
-    IDENTIFIER = 'IDENTIFIER',
-    NUMBER = 'NUMBER',
-    EQUALS = 'EQUALS',
-    GREATER_THAN = 'GREATER_THAN',
-    GREATER_THAN_OR_EQUALS = 'GREATER_THAN_OR_EQUALS',
-    LESS_THAN = 'LESS_THAN',
-    LESS_THAN_OR_EQUALS = 'LESS_THAN_OR_EQUALS',
-    EOF = 'EOF',
-    STRING = 'STRING',
-    COMMA = 'COMMA',
-    STAR = 'STAR',
-    NOT = 'NOT',
-    NOT_EQUALS = 'NOT_EQUALS',
-    IS = 'IS',
-    NULL = 'NULL',
-    ORDER = 'ORDER',
-    BY = 'BY',
-    ASC = 'ASC',
-    DESC = 'DESC',
-    CROSS = 'CROSS',
-    JOIN = 'JOIN',
-    ON = 'ON',
-    DOT = 'DOT',
-    INNER = 'INNER',
-    LEFT = 'LEFT',
-    RIGHT = 'RIGHT',
-    OUTER = 'OUTER',
-    LIMIT = 'LIMIT',
-    OFFSET = 'OFFSET',
-    DISTINCT = 'DISTINCT',
-    IN = 'IN',
-    LEFT_PAREN = 'LEFT_PAREN',
-    RIGHT_PAREN = 'RIGHT_PAREN',
-    PLUS = 'PLUS',
-    MINUS = 'MINUS',
-    DIVIDE = 'DIVIDE', // STAR is also used for multiplication depending on parser context.
-}
-
-export interface Token {
-    type: TokenType;
-    value: string;
-}
+// @date 2026-03-30
 
 export type ASTNode = SelectStatement | DeleteStatement;
 
@@ -94,17 +44,17 @@ export interface IdentifierNode {
 }
 
 export interface LiteralNode {
-    type: "Literal";
-    valueType: "number" | "string" | "null";
+    type: 'Literal';
+    valueType: 'number' | 'string' | 'null';
     value: string | number | null;
 }
 
-export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode |  NullCheckExpressionNode | InExpressionNode;
+export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode | NullCheckExpressionNode | InExpressionNode;
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!=';
 export type ArithmeticOperator = '+' | '-' | '*' | '/';
 
 export interface ArithmeticExpressionNode {
-    type: "ArithmeticExpression";
+    type: 'ArithmeticExpression';
     left: ValueExpressionNode;
     operator: ArithmeticOperator;
     right: ValueExpressionNode;
@@ -114,41 +64,40 @@ export type ValueExpressionNode = IdentifierNode | LiteralNode | ArithmeticExpre
 export type ValueNode = IdentifierNode | LiteralNode;
 
 export interface ComparisonNode {
-    type: "ComparisonExpression";
+    type: 'ComparisonExpression';
     left: ValueExpressionNode;
     operator: ComparisonOperator;
     right: ValueExpressionNode;
 }
 
 export interface LogicalNode {
-    type: "LogicalExpression";
-    operator: "AND" | "OR" | "NOT";
+    type: 'LogicalExpression';
+    operator: 'AND' | 'OR' | 'NOT';
     left: ExpressionNode;
     right: ExpressionNode;
 }
 
 export interface NotExpressionNode {
-    type: "NotExpression";
-    operator: "NOT";
+    type: 'NotExpression';
+    operator: 'NOT';
     expression: ExpressionNode;
 }
 
 export interface NullCheckExpressionNode {
-    type: "NullCheckExpression";
+    type: 'NullCheckExpression';
     left: IdentifierNode;
-    isNegated: boolean; // true for IS NOT NULL, false for IS NULL
+    isNegated: boolean;
 }
 
 export interface JoinNode {
-    type: "Join";
+    type: 'Join';
     table: TableNode;
-    joinType: "CROSS" | "INNER" | "LEFT" | "RIGHT" | "OUTER";
+    joinType: 'CROSS' | 'INNER' | 'LEFT' | 'RIGHT' | 'OUTER';
     on: ComparisonNode;
 }
 
 export interface InExpressionNode {
-    type: "InExpression";
+    type: 'InExpression';
     left: IdentifierNode;
     values: ValueNode[];
 }
-    

@@ -128,7 +128,7 @@ npm install
 ### Basic Query Execution
 
 ```typescript
-import { Interpreter } from "./src/query-language/interpreter.mts";
+import { Interpreter } from "./src/query-language/interpreter/index.mts";
 
 // SELECT example
 const selectQuery = "SELECT id, name FROM users WHERE age > 21";
@@ -173,16 +173,42 @@ const activeCities = interpreter.execute();
 
 ```
 src/query-language/
-├── lexer.mts           # Tokenization (string → tokens)
-├── parser.mts          # AST generation (tokens → AST)
-├── interpreter.mts     # Query execution orchestrator
-├── types.mts           # Type definitions
+├── lexer/
+│   └── index.mts             # Canonical lexer implementation
+├── parser/
+│   ├── index.mts             # Canonical statement parser orchestrator
+│   ├── parser-cursor.mts      # Token cursor/state management
+│   ├── value-parser.mts       # Identifier/literal/comparison parsing
+│   └── expression-parser.mts  # WHERE grammar + precedence
+├── interpreter/
+│   └── index.mts            # Canonical query execution orchestrator
+├── types/
+│   ├── tokens.mts      # Token model
+│   ├── ast.mts         # AST node model
+│   └── index.mts       # Type exports
 └── executors/
-    ├── select-executor.mts     # SELECT query execution
-    ├── delete-executor.mts     # DELETE query execution
-    ├── join-executor.mts       # JOIN operation handling
-    └── *.spec.mts             # Unit tests
+  ├── select/
+  │   └── index.mts           # Canonical SELECT executor
+  ├── delete/
+  │   └── index.mts           # Canonical DELETE executor
+  ├── join/
+  │   └── index.mts           # Canonical JOIN executor
+
+tests/
+└── query-language/
+  ├── lexer.spec.mts
+  ├── parser.spec.mts
+  ├── interpreter.spec.mts
+  └── executors/
+    ├── select-executor.spec.mts
+    ├── delete-executor.spec.mts
+    └── join-executor.spec.mts
 ```
+
+Additional documentation:
+
+- `docs/ARCHITECTURE.md`
+- `docs/ADDING_FEATURES.md`
 
 ### Execution Flow
 

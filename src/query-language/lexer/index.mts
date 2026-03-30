@@ -1,24 +1,16 @@
 // @author Tijn Gommers
-// @date 2026-03-17
+// @date 2026-03-30
 
-import { Token, TokenType } from "./types.mts";
+import { Token, TokenType } from '../types/index.mts';
 
 export class Lexer {
     private input: string;
     private cursor: number = 0;
 
-    /**
-     * Initializes a new Lexer instance.
-     * @param input The input string to tokenize
-     */
     constructor(input: string) {
         this.input = input;
     }
 
-    /**
-     * Retrieves the next token from the input.
-     * @returns The next token
-     */
     public nextToken(): Token {
         this.skipWhitespace();
 
@@ -28,22 +20,18 @@ export class Lexer {
 
         const char = this.input[this.cursor];
 
-        //check for numbers
         if (/\d/.test(char)) {
             return this.readNumber();
         }
 
-        //check for string literals
         if (char === "'") {
             return this.readString();
         }
 
-        //check for identifiers and keywords
         if (/[a-zA-Z_]/.test(char)) {
             return this.readIdentifier();
         }
 
-        //check for operators
         const operatorToken = this.checkOperators();
         if (operatorToken) {
             return operatorToken;
@@ -52,22 +40,12 @@ export class Lexer {
         throw new Error(`Unexpected character: ${char}`);
     }
 
-    // ------------- HELPER FUNCTIONS ----------------
-
-    /**
-     * Skips whitespace characters in the input.
-     */
     private skipWhitespace() {
         while (this.cursor < this.input.length && /\s/.test(this.input[this.cursor])) {
             this.cursor++;
         }
     }
 
-    /**
-     * Checks if an identifier is a keyword and returns the appropriate token.
-     * @param id The identifier string to check
-     * @returns A token with the correct type (keyword or identifier)
-     */
     private checkIdentifierOrKeyword(id: string): Token {
         switch (id) {
             case 'SELECT':
@@ -123,37 +101,24 @@ export class Lexer {
         }
     }
 
-    /**
-     * Reads a numeric token from the input.
-     * @returns A token of type NUMBER
-     */
     private readNumber(): Token {
         let num = '';
-            while (this.cursor < this.input.length && /\d/.test(this.input[this.cursor])) {
-                num += this.input[this.cursor];
-                this.cursor++;
-            }
+        while (this.cursor < this.input.length && /\d/.test(this.input[this.cursor])) {
+            num += this.input[this.cursor];
+            this.cursor++;
+        }
         return { type: TokenType.NUMBER, value: num };
     }
 
-    /**
-     * Reads an identifier or keyword token from the input.
-     * @returns A token with type IDENTIFIER or a keyword type
-     */
     private readIdentifier(): Token {
         let id = '';
-            while (this.cursor < this.input.length && /[a-zA-Z0-9_]/.test(this.input[this.cursor])) {
-                id += this.input[this.cursor];
-                this.cursor++;
-            }
-        // Check if the identifier is a keyword
+        while (this.cursor < this.input.length && /[a-zA-Z0-9_]/.test(this.input[this.cursor])) {
+            id += this.input[this.cursor];
+            this.cursor++;
+        }
         return this.checkIdentifierOrKeyword(id.toUpperCase());
     }
 
-    /**
-     * Checks if the current cursor position starts with an operator token.
-     * @returns A token if an operator is found, null otherwise
-     */
     private checkOperators(): Token | null {
         const twoChars = this.input.slice(this.cursor, this.cursor + 2);
         switch (twoChars) {
@@ -210,15 +175,15 @@ export class Lexer {
 
     private readString(): Token {
         let str = '';
-        this.cursor++; // Skip the opening quote
+        this.cursor++;
         while (this.cursor < this.input.length && this.input[this.cursor] !== "'") {
             str += this.input[this.cursor];
             this.cursor++;
         }
         if (this.cursor >= this.input.length) {
-            throw new Error("Unterminated string literal");
+            throw new Error('Unterminated string literal');
         }
-        this.cursor++; // Skip the closing quote
+        this.cursor++;
         return { type: TokenType.STRING, value: str };
     }
 }

@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 // @date 2026-03-25
 
-import { Interpreter } from "./interpreter.mts";
+import { Interpreter } from "../../src/query-language/interpreter/index.mts";
 import { describe, it, expect } from "vitest";
 
 describe('Interpreter', () => {

@@ -1,9 +1,9 @@
 //@author Tijn Gommers
 // @date 2026-03-27
 
-import { JoinExecutor } from "./join-executor.mts";
+import { JoinExecutor } from "../../../src/query-language/executors/join/index.mts";
 import { describe, it, expect, beforeEach } from "vitest";
-import { JoinNode } from "../types.mjs";
+import { JoinNode } from "../../../src/query-language/types/index.mjs";
 
 describe('JoinExecutor', () => {
     let joinExecutor: JoinExecutor;

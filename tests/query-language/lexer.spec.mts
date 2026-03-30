@@ -1,8 +1,8 @@
 // @author Tijn Gommers
 // @date 2026-03-17
 
-import { TokenType } from "./types.mjs";
-import { Lexer } from "./lexer.mjs";
+import { TokenType } from "../../src/query-language/types/index.mjs";
+import { Lexer } from "../../src/query-language/lexer/index.mjs";
 import { describe, it, expect } from "vitest";
 
 describe("Lexer", () => {

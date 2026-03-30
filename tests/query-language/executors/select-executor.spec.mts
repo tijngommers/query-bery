@@ -1,9 +1,9 @@
 //@author Tijn Gommers
 // @date 2026-03-27
 
-import { SelectExecutor } from "./select-executor.mts";
+import { SelectExecutor } from "../../../src/query-language/executors/select/index.mts";
 import { describe, it, expect, beforeEach } from "vitest";
-import { SelectStatement, IdentifierNode, FromNode } from "../types.mjs";
+import { SelectStatement, IdentifierNode, FromNode } from "../../../src/query-language/types/index.mjs";
 
 describe('SelectExecutor', () => {
     let selectExecutor: SelectExecutor;

@@ -1,19 +1,12 @@
 //@author Tijn Gommers
-//@date 2026-03-24
+//@date 2026-03-30
 
-import { ASTNode, DeleteStatement, SelectStatement } from "./types.mjs";
-import { Parser } from "./parser.mjs";
-import { Lexer } from "./lexer.mjs";
-import { SelectExecutor } from "./executors/select-executor.mjs";
-import { DeleteExecutor } from "./executors/delete-executor.mjs";
+import { ASTNode, DeleteStatement, SelectStatement } from '../types/index.mjs';
+import { Parser } from '../parser/index.mjs';
+import { Lexer } from '../lexer/index.mjs';
+import { SelectExecutor } from '../executors/select/index.mjs';
+import { DeleteExecutor } from '../executors/delete/index.mjs';
 
-/**
- * Main Interpreter orchestrates query execution.
- * Delegates to specialized executors for each statement type:
- * - SelectExecutor: SELECT statements
- * - DeleteExecutor: DELETE statements
- * - JoinExecutor: JOIN operations (used by SelectExecutor)
- */
 export class Interpreter {
     private ast: ASTNode;
     private selectExecutor: SelectExecutor;

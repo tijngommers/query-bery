@@ -1,9 +1,9 @@
 //@author Tijn Gommers
 // @date 2026-03-27
 
-import { DeleteExecutor } from "./delete-executor.mts";
+import { DeleteExecutor } from "../../../src/query-language/executors/delete/index.mts";
 import { describe, it, expect, beforeEach } from "vitest";
-import { DeleteStatement } from "../types.mjs";
+import { DeleteStatement } from "../../../src/query-language/types/index.mjs";
 
 describe('DeleteExecutor', () => {
     let deleteExecutor: DeleteExecutor;
