@@ -2,6 +2,7 @@
 // @date 2026-03-17
 
 import {
+    ArithmeticExpressionNode,
     ASTNode,
     ComparisonNode,
     ComparisonOperator,
@@ -19,6 +20,7 @@ import {
     TableNode,
     Token,
     TokenType,
+    ValueExpressionNode,
     ValueNode,
 } from "./types.mts";
 import { Lexer } from "./lexer.mts";
@@ -243,9 +245,12 @@ export class Parser {
     }
 
     private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode | InExpressionNode {
-        const left = this.parseIdentifierNode();
+        const left = this.parseAdditiveExpression();
 
         if (this.currentType() === TokenType.IN) {
+            if (left.type !== "Identifier") {
+                throw new Error("Expected identifier before IN operator");
+            }
             this.eat(TokenType.IN);
             if (this.currentType() !== TokenType.LEFT_PAREN) {
                 throw new Error(`Expected LEFT_PAREN after IN but got ${this.currentType()}`);
@@ -267,6 +272,9 @@ export class Parser {
         }
 
         if (this.currentType() === TokenType.IS) {
+            if (left.type !== "Identifier") {
+                throw new Error("Expected identifier before IS operator");
+            }
             this.eat(TokenType.IS);
             let isNegated = false;
             if (this.currentType() === TokenType.NOT) {
@@ -284,8 +292,12 @@ export class Parser {
             };
         }
 
+        if (!this.isComparisonOperator(this.currentType())) {
+            throw new Error(`Expected comparison operator but got ${this.currentToken.type}`);
+        }
+
         const operator = this.parseComparisonOperator();
-        const right = this.parseValueNode();
+        const right = this.parseAdditiveExpression();
 
         return {
             type: "ComparisonExpression",
@@ -293,6 +305,67 @@ export class Parser {
             operator,
             right,
         };
+    }
+
+    private parseAdditiveExpression(): ValueExpressionNode {
+        let expression = this.parseMultiplicativeExpression();
+
+        while (this.currentType() === TokenType.PLUS || this.currentType() === TokenType.MINUS) {
+            const operator = this.currentType() === TokenType.PLUS ? "+" : "-";
+            this.eat(this.currentType());
+            const right = this.parseMultiplicativeExpression();
+            expression = this.buildArithmeticExpression(expression, operator, right);
+        }
+
+        return expression;
+    }
+
+    private parseMultiplicativeExpression(): ValueExpressionNode {
+        let expression = this.parseValuePrimaryExpression();
+
+        while (this.currentType() === TokenType.STAR || this.currentType() === TokenType.DIVIDE) {
+            const operator = this.currentType() === TokenType.STAR ? "*" : "/";
+            this.eat(this.currentType());
+            const right = this.parseValuePrimaryExpression();
+            expression = this.buildArithmeticExpression(expression, operator, right);
+        }
+
+        return expression;
+    }
+
+    private parseValuePrimaryExpression(): ValueExpressionNode {
+        if (this.currentType() === TokenType.LEFT_PAREN) {
+            this.eat(TokenType.LEFT_PAREN);
+            const expression = this.parseAdditiveExpression();
+            this.eat(TokenType.RIGHT_PAREN);
+            return expression;
+        }
+
+        return this.parseValueNode();
+    }
+
+    private buildArithmeticExpression(
+        left: ValueExpressionNode,
+        operator: "+" | "-" | "*" | "/",
+        right: ValueExpressionNode,
+    ): ArithmeticExpressionNode {
+        return {
+            type: "ArithmeticExpression",
+            left,
+            operator,
+            right,
+        };
+    }
+
+    private isComparisonOperator(tokenType: TokenType): boolean {
+        return (
+            tokenType === TokenType.EQUALS ||
+            tokenType === TokenType.GREATER_THAN ||
+            tokenType === TokenType.LESS_THAN ||
+            tokenType === TokenType.GREATER_THAN_OR_EQUALS ||
+            tokenType === TokenType.LESS_THAN_OR_EQUALS ||
+            tokenType === TokenType.NOT_EQUALS
+        );
     }
 
     private parseComparisonOperator(): ComparisonOperator {

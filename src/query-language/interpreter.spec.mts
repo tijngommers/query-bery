@@ -81,6 +81,39 @@ describe('Interpreter', () => {
         });
     });
 
+    it('should execute a SELECT query with arithmetic comparison in WHERE clause', () => {
+        const query = "SELECT name FROM users WHERE age + 2 * score > 100";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'SelectResult',
+            distinct: false,
+            columns: [
+                { type: 'Identifier', name: 'NAME' }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: {
+                    type: 'ArithmeticExpression',
+                    operator: '+',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    right: {
+                        type: 'ArithmeticExpression',
+                        operator: '*',
+                        left: { type: 'Literal', valueType: 'number', value: 2 },
+                        right: { type: 'Identifier', name: 'SCORE' }
+                    }
+                },
+                operator: '>',
+                right: { type: 'Literal', valueType: 'number', value: 100 }
+            },
+            orderBy: undefined,
+            limit: undefined
+        });
+    });
+
     it('should execute a simple DELETE query', () => {
         const query = "DELETE FROM users WHERE id = 10";
         const interpreter = new Interpreter(query);

@@ -168,6 +168,34 @@ describe("Lexer", () => {
         ]);
     });
 
+    it("should tokenize arithmetic operators in WHERE clause", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age + 2 * score / 4 - bonus > 100");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.WHERE, value: "WHERE" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.PLUS, value: "+" },
+            { type: TokenType.NUMBER, value: "2" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.IDENTIFIER, value: "SCORE" },
+            { type: TokenType.DIVIDE, value: "/" },
+            { type: TokenType.NUMBER, value: "4" },
+            { type: TokenType.MINUS, value: "-" },
+            { type: TokenType.IDENTIFIER, value: "BONUS" },
+            { type: TokenType.GREATER_THAN, value: ">" },
+            { type: TokenType.NUMBER, value: "100" },
+        ]);
+    });
+
     it("should tokenize IS NULL", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE city IS NULL");
         const tokens = [];

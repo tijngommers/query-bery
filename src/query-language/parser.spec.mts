@@ -323,6 +323,64 @@ describe("Parser", () => {
         });
     });
 
+    it("should parse arithmetic precedence in comparison expressions", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age + 2 * score > 100");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: {
+                    type: 'ArithmeticExpression',
+                    operator: '+',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    right: {
+                        type: 'ArithmeticExpression',
+                        operator: '*',
+                        left: { type: 'Literal', valueType: 'number', value: 2 },
+                        right: { type: 'Identifier', name: 'SCORE' }
+                    }
+                },
+                operator: '>',
+                right: { type: 'Literal', valueType: 'number', value: 100 }
+            }
+        });
+    });
+
+    it("should parse parenthesized arithmetic expression in comparison", () => {
+        const lexer = new Lexer("SELECT name FROM users WHERE age * (score + 2) > 100");
+        const parser = new Parser(lexer);
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: {
+                    type: 'ArithmeticExpression',
+                    operator: '*',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    right: {
+                        type: 'ArithmeticExpression',
+                        operator: '+',
+                        left: { type: 'Identifier', name: 'SCORE' },
+                        right: { type: 'Literal', valueType: 'number', value: 2 }
+                    }
+                },
+                operator: '>',
+                right: { type: 'Literal', valueType: 'number', value: 100 }
+            }
+        });
+    });
+
     it("should parse a where clause with NOT", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE NOT age = 18");
         const parser = new Parser(lexer);
@@ -507,10 +565,23 @@ describe("Parser", () => {
         expect(() => parser.parse()).toThrow("Expected NULL after IS (NOT) but got NUMBER");
     });
 
-    it("should throw an error for unexpected token in WHERE clause (non-identifier)", () => {
+    it("should parse a WHERE clause that compares numeric literals", () => {
         const lexer = new Lexer("SELECT name FROM users WHERE 10 = 20");
         const parser = new Parser(lexer);
-        expect(() => parser.parse()).toThrow("Expected identifier in WHERE clause but got NUMBER");
+        const ast = parser.parse();
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [{ type: 'Identifier', name: 'NAME' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Literal', valueType: 'number', value: 10 },
+                operator: '=',
+                right: { type: 'Literal', valueType: 'number', value: 20 }
+            }
+        });
     });
 
     it("should throw an error for unexpected comparison operator token", () => {

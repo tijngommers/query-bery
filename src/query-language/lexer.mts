@@ -194,6 +194,15 @@ export class Lexer {
             case ')':
                 this.cursor++;
                 return { type: TokenType.RIGHT_PAREN, value: ')' };
+            case '+':
+                this.cursor++;
+                return { type: TokenType.PLUS, value: '+' };
+            case '-':
+                this.cursor++;
+                return { type: TokenType.MINUS, value: '-' };
+            case '/':
+                this.cursor++;
+                return { type: TokenType.DIVIDE, value: '/' };
             default:
                 return null;
         }

@@ -40,7 +40,10 @@ export enum TokenType {
     DISTINCT = 'DISTINCT',
     IN = 'IN',
     LEFT_PAREN = 'LEFT_PAREN',
-    RIGHT_PAREN = 'RIGHT_PAREN'
+    RIGHT_PAREN = 'RIGHT_PAREN',
+    PLUS = 'PLUS',
+    MINUS = 'MINUS',
+    DIVIDE = 'DIVIDE', // STAR is also used for multiplication depending on parser context.
 }
 
 export interface Token {
@@ -98,13 +101,23 @@ export interface LiteralNode {
 
 export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode |  NullCheckExpressionNode | InExpressionNode;
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!=';
+export type ArithmeticOperator = '+' | '-' | '*' | '/';
+
+export interface ArithmeticExpressionNode {
+    type: "ArithmeticExpression";
+    left: ValueExpressionNode;
+    operator: ArithmeticOperator;
+    right: ValueExpressionNode;
+}
+
+export type ValueExpressionNode = IdentifierNode | LiteralNode | ArithmeticExpressionNode;
 export type ValueNode = IdentifierNode | LiteralNode;
 
 export interface ComparisonNode {
     type: "ComparisonExpression";
-    left: IdentifierNode;
+    left: ValueExpressionNode;
     operator: ComparisonOperator;
-    right: ValueNode;
+    right: ValueExpressionNode;
 }
 
 export interface LogicalNode {
