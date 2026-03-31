@@ -652,4 +652,39 @@ describe('Interpreter', () => {
             { ID: 2, NAME: 'Bob' }
         ]);
     });
+
+    it('should execute UPDATE and return update metadata', () => {
+        const query = "UPDATE users SET status = 'ACTIVE' WHERE id = 2";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'UpdateResult',
+            table: { type: 'Table', name: 'USERS' },
+            set: [
+                {
+                    column: { type: 'Identifier', name: 'STATUS' },
+                    value: { type: 'Literal', valueType: 'string', value: 'ACTIVE' }
+                }
+            ],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'ID' },
+                operator: '=',
+                right: { type: 'Literal', valueType: 'number', value: 2 }
+            },
+            updatedCount: 0,
+            rows: []
+        });
+    });
+
+    it('should execute UPDATE without WHERE clause', () => {
+        const query = "UPDATE users SET status = 'ACTIVE'";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('UpdateResult');
+        expect(result.where).toBeUndefined();
+        expect(result.updatedCount).toBe(0);
+    });
 });

@@ -116,6 +116,10 @@ export class Lexer {
                 return { type: TokenType.INTO, value: id };
             case 'VALUES':
                 return { type: TokenType.VALUES, value: id };
+            case 'UPDATE':
+                return { type: TokenType.UPDATE, value: id };
+            case 'SET':
+                return { type: TokenType.SET, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

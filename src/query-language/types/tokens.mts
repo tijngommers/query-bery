@@ -54,6 +54,8 @@ export enum TokenType {
     INSERT = 'INSERT',
     INTO = 'INTO',
     VALUES = 'VALUES',
+    UPDATE = 'UPDATE',
+    SET = 'SET',
 }
 
 export interface Token {

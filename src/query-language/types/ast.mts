@@ -1,7 +1,7 @@
 // @author Tijn Gommers
 // @date 2026-03-30
 
-export type ASTNode = SelectStatement | DeleteStatement | InsertStatement;
+export type ASTNode = SelectStatement | DeleteStatement | InsertStatement | UpdateStatement;
 
 export interface SelectStatement {
     type: 'SelectStatement';
@@ -26,6 +26,13 @@ export interface InsertStatement {
     table: TableNode;
     columns: IdentifierNode[];
     values: ValueNode[][];
+}
+    
+export interface UpdateStatement {
+    type: 'UpdateStatement';
+    table: TableNode;
+    set: { column: IdentifierNode; value: ValueNode }[];
+    where?: ExpressionNode;
 }
 
 export interface OrderByStatement {

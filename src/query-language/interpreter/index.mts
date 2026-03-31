@@ -1,18 +1,20 @@
 //@author Tijn Gommers
 //@date 2026-03-30
 
-import { ASTNode, DeleteStatement, InsertStatement, SelectStatement } from '../types/index.mjs';
+import { ASTNode, DeleteStatement, InsertStatement, SelectStatement, UpdateStatement } from '../types/index.mjs';
 import { Parser } from '../parser/index.mjs';
 import { Lexer } from '../lexer/index.mjs';
 import { SelectExecutor } from '../executors/select/index.mjs';
 import { DeleteExecutor } from '../executors/delete/index.mjs';
 import { InsertExecutor } from '../executors/insert/index.mjs';
+import { UpdateExecutor } from '../executors/update/index.mjs';
 
 export class Interpreter {
     private ast: ASTNode;
     private selectExecutor: SelectExecutor;
     private deleteExecutor: DeleteExecutor;
     private insertExecutor: InsertExecutor;
+    private updateExecutor: UpdateExecutor;
 
     constructor(query: string) {
         const lexer = new Lexer(query);
@@ -21,6 +23,7 @@ export class Interpreter {
         this.selectExecutor = new SelectExecutor();
         this.deleteExecutor = new DeleteExecutor();
         this.insertExecutor = new InsertExecutor();
+        this.updateExecutor = new UpdateExecutor();
     }
 
     execute(): any {
@@ -31,6 +34,8 @@ export class Interpreter {
                 return this.executeDeleteStatement(this.ast as DeleteStatement);
             case 'InsertStatement':
                 return this.executeInsertStatement(this.ast as InsertStatement);
+            case 'UpdateStatement':
+                return this.executeUpdateStatement(this.ast as UpdateStatement);
             default:
                 return this.assertNever(this.ast);
         }
@@ -46,6 +51,10 @@ export class Interpreter {
 
     private executeInsertStatement(ast: InsertStatement): any {
         return this.insertExecutor.executeInsert(ast);
+    }
+
+    private executeUpdateStatement(ast: UpdateStatement): any {
+        return this.updateExecutor.executeUpdate(ast);
     }
 
     private assertNever(value: never): never {

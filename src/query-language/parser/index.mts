@@ -18,6 +18,7 @@ import {
     TokenType,
     ValueNode,
     WildcardNode,
+    UpdateStatement
 } from '../types/index.mts';
 import { Lexer } from '../lexer/index.mts';
 import { ParserCursor } from './parser-cursor.mts';
@@ -46,6 +47,10 @@ export class Parser {
 
         if (this.cursor.currentType() === TokenType.INSERT) {
             return this.parseInsert();
+        }
+
+        if (this.cursor.currentType() === TokenType.UPDATE) {
+            return this.parseUpdate();
         }
 
         throw new Error(`Unexpected token: ${this.cursor.currentType()}`);
@@ -160,7 +165,45 @@ export class Parser {
         return { type: 'InsertStatement', table, columns, values };
     }
 
-    
+
+    private parseUpdate(): UpdateStatement {
+        this.cursor.eat(TokenType.UPDATE);
+        if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected table name after UPDATE but got ${this.cursor.currentType()}`);
+        }
+        const table: TableNode = { type: 'Table', name: this.cursor.currentValue() };
+        this.cursor.eat(TokenType.IDENTIFIER);
+        if (this.cursor.currentType() !== TokenType.SET) {
+            throw new Error(`Expected SET after table name but got ${this.cursor.currentType()}`);
+        }
+        this.cursor.eat(TokenType.SET);
+        const set: { column: IdentifierNode; value: ValueNode }[] = [];
+        set.push(this.parseUpdateSetClause());
+        while (this.cursor.currentType() === TokenType.COMMA) {
+            this.cursor.eat(TokenType.COMMA);
+            set.push(this.parseUpdateSetClause());
+        }
+        if (this.cursor.currentType() === TokenType.WHERE) {
+            const where = this.parseWhere();
+            return { type: 'UpdateStatement', table, set, where };
+        }
+        return { type: 'UpdateStatement', table, set, where: undefined };
+    }
+
+    private parseUpdateSetClause(): { column: IdentifierNode; value: ValueNode } {
+        if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected column name after SET but got ${this.cursor.currentType()}`);
+        }
+        const column: IdentifierNode = { type: 'Identifier', name: this.cursor.currentValue() };
+        this.cursor.eat(TokenType.IDENTIFIER);
+        if (this.cursor.currentType() !== TokenType.EQUALS) {
+            throw new Error(`Expected = after column name but got ${this.cursor.currentType()}`);
+        }
+        this.cursor.eat(TokenType.EQUALS);
+        const value: ValueNode = this.valueParser.parseValueNode();
+        return { column, value };
+    }
+
     private parseInsertColumns(): IdentifierNode[] {
         const columns: IdentifierNode[] = [];
 

@@ -705,4 +705,126 @@ describe('SelectExecutor', () => {
             'SUM requires numeric values for AGE'
         );
     });
+
+    it('should apply NOT expression in aggregate WHERE filter', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'NotExpression',
+                operator: 'NOT',
+                expression: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'ACTIVE' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'number', value: 1 }
+                }
+            },
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode, [
+            { ACTIVE: 1 },
+            { ACTIVE: 0 },
+            { ACTIVE: 0 }
+        ]);
+
+        expect(result.rows).toEqual([{ 'COUNT(*)': 2 }]);
+    });
+
+    it('should apply NULL check expression in aggregate WHERE filter', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'NullCheckExpression',
+                left: { type: 'Identifier', name: 'DELETED_AT' },
+                isNegated: false
+            },
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode, [
+            { DELETED_AT: null },
+            { DELETED_AT: 12345 },
+            {}
+        ]);
+
+        expect(result.rows).toEqual([{ 'COUNT(*)': 2 }]);
+    });
+
+    it('should resolve nested identifiers case-insensitively in aggregates', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'SUM',
+                    argument: { type: 'Identifier', name: 'orders.total' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode, [
+            { ORDERS: { TOTAL: 10 } },
+            { orders: { total: 15 } }
+        ]);
+
+        expect(result.rows).toEqual([{ 'SUM(orders.total)': 25 }]);
+    });
+
+    it('should throw for invalid arithmetic operands in WHERE evaluation', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: {
+                    type: 'ArithmeticExpression',
+                    operator: '+',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    right: { type: 'Literal', valueType: 'number', value: 1 }
+                },
+                operator: '>',
+                right: { type: 'Literal', valueType: 'number', value: 10 }
+            },
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        expect(() => selectExecutor.executeSelect(selectNode, [{ AGE: 'not-a-number' }])).toThrow(
+            'Invalid arithmetic operands: not-a-number + 1'
+        );
+    });
 });
