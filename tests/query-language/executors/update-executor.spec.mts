@@ -251,4 +251,165 @@ describe('UpdateExecutor', () => {
 
         expect(() => updateExecutor.executeUpdate(node, [{ ID: 1 }])).toThrow('Invalid UPDATE: no table specified');
     });
+
+    it('should support NOT expression and update non-matching rows', () => {
+        const node: UpdateStatement = {
+            type: 'UpdateStatement',
+            table: { type: 'Table', name: 'USERS' },
+            set: [
+                {
+                    column: { type: 'Identifier', name: 'FLAGGED' },
+                    value: { type: 'Literal', valueType: 'number', value: 1 },
+                },
+            ],
+            where: {
+                type: 'NotExpression',
+                operator: 'NOT',
+                expression: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'ACTIVE' },
+                    operator: '=',
+                    right: { type: 'Literal', valueType: 'number', value: 1 },
+                },
+            },
+        };
+
+        const rows: Record<string, any>[] = [{ ACTIVE: 1 }, { ACTIVE: 0 }];
+        const result = updateExecutor.executeUpdate(node, rows);
+
+        expect(result.updatedCount).toBe(1);
+        expect(rows).toEqual([{ ACTIVE: 1 }, { ACTIVE: 0, FLAGGED: 1 }]);
+    });
+
+    it('should support OR expression and comparison operators !=, >, <, <=', () => {
+        const node: UpdateStatement = {
+            type: 'UpdateStatement',
+            table: { type: 'Table', name: 'USERS' },
+            set: [
+                {
+                    column: { type: 'Identifier', name: 'MATCHED' },
+                    value: { type: 'Literal', valueType: 'number', value: 1 },
+                },
+            ],
+            where: {
+                type: 'LogicalExpression',
+                operator: 'OR',
+                left: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '>',
+                    right: { type: 'Literal', valueType: 'number', value: 40 },
+                },
+                right: {
+                    type: 'ComparisonExpression',
+                    left: { type: 'Identifier', name: 'AGE' },
+                    operator: '<=',
+                    right: { type: 'Literal', valueType: 'number', value: 20 },
+                },
+            },
+        };
+
+        const rows: Record<string, any>[] = [
+            { AGE: 45 },
+            { AGE: 20 },
+            { AGE: 30 },
+        ];
+
+        updateExecutor.executeUpdate(node, rows);
+        expect(rows).toEqual([
+            { AGE: 45, MATCHED: 1 },
+            { AGE: 20, MATCHED: 1 },
+            { AGE: 30 },
+        ]);
+
+        const node2: UpdateStatement = {
+            ...node,
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'AGE' },
+                operator: '!=',
+                right: { type: 'Literal', valueType: 'number', value: 30 },
+            },
+        };
+
+        const rows2: Record<string, any>[] = [{ AGE: 30 }, { AGE: 10 }];
+        const result2 = updateExecutor.executeUpdate(node2, rows2);
+        expect(result2.updatedCount).toBe(1);
+    });
+
+    it('should support IS NOT NULL branch', () => {
+        const node: UpdateStatement = {
+            type: 'UpdateStatement',
+            table: { type: 'Table', name: 'USERS' },
+            set: [
+                {
+                    column: { type: 'Identifier', name: 'STATUS' },
+                    value: { type: 'Literal', valueType: 'string', value: 'ARCHIVED' },
+                },
+            ],
+            where: {
+                type: 'NullCheckExpression',
+                left: { type: 'Identifier', name: 'DELETED_AT' },
+                isNegated: true,
+            },
+        };
+
+        const rows: Record<string, any>[] = [
+            { DELETED_AT: null, STATUS: 'LIVE' },
+            { DELETED_AT: 123, STATUS: 'LIVE' },
+        ];
+
+        const result = updateExecutor.executeUpdate(node, rows);
+        expect(result.updatedCount).toBe(1);
+        expect(rows[1].STATUS).toBe('ARCHIVED');
+    });
+
+    it('should resolve nested identifier paths case-insensitively', () => {
+        const node: UpdateStatement = {
+            type: 'UpdateStatement',
+            table: { type: 'Table', name: 'USERS' },
+            set: [
+                {
+                    column: { type: 'Identifier', name: 'TOTAL_COPY' },
+                    value: { type: 'Identifier', name: 'orders.total' },
+                },
+            ],
+            where: undefined,
+        };
+
+        const rows: Record<string, any>[] = [{ ORDERS: { TOTAL: 99 } }];
+        updateExecutor.executeUpdate(node, rows);
+
+        expect(rows[0].TOTAL_COPY).toBe(99);
+    });
+
+    it('should ignore comparison when expression value type is unsupported', () => {
+        const node: UpdateStatement = {
+            type: 'UpdateStatement',
+            table: { type: 'Table', name: 'USERS' },
+            set: [
+                {
+                    column: { type: 'Identifier', name: 'STATUS' },
+                    value: { type: 'Literal', valueType: 'string', value: 'ACTIVE' },
+                },
+            ],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'AggregateFunction', functionName: 'COUNT', argument: { type: 'Wildcard', value: '*' } } as any,
+                operator: '=',
+                right: { type: 'Literal', valueType: 'number', value: 1 },
+            },
+        };
+
+        const rows: Record<string, any>[] = [{ STATUS: 'INACTIVE' }];
+        const result = updateExecutor.executeUpdate(node, rows);
+
+        expect(result.updatedCount).toBe(0);
+        expect(rows[0].STATUS).toBe('INACTIVE');
+    });
+
+    it('should hit defensive defaults for private helpers', () => {
+        expect(() => (updateExecutor as any).applyArithmetic(1, 2, '%')).toThrow('Unsupported arithmetic operator: %');
+        expect((updateExecutor as any).compareValues(1, 1, '??')).toBe(false);
+    });
 });
