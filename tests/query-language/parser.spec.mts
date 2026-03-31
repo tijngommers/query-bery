@@ -1299,5 +1299,82 @@ describe("Parser", () => {
 
         expect(() => parser.parse()).toThrow("Only COUNT supports wildcard argument");
     });
+
+    it("should parse GROUP BY with aggregate select", () => {
+        const lexer = new Lexer("SELECT city, COUNT(*) FROM users GROUP BY city");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [
+                { type: 'Identifier', name: 'CITY' },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            where: undefined,
+            groupBy: [{ type: 'Identifier', name: 'CITY' }],
+            having: undefined,
+            orderBy: undefined,
+            limit: undefined
+        });
+    });
+
+    it("should parse GROUP BY with multiple columns", () => {
+        const lexer = new Lexer("SELECT city, status, COUNT(*) FROM users GROUP BY city, status");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.groupBy).toEqual([
+            { type: 'Identifier', name: 'CITY' },
+            { type: 'Identifier', name: 'STATUS' }
+        ]);
+    });
+
+    it("should parse GROUP BY and HAVING with aggregate expression", () => {
+        const lexer = new Lexer("SELECT city, COUNT(*) FROM users GROUP BY city HAVING COUNT(*) > 5");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [
+                { type: 'Identifier', name: 'CITY' },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            where: undefined,
+            groupBy: [{ type: 'Identifier', name: 'CITY' }],
+            having: {
+                type: 'ComparisonExpression',
+                left: {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                },
+                operator: '>',
+                right: { type: 'Literal', valueType: 'number', value: 5 }
+            },
+            orderBy: undefined,
+            limit: undefined
+        });
+    });
+
+    it("should throw when HAVING is used without GROUP BY", () => {
+        const lexer = new Lexer("SELECT COUNT(*) FROM users HAVING COUNT(*) > 5");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("HAVING clause requires GROUP BY");
+    });
 });
 

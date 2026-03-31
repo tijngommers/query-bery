@@ -58,11 +58,25 @@ export class Parser {
 
         const from = this.parseSelectFrom();
         let where: ExpressionNode | undefined;
+        let groupBy: IdentifierNode[] | undefined;
+        let having: ExpressionNode | undefined;
+
         let orderBy: OrderByStatement | undefined;
         let limit: LimitOffsetNode | undefined;
 
         if (this.cursor.currentType() === TokenType.WHERE) {
             where = this.parseWhere();
+        }
+
+        if (this.cursor.currentType() === TokenType.GROUP) {
+            groupBy = this.parseGroupBy();
+        }
+
+        if (this.cursor.currentType() === TokenType.HAVING) {
+            if (!groupBy) {
+                throw new Error('HAVING clause requires GROUP BY');
+            }
+            having = this.parseHaving();
         }
 
         if (this.cursor.currentType() === TokenType.ORDER) {
@@ -73,7 +87,7 @@ export class Parser {
             limit = this.parseLimitOffset();
         }
 
-        return { type: 'SelectStatement', distinct, from, columns, where, orderBy, limit };
+        return { type: 'SelectStatement', distinct, from, columns, where, groupBy, having, orderBy, limit };
     }
 
     private parseDelete(): DeleteStatement {
@@ -263,6 +277,32 @@ export class Parser {
     private parseWhere(): ExpressionNode {
         this.cursor.eat(TokenType.WHERE);
         return this.expressionParser.parseWhereExpression();
+    }
+
+    private parseGroupBy(): IdentifierNode[] {
+        this.cursor.eat(TokenType.GROUP);
+        this.cursor.eat(TokenType.BY);
+
+        const columns: IdentifierNode[] = [];
+
+        if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected at least one column after GROUP BY but got ${this.cursor.currentType()}`);
+        }
+        columns.push(this.valueParser.parseIdentifierNode('GROUP BY clause'));
+
+        while (this.cursor.currentType() === TokenType.COMMA) {
+            this.cursor.eat(TokenType.COMMA);
+            if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected column name after COMMA but got ${this.cursor.currentType()}`);
+            }
+            columns.push(this.valueParser.parseIdentifierNode('GROUP BY clause'));
+        }
+        return columns;
+    }
+
+    private parseHaving(): ExpressionNode {
+        this.cursor.eat(TokenType.HAVING);
+        return this.expressionParser.parseHavingExpression();
     }
 
     private parseOrderBy(): OrderByStatement {

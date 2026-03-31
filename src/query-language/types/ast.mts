@@ -7,8 +7,10 @@ export interface SelectStatement {
     type: 'SelectStatement';
     distinct: boolean;
     columns: SelectColumn[];
+    groupBy?: IdentifierNode[];
     from: FromNode[];
     where?: ExpressionNode;
+    having?: ExpressionNode;
     orderBy?: OrderByStatement;
     limit?: LimitOffsetNode;
 }
@@ -67,7 +69,7 @@ export interface ArithmeticExpressionNode {
     right: ValueExpressionNode;
 }
 
-export type ValueExpressionNode = IdentifierNode | LiteralNode | ArithmeticExpressionNode;
+export type ValueExpressionNode = IdentifierNode | LiteralNode | ArithmeticExpressionNode | AggregateFunctionNode;
 export type ValueNode = IdentifierNode | LiteralNode;
 
 export interface ComparisonNode {

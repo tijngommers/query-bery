@@ -49,6 +49,8 @@ export enum TokenType {
     PLUS = 'PLUS',
     MINUS = 'MINUS',
     DIVIDE = 'DIVIDE',
+    GROUP = 'GROUP',
+    HAVING = 'HAVING',
 }
 
 export interface Token {

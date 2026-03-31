@@ -2,14 +2,18 @@
 // @date 2026-03-30
 
 import {
+    AggregateFunctionName,
+    AggregateFunctionNode,
     ArithmeticExpressionNode,
     ComparisonNode,
     ExpressionNode,
+    IdentifierNode,
     InExpressionNode,
     NullCheckExpressionNode,
     TokenType,
     ValueExpressionNode,
     ValueNode,
+    WildcardNode,
 } from '../types/index.mts';
 import { ParserCursor } from './parser-cursor.mts';
 import { ValueParser } from './value-parser.mts';
@@ -24,37 +28,41 @@ export class ExpressionParser {
     }
 
     parseWhereExpression(): ExpressionNode {
-        return this.parseOrExpression();
+        return this.parseOrExpression(false);
     }
 
-    private parseOrExpression(): ExpressionNode {
-        let left = this.parseAndExpression();
+    parseHavingExpression(): ExpressionNode {
+        return this.parseOrExpression(true);
+    }
+
+    private parseOrExpression(allowAggregateFunctions: boolean): ExpressionNode {
+        let left = this.parseAndExpression(allowAggregateFunctions);
 
         while (this.cursor.currentType() === TokenType.OR) {
             this.cursor.eat(TokenType.OR);
-            const right = this.parseAndExpression();
+            const right = this.parseAndExpression(allowAggregateFunctions);
             left = this.buildLogicalExpression('OR', left, right);
         }
 
         return left;
     }
 
-    private parseAndExpression(): ExpressionNode {
-        let left = this.parseUnaryExpression();
+    private parseAndExpression(allowAggregateFunctions: boolean): ExpressionNode {
+        let left = this.parseUnaryExpression(allowAggregateFunctions);
 
         while (this.cursor.currentType() === TokenType.AND) {
             this.cursor.eat(TokenType.AND);
-            const right = this.parseUnaryExpression();
+            const right = this.parseUnaryExpression(allowAggregateFunctions);
             left = this.buildLogicalExpression('AND', left, right);
         }
 
         return left;
     }
 
-    private parseUnaryExpression(): ExpressionNode {
+    private parseUnaryExpression(allowAggregateFunctions: boolean): ExpressionNode {
         if (this.cursor.currentType() === TokenType.NOT) {
             this.cursor.eat(TokenType.NOT);
-            const expression = this.parseUnaryExpression();
+            const expression = this.parseUnaryExpression(allowAggregateFunctions);
             return {
                 type: 'NotExpression',
                 operator: 'NOT',
@@ -64,16 +72,16 @@ export class ExpressionParser {
 
         if (this.cursor.currentType() === TokenType.LEFT_PAREN) {
             this.cursor.eat(TokenType.LEFT_PAREN);
-            const expression = this.parseOrExpression();
+            const expression = this.parseOrExpression(allowAggregateFunctions);
             this.cursor.eat(TokenType.RIGHT_PAREN);
             return expression;
         }
 
-        return this.parseComparisonExpression();
+        return this.parseComparisonExpression(allowAggregateFunctions);
     }
 
-    private parseComparisonExpression(): ComparisonNode | NullCheckExpressionNode | InExpressionNode {
-        const left = this.parseAdditiveExpression();
+    private parseComparisonExpression(allowAggregateFunctions: boolean): ComparisonNode | NullCheckExpressionNode | InExpressionNode {
+        const left = this.parseAdditiveExpression(allowAggregateFunctions);
 
         if (this.cursor.currentType() === TokenType.IN) {
             if (left.type !== 'Identifier') {
@@ -129,7 +137,7 @@ export class ExpressionParser {
         }
 
         const operator = this.valueParser.parseComparisonOperator();
-        const right = this.parseAdditiveExpression();
+        const right = this.parseAdditiveExpression(allowAggregateFunctions);
 
         return {
             type: 'ComparisonExpression',
@@ -139,41 +147,99 @@ export class ExpressionParser {
         };
     }
 
-    private parseAdditiveExpression(): ValueExpressionNode {
-        let expression = this.parseMultiplicativeExpression();
+    private parseAdditiveExpression(allowAggregateFunctions: boolean): ValueExpressionNode {
+        let expression = this.parseMultiplicativeExpression(allowAggregateFunctions);
 
         while (this.cursor.currentType() === TokenType.PLUS || this.cursor.currentType() === TokenType.MINUS) {
             const operator = this.cursor.currentType() === TokenType.PLUS ? '+' : '-';
             this.cursor.eat(this.cursor.currentType());
-            const right = this.parseMultiplicativeExpression();
+            const right = this.parseMultiplicativeExpression(allowAggregateFunctions);
             expression = this.buildArithmeticExpression(expression, operator, right);
         }
 
         return expression;
     }
 
-    private parseMultiplicativeExpression(): ValueExpressionNode {
-        let expression = this.parseValuePrimaryExpression();
+    private parseMultiplicativeExpression(allowAggregateFunctions: boolean): ValueExpressionNode {
+        let expression = this.parseValuePrimaryExpression(allowAggregateFunctions);
 
         while (this.cursor.currentType() === TokenType.STAR || this.cursor.currentType() === TokenType.DIVIDE) {
             const operator = this.cursor.currentType() === TokenType.STAR ? '*' : '/';
             this.cursor.eat(this.cursor.currentType());
-            const right = this.parseValuePrimaryExpression();
+            const right = this.parseValuePrimaryExpression(allowAggregateFunctions);
             expression = this.buildArithmeticExpression(expression, operator, right);
         }
 
         return expression;
     }
 
-    private parseValuePrimaryExpression(): ValueExpressionNode {
+    private parseValuePrimaryExpression(allowAggregateFunctions: boolean): ValueExpressionNode {
         if (this.cursor.currentType() === TokenType.LEFT_PAREN) {
             this.cursor.eat(TokenType.LEFT_PAREN);
-            const expression = this.parseAdditiveExpression();
+            const expression = this.parseAdditiveExpression(allowAggregateFunctions);
             this.cursor.eat(TokenType.RIGHT_PAREN);
             return expression;
         }
 
+        if (allowAggregateFunctions && this.isAggregateFunctionToken(this.cursor.currentType())) {
+            return this.parseAggregateFunctionValue();
+        }
+
         return this.valueParser.parseValueNode();
+    }
+
+    private parseAggregateFunctionValue(): AggregateFunctionNode {
+        const functionName = this.parseAggregateFunctionName();
+        this.cursor.eat(TokenType.LEFT_PAREN);
+
+        let argument: IdentifierNode | WildcardNode;
+        if (this.cursor.currentType() === TokenType.STAR) {
+            if (functionName !== 'COUNT') {
+                throw new Error('Only COUNT supports wildcard argument');
+            }
+
+            this.cursor.eat(TokenType.STAR);
+            argument = { type: 'Wildcard', value: '*' };
+        } else if (this.cursor.currentType() === TokenType.IDENTIFIER) {
+            argument = this.valueParser.parseIdentifierNode('HAVING clause');
+        } else {
+            throw new Error(`Expected aggregate argument but got ${this.cursor.currentType()}`);
+        }
+
+        this.cursor.eat(TokenType.RIGHT_PAREN);
+        return { type: 'AggregateFunction', functionName, argument };
+    }
+
+    private parseAggregateFunctionName(): AggregateFunctionName {
+        switch (this.cursor.currentType()) {
+            case TokenType.COUNT:
+                this.cursor.eat(TokenType.COUNT);
+                return 'COUNT';
+            case TokenType.SUM:
+                this.cursor.eat(TokenType.SUM);
+                return 'SUM';
+            case TokenType.AVG:
+                this.cursor.eat(TokenType.AVG);
+                return 'AVG';
+            case TokenType.MIN:
+                this.cursor.eat(TokenType.MIN);
+                return 'MIN';
+            case TokenType.MAX:
+                this.cursor.eat(TokenType.MAX);
+                return 'MAX';
+            default:
+                throw new Error(`Unsupported function in HAVING clause: ${this.cursor.currentValue()}`);
+        }
+    }
+
+    private isAggregateFunctionToken(tokenType: TokenType): boolean {
+        return (
+            tokenType === TokenType.COUNT ||
+            tokenType === TokenType.SUM ||
+            tokenType === TokenType.AVG ||
+            tokenType === TokenType.MIN ||
+            tokenType === TokenType.MAX
+        );
     }
 
     private buildLogicalExpression(operator: 'AND' | 'OR', left: ExpressionNode, right: ExpressionNode): ExpressionNode {

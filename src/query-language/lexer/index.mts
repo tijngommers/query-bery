@@ -106,6 +106,10 @@ export class Lexer {
                 return { type: TokenType.MIN, value: id };
             case 'MAX':
                 return { type: TokenType.MAX, value: id };
+            case 'HAVING':
+                return { type: TokenType.HAVING, value: id };
+            case 'GROUP':
+                return { type: TokenType.GROUP, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

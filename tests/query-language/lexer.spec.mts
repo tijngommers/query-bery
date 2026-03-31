@@ -645,4 +645,61 @@ describe("Lexer", () => {
             { type: TokenType.IDENTIFIER, value: "USERS" },
         ]);
     });
+
+    it("should tokenize GROUP BY clause", () => {
+        const lexer = new Lexer("SELECT city, COUNT(*) FROM users GROUP BY city");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.COUNT, value: "COUNT" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.GROUP, value: "GROUP" },
+            { type: TokenType.BY, value: "BY" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+        ]);
+    });
+
+    it("should tokenize GROUP BY with HAVING aggregate filter", () => {
+        const lexer = new Lexer("SELECT city, COUNT(*) FROM users GROUP BY city HAVING COUNT(*) > 5");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.COUNT, value: "COUNT" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.GROUP, value: "GROUP" },
+            { type: TokenType.BY, value: "BY" },
+            { type: TokenType.IDENTIFIER, value: "CITY" },
+            { type: TokenType.HAVING, value: "HAVING" },
+            { type: TokenType.COUNT, value: "COUNT" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.GREATER_THAN, value: ">" },
+            { type: TokenType.NUMBER, value: "5" },
+        ]);
+    });
 });
