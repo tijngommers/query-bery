@@ -1376,5 +1376,85 @@ describe("Parser", () => {
 
         expect(() => parser.parse()).toThrow("HAVING clause requires GROUP BY");
     });
+
+    it("should parse INSERT INTO with a single values tuple", () => {
+        const lexer = new Lexer("INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30)");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast).toEqual({
+            type: 'InsertStatement',
+            table: { type: 'Table', name: 'USERS' },
+            columns: [
+                { type: 'Identifier', name: 'ID' },
+                { type: 'Identifier', name: 'NAME' },
+                { type: 'Identifier', name: 'AGE' }
+            ],
+            values: [[
+                { type: 'Literal', valueType: 'number', value: 1 },
+                { type: 'Literal', valueType: 'string', value: 'Alice' },
+                { type: 'Literal', valueType: 'number', value: 30 }
+            ]]
+        });
+    });
+
+    it("should parse INSERT INTO with multiple values tuples", () => {
+        const lexer = new Lexer("INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob')");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.values).toEqual([
+            [
+                { type: 'Literal', valueType: 'number', value: 1 },
+                { type: 'Literal', valueType: 'string', value: 'Alice' }
+            ],
+            [
+                { type: 'Literal', valueType: 'number', value: 2 },
+                { type: 'Literal', valueType: 'string', value: 'Bob' }
+            ]
+        ]);
+    });
+
+    it("should throw when INSERT is missing INTO", () => {
+        const lexer = new Lexer("INSERT users (id) VALUES (1)");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected token INTO but got IDENTIFIER");
+    });
+
+    it("should throw when INSERT is missing VALUES keyword", () => {
+        const lexer = new Lexer("INSERT INTO users (id) (1)");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected VALUES after table name but got LEFT_PAREN");
+    });
+
+    it("should throw when INSERT has empty column list", () => {
+        const lexer = new Lexer("INSERT INTO users () VALUES (1)");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected column name after ( but got RIGHT_PAREN");
+    });
+
+    it("should throw when INSERT has empty values tuple", () => {
+        const lexer = new Lexer("INSERT INTO users (id) VALUES ()");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected at least one value in VALUES tuple but got RIGHT_PAREN");
+    });
+
+    it("should throw when column count and values count do not match", () => {
+        const lexer = new Lexer("INSERT INTO users (id, name) VALUES (1)");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Column count 2 does not match values count 1");
+    });
+
+    it("should throw when trailing tokens appear after INSERT values", () => {
+        const lexer = new Lexer("INSERT INTO users (id) VALUES (1) EXTRA");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Unexpected token after INSERT values: IDENTIFIER");
+    });
 });
 

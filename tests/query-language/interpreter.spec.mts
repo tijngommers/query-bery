@@ -614,4 +614,42 @@ describe('Interpreter', () => {
             'Invalid SELECT: cannot mix aggregate and non-aggregate columns without GROUP BY'
         );
     });
+
+    it('should execute INSERT and return inserted row payload', () => {
+        const query = "INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30)";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result).toEqual({
+            type: 'InsertResult',
+            table: { type: 'Table', name: 'USERS' },
+            columns: [
+                { type: 'Identifier', name: 'ID' },
+                { type: 'Identifier', name: 'NAME' },
+                { type: 'Identifier', name: 'AGE' }
+            ],
+            values: [[
+                { type: 'Literal', valueType: 'number', value: 1 },
+                { type: 'Literal', valueType: 'string', value: 'Alice' },
+                { type: 'Literal', valueType: 'number', value: 30 }
+            ]],
+            insertedCount: 1,
+            rows: [
+                { ID: 1, NAME: 'Alice', AGE: 30 }
+            ]
+        });
+    });
+
+    it('should execute INSERT with multiple tuples', () => {
+        const query = "INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob')";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('InsertResult');
+        expect(result.insertedCount).toBe(2);
+        expect(result.rows).toEqual([
+            { ID: 1, NAME: 'Alice' },
+            { ID: 2, NAME: 'Bob' }
+        ]);
+    });
 });

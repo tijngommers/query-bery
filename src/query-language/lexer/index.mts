@@ -110,6 +110,12 @@ export class Lexer {
                 return { type: TokenType.HAVING, value: id };
             case 'GROUP':
                 return { type: TokenType.GROUP, value: id };
+            case 'INSERT':
+                return { type: TokenType.INSERT, value: id };
+            case 'INTO':
+                return { type: TokenType.INTO, value: id };
+            case 'VALUES':
+                return { type: TokenType.VALUES, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

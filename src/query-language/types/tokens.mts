@@ -51,6 +51,9 @@ export enum TokenType {
     DIVIDE = 'DIVIDE',
     GROUP = 'GROUP',
     HAVING = 'HAVING',
+    INSERT = 'INSERT',
+    INTO = 'INTO',
+    VALUES = 'VALUES',
 }
 
 export interface Token {

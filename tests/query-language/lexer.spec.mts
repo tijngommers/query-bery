@@ -702,4 +702,68 @@ describe("Lexer", () => {
             { type: TokenType.NUMBER, value: "5" },
         ]);
     });
+
+    it("should tokenize INSERT INTO with column list and VALUES", () => {
+        const lexer = new Lexer("INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30)");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+
+        expect(tokens).toEqual([
+            { type: TokenType.INSERT, value: "INSERT" },
+            { type: TokenType.INTO, value: "INTO" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "ID" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.VALUES, value: "VALUES" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.NUMBER, value: "1" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.STRING, value: "Alice" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.NUMBER, value: "30" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+        ]);
+    });
+
+    it("should tokenize INSERT with multiple value tuples", () => {
+        const lexer = new Lexer("INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob')");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+
+        expect(tokens).toEqual([
+            { type: TokenType.INSERT, value: "INSERT" },
+            { type: TokenType.INTO, value: "INTO" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "ID" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.IDENTIFIER, value: "NAME" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.VALUES, value: "VALUES" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.NUMBER, value: "1" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.STRING, value: "Alice" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.NUMBER, value: "2" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.STRING, value: "Bob" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+        ]);
+    });
 });

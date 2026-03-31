@@ -8,6 +8,7 @@ import {
     ExpressionNode,
     FromNode,
     IdentifierNode,
+    InsertStatement,
     JoinNode,
     LimitOffsetNode,
     OrderByStatement,
@@ -15,6 +16,7 @@ import {
     SelectStatement,
     TableNode,
     TokenType,
+    ValueNode,
     WildcardNode,
 } from '../types/index.mts';
 import { Lexer } from '../lexer/index.mts';
@@ -40,6 +42,10 @@ export class Parser {
 
         if (this.cursor.currentType() === TokenType.DELETE) {
             return this.parseDelete();
+        }
+
+        if (this.cursor.currentType() === TokenType.INSERT) {
+            return this.parseInsert();
         }
 
         throw new Error(`Unexpected token: ${this.cursor.currentType()}`);
@@ -102,6 +108,108 @@ export class Parser {
 
         return { type: 'DeleteStatement', from, where: undefined };
     }
+
+    private parseInsert(): InsertStatement {
+        this.cursor.eat(TokenType.INSERT);
+        this.cursor.eat(TokenType.INTO);
+
+        if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected table name after INTO but got ${this.cursor.currentType()}`);
+        }
+
+        const table: TableNode = { type: 'Table', name: this.cursor.currentValue() };
+        this.cursor.eat(TokenType.IDENTIFIER);
+
+        const columns = this.parseInsertColumns();
+
+        if (this.cursor.currentType() !== TokenType.VALUES) {
+            throw new Error(`Expected VALUES after table name but got ${this.cursor.currentType()}`);
+        }
+
+        this.cursor.eat(TokenType.VALUES);
+
+        if (this.cursor.currentType() !== TokenType.LEFT_PAREN) {
+            throw new Error(`Expected at least one values tuple after VALUES but got ${this.cursor.currentType()}`);
+        }
+
+        const values: ValueNode[][] = [];
+        values.push(this.parseInsertValues());
+
+        if (values[0].length !== columns.length) {
+            throw new Error(`Column count ${columns.length} does not match values count ${values[0].length}`);
+        }
+
+        while (this.cursor.currentType() === TokenType.COMMA) {
+            this.cursor.eat(TokenType.COMMA);
+            if (this.cursor.currentType() !== TokenType.LEFT_PAREN) {
+                throw new Error(`Expected values tuple after COMMA but got ${this.cursor.currentType()}`);
+            }
+
+            const tuple = this.parseInsertValues();
+            if (tuple.length !== columns.length) {
+                throw new Error(`Column count ${columns.length} does not match values count ${tuple.length}`);
+            }
+
+            values.push(tuple);
+        }
+
+        if (this.cursor.currentType() !== TokenType.EOF) {
+            throw new Error(`Unexpected token after INSERT values: ${this.cursor.currentType()}`);
+        }
+
+        return { type: 'InsertStatement', table, columns, values };
+    }
+
+    
+    private parseInsertColumns(): IdentifierNode[] {
+        const columns: IdentifierNode[] = [];
+
+        if (this.cursor.currentType() !== TokenType.LEFT_PAREN) {
+            throw new Error(`Expected ( after table name but got ${this.cursor.currentType()}`);
+        }
+
+        this.cursor.eat(TokenType.LEFT_PAREN);
+
+        if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+            throw new Error(`Expected column name after ( but got ${this.cursor.currentType()}`);
+        }
+
+        columns.push(this.valueParser.parseIdentifierNode('INSERT column list'));
+
+        while (this.cursor.currentType() === TokenType.COMMA) {
+            this.cursor.eat(TokenType.COMMA);
+            if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
+                throw new Error(`Expected column name after COMMA but got ${this.cursor.currentType()}`);
+            }
+            columns.push(this.valueParser.parseIdentifierNode('INSERT column list'));
+        }
+        this.cursor.eat(TokenType.RIGHT_PAREN);
+        return columns;
+    }
+
+
+    private parseInsertValues(): ValueNode[] {
+        const values: ValueNode[] = [];
+
+        if (this.cursor.currentType() !== TokenType.LEFT_PAREN) {
+            throw new Error(`Expected ( before VALUES but got ${this.cursor.currentType()}`);
+        }
+        this.cursor.eat(TokenType.LEFT_PAREN);
+
+        if (this.cursor.currentType() === TokenType.RIGHT_PAREN) {
+            throw new Error(`Expected at least one value in VALUES tuple but got ${this.cursor.currentType()}`);
+        }
+
+        values.push(this.valueParser.parseValueNode());
+        while (this.cursor.currentType() === TokenType.COMMA) {
+            this.cursor.eat(TokenType.COMMA);
+            values.push(this.valueParser.parseValueNode());
+        }
+        this.cursor.eat(TokenType.RIGHT_PAREN);
+
+        return values;
+    }
+
 
     private parseSelectColumns(): SelectColumn[] {
         const columns: SelectColumn[] = [];
