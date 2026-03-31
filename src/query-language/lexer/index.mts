@@ -96,6 +96,16 @@ export class Lexer {
                 return { type: TokenType.DISTINCT, value: id };
             case 'IN':
                 return { type: TokenType.IN, value: id };
+            case 'COUNT':
+                return { type: TokenType.COUNT, value: id };
+            case 'SUM':
+                return { type: TokenType.SUM, value: id };
+            case 'AVG':
+                return { type: TokenType.AVG, value: id };
+            case 'MIN':
+                return { type: TokenType.MIN, value: id };
+            case 'MAX':
+                return { type: TokenType.MAX, value: id };
             default:
                 return { type: TokenType.IDENTIFIER, value: id };
         }

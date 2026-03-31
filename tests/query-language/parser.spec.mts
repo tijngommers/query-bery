@@ -1227,5 +1227,77 @@ describe("Parser", () => {
 
         expect(() => parser.parse()).toThrow();
     });
+
+    it("should parse SELECT with COUNT(*) and AVG(identifier)", () => {
+        const lexer = new Lexer("SELECT COUNT(*), AVG(age) FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast).toEqual({
+            type: 'SelectStatement',
+            distinct: false,
+            from: [{ type: 'Table', name: 'USERS' }],
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'AVG',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                }
+            ],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        });
+    });
+
+    it("should parse SELECT with SUM, MIN and MAX aggregates", () => {
+        const lexer = new Lexer("SELECT SUM(age), MIN(age), MAX(age) FROM users");
+        const parser = new Parser(lexer);
+        const ast = parser.parse() as any;
+
+        expect(ast.columns).toEqual([
+            {
+                type: 'AggregateFunction',
+                functionName: 'SUM',
+                argument: { type: 'Identifier', name: 'AGE' }
+            },
+            {
+                type: 'AggregateFunction',
+                functionName: 'MIN',
+                argument: { type: 'Identifier', name: 'AGE' }
+            },
+            {
+                type: 'AggregateFunction',
+                functionName: 'MAX',
+                argument: { type: 'Identifier', name: 'AGE' }
+            }
+        ]);
+    });
+
+    it("should throw for unsupported aggregate function name", () => {
+        const lexer = new Lexer("SELECT MEDIAN(age) FROM users");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Unsupported function in SELECT clause: MEDIAN");
+    });
+
+    it("should throw when aggregate argument is missing", () => {
+        const lexer = new Lexer("SELECT COUNT() FROM users");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Expected aggregate argument but got RIGHT_PAREN");
+    });
+
+    it("should throw when SUM is used with wildcard argument", () => {
+        const lexer = new Lexer("SELECT SUM(*) FROM users");
+        const parser = new Parser(lexer);
+
+        expect(() => parser.parse()).toThrow("Only COUNT supports wildcard argument");
+    });
 });
 

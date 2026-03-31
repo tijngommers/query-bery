@@ -2,6 +2,7 @@
 // @date 2026-03-30
 
 import {
+    AggregateFunctionName,
     ASTNode,
     DeleteStatement,
     ExpressionNode,
@@ -10,9 +11,11 @@ import {
     JoinNode,
     LimitOffsetNode,
     OrderByStatement,
+    SelectColumn,
     SelectStatement,
     TableNode,
     TokenType,
+    WildcardNode,
 } from '../types/index.mts';
 import { Lexer } from '../lexer/index.mts';
 import { ParserCursor } from './parser-cursor.mts';
@@ -51,27 +54,7 @@ export class Parser {
             this.cursor.eat(TokenType.DISTINCT);
         }
 
-        const columns: IdentifierNode[] = [];
-
-        // STAR is only treated as wildcard at the root SELECT list context.
-        if (this.cursor.currentType() === TokenType.STAR) {
-            columns.push({ type: 'Identifier', name: '*' });
-            this.cursor.eat(TokenType.STAR);
-        } else {
-            if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
-                throw new Error(`Expected at least one column after SELECT but got ${this.cursor.currentType()}`);
-            }
-
-            columns.push(this.valueParser.parseIdentifierNode('SELECT clause'));
-
-            while (this.cursor.currentType() === TokenType.COMMA) {
-                this.cursor.eat(TokenType.COMMA);
-                if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
-                    throw new Error(`Expected column name after COMMA but got ${this.cursor.currentType()}`);
-                }
-                columns.push(this.valueParser.parseIdentifierNode('SELECT clause'));
-            }
-        }
+        const columns = this.parseSelectColumns();
 
         const from = this.parseSelectFrom();
         let where: ExpressionNode | undefined;
@@ -104,6 +87,104 @@ export class Parser {
         }
 
         return { type: 'DeleteStatement', from, where: undefined };
+    }
+
+    private parseSelectColumns(): SelectColumn[] {
+        const columns: SelectColumn[] = [];
+
+        if (!this.isValidSelectColumnStart(this.cursor.currentType())) {
+            throw new Error(`Expected at least one column after SELECT but got ${this.cursor.currentType()}`);
+        }
+
+        if (this.cursor.currentType() === TokenType.STAR) {
+            columns.push({ type: 'Identifier', name: '*' });
+            this.cursor.eat(TokenType.STAR);
+            return columns;
+        }
+
+        columns.push(this.parseSelectColumn());
+
+        while (this.cursor.currentType() === TokenType.COMMA) {
+            this.cursor.eat(TokenType.COMMA);
+            if (!this.isValidSelectColumnStart(this.cursor.currentType())) {
+                throw new Error(`Expected column name after COMMA but got ${this.cursor.currentType()}`);
+            }
+            columns.push(this.parseSelectColumn());
+        }
+
+        return columns;
+    }
+
+    private parseSelectColumn(): SelectColumn {
+        if (this.isAggregateFunctionToken(this.cursor.currentType())) {
+            return this.parseAggregateFunction();
+        }
+
+        const identifier = this.valueParser.parseIdentifierNode('SELECT clause');
+
+        if (this.cursor.currentType() === TokenType.LEFT_PAREN) {
+            throw new Error(`Unsupported function in SELECT clause: ${identifier.name}`);
+        }
+
+        return identifier;
+    }
+
+    private parseAggregateFunction(): SelectColumn {
+        const functionName = this.parseAggregateFunctionName();
+        this.cursor.eat(TokenType.LEFT_PAREN);
+
+        let argument: IdentifierNode | WildcardNode;
+        if (this.cursor.currentType() === TokenType.STAR) {
+            if (functionName !== 'COUNT') {
+                throw new Error('Only COUNT supports wildcard argument');
+            }
+
+            this.cursor.eat(TokenType.STAR);
+            argument = { type: 'Wildcard', value: '*' };
+        } else if (this.cursor.currentType() === TokenType.IDENTIFIER) {
+            argument = this.valueParser.parseIdentifierNode('Aggregate function argument');
+        } else {
+            throw new Error(`Expected aggregate argument but got ${this.cursor.currentType()}`);
+        }
+
+        this.cursor.eat(TokenType.RIGHT_PAREN);
+        return { type: 'AggregateFunction', functionName, argument };
+    }
+
+    private parseAggregateFunctionName(): AggregateFunctionName {
+        switch (this.cursor.currentType()) {
+            case TokenType.COUNT:
+                this.cursor.eat(TokenType.COUNT);
+                return 'COUNT';
+            case TokenType.SUM:
+                this.cursor.eat(TokenType.SUM);
+                return 'SUM';
+            case TokenType.AVG:
+                this.cursor.eat(TokenType.AVG);
+                return 'AVG';
+            case TokenType.MIN:
+                this.cursor.eat(TokenType.MIN);
+                return 'MIN';
+            case TokenType.MAX:
+                this.cursor.eat(TokenType.MAX);
+                return 'MAX';
+            default:
+                throw new Error(`Unsupported function in SELECT clause: ${this.cursor.currentValue()}`);
+        }
+    }
+
+    private isAggregateFunctionToken(tokenType: TokenType): boolean {
+        return (
+            tokenType === TokenType.COUNT ||
+            tokenType === TokenType.SUM ||
+            tokenType === TokenType.AVG ||
+            tokenType === TokenType.MIN ||
+            tokenType === TokenType.MAX
+        );
+    }
+
+    private isValidSelectColumnStart(tokenType: TokenType): boolean {
+        return tokenType === TokenType.STAR || tokenType === TokenType.IDENTIFIER || this.isAggregateFunctionToken(tokenType);
     }
 
     private parseDeleteFrom(): TableNode[] {

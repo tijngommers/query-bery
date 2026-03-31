@@ -590,4 +590,59 @@ describe("Lexer", () => {
             { type: TokenType.RIGHT_PAREN, value: ")" },
         ]);
     });
+
+    it("should tokenize aggregate functions in SELECT list", () => {
+        const lexer = new Lexer("SELECT COUNT(*), AVG(age) FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.COUNT, value: "COUNT" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.STAR, value: "*" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.AVG, value: "AVG" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
+
+    it("should tokenize all aggregate function names", () => {
+        const lexer = new Lexer("SELECT SUM(age), MIN(age), MAX(age) FROM users");
+        const tokens = [];
+        let token = lexer.nextToken();
+        while (token.type !== TokenType.EOF) {
+            tokens.push(token);
+            token = lexer.nextToken();
+        }
+
+        expect(tokens).toEqual([
+            { type: TokenType.SELECT, value: "SELECT" },
+            { type: TokenType.SUM, value: "SUM" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.MIN, value: "MIN" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.COMMA, value: "," },
+            { type: TokenType.MAX, value: "MAX" },
+            { type: TokenType.LEFT_PAREN, value: "(" },
+            { type: TokenType.IDENTIFIER, value: "AGE" },
+            { type: TokenType.RIGHT_PAREN, value: ")" },
+            { type: TokenType.FROM, value: "FROM" },
+            { type: TokenType.IDENTIFIER, value: "USERS" },
+        ]);
+    });
 });

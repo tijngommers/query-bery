@@ -526,4 +526,183 @@ describe('SelectExecutor', () => {
             ]
         });
     });
+
+    it('should throw when mixing aggregate and non-aggregate columns without GROUP BY', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                { type: 'Identifier', name: 'CITY' },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        expect(() => selectExecutor.executeSelect(selectNode)).toThrow(
+            'Invalid SELECT: cannot mix aggregate and non-aggregate columns without GROUP BY'
+        );
+    });
+
+    it('should defensively reject wildcard argument for non-COUNT aggregate', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'SUM',
+                    argument: { type: 'Wildcard', value: '*' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        expect(() => selectExecutor.executeSelect(selectNode)).toThrow('Only COUNT supports wildcard argument');
+    });
+
+    it('should compute aggregate rows for COUNT and SUM with WHERE filter', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Wildcard', value: '*' }
+                },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'SUM',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: {
+                type: 'ComparisonExpression',
+                left: { type: 'Identifier', name: 'ACTIVE' },
+                operator: '=',
+                right: { type: 'Literal', valueType: 'number', value: 1 }
+            },
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode, [
+            { ACTIVE: 1, AGE: 20 },
+            { ACTIVE: 0, AGE: 40 },
+            { ACTIVE: 1, AGE: 30 }
+        ]);
+
+        expect(result.rows).toEqual([
+            {
+                'COUNT(*)': 2,
+                'SUM(AGE)': 50
+            }
+        ]);
+    });
+
+    it('should compute AVG, MIN and MAX over identifier values', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'AVG',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'MIN',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                },
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'MAX',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode, [
+            { AGE: 10 },
+            { AGE: 20 },
+            { AGE: 30 }
+        ]);
+
+        expect(result.rows).toEqual([
+            {
+                'AVG(AGE)': 20,
+                'MIN(AGE)': 10,
+                'MAX(AGE)': 30
+            }
+        ]);
+    });
+
+    it('should return COUNT(identifier) as non-null count', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'COUNT',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        const result = selectExecutor.executeSelect(selectNode, [
+            { AGE: 10 },
+            { AGE: null },
+            {},
+            { AGE: 20 }
+        ]);
+
+        expect(result.rows).toEqual([
+            {
+                'COUNT(AGE)': 2
+            }
+        ]);
+    });
+
+    it('should throw when SUM receives non-numeric values', () => {
+        const selectNode: SelectStatement = {
+            type: 'SelectStatement',
+            distinct: false,
+            columns: [
+                {
+                    type: 'AggregateFunction',
+                    functionName: 'SUM',
+                    argument: { type: 'Identifier', name: 'AGE' }
+                }
+            ],
+            from: [{ type: 'Table', name: 'USERS' }],
+            where: undefined,
+            orderBy: undefined,
+            limit: undefined
+        };
+
+        expect(() => selectExecutor.executeSelect(selectNode, [{ AGE: 'twenty' }])).toThrow(
+            'SUM requires numeric values for AGE'
+        );
+    });
 });

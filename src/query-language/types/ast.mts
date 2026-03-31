@@ -6,7 +6,7 @@ export type ASTNode = SelectStatement | DeleteStatement;
 export interface SelectStatement {
     type: 'SelectStatement';
     distinct: boolean;
-    columns: IdentifierNode[];
+    columns: SelectColumn[];
     from: FromNode[];
     where?: ExpressionNode;
     orderBy?: OrderByStatement;
@@ -52,6 +52,13 @@ export interface LiteralNode {
 export type ExpressionNode = ComparisonNode | LogicalNode | NotExpressionNode | NullCheckExpressionNode | InExpressionNode;
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!=';
 export type ArithmeticOperator = '+' | '-' | '*' | '/';
+export type AggregateFunctionName = 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
+export type SelectColumn = IdentifierNode | AggregateFunctionNode;
+
+export interface WildcardNode {
+    type: 'Wildcard';
+    value: '*';
+}
 
 export interface ArithmeticExpressionNode {
     type: 'ArithmeticExpression';
@@ -100,4 +107,10 @@ export interface InExpressionNode {
     type: 'InExpression';
     left: IdentifierNode;
     values: ValueNode[];
+}
+
+export interface AggregateFunctionNode {
+    type: 'AggregateFunction';
+    functionName: AggregateFunctionName;
+    argument: IdentifierNode | WildcardNode;
 }

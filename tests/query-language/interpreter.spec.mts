@@ -566,4 +566,52 @@ describe('Interpreter', () => {
             ]
         });
     });
+
+    it('should execute SELECT with aggregate columns and return computed aggregate rows', () => {
+        const query = "SELECT COUNT(*), AVG(age) FROM users";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.type).toBe('SelectResult');
+        expect(result.columns).toEqual([
+            {
+                type: 'AggregateFunction',
+                functionName: 'COUNT',
+                argument: { type: 'Wildcard', value: '*' }
+            },
+            {
+                type: 'AggregateFunction',
+                functionName: 'AVG',
+                argument: { type: 'Identifier', name: 'AGE' }
+            }
+        ]);
+        expect(result.rows).toEqual([
+            {
+                'COUNT(*)': 0,
+                'AVG(AGE)': null
+            }
+        ]);
+    });
+
+    it('should execute SELECT with SUM and MAX aggregates on empty input as null', () => {
+        const query = "SELECT SUM(age), MAX(age) FROM users";
+        const interpreter = new Interpreter(query);
+        const result = interpreter.execute();
+
+        expect(result.rows).toEqual([
+            {
+                'SUM(AGE)': null,
+                'MAX(AGE)': null
+            }
+        ]);
+    });
+
+    it('should throw when mixing aggregate and non-aggregate columns without GROUP BY', () => {
+        const query = "SELECT city, COUNT(*) FROM users";
+        const interpreter = new Interpreter(query);
+
+        expect(() => interpreter.execute()).toThrow(
+            'Invalid SELECT: cannot mix aggregate and non-aggregate columns without GROUP BY'
+        );
+    });
 });
