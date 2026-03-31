@@ -1,4 +1,4 @@
-# Query-Bery Architecture
+# Querylib Architecture
 
 This project follows a layered pipeline:
 

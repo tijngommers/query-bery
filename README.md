@@ -1,4 +1,4 @@
-# Query-Bery
+# Querylib
 
 A lightweight, extensible query language interpreter that parses and executes SQL-like queries in JavaScript/TypeScript environments. Perfect for building query-based applications, data filters, and custom query languages.
 
@@ -112,14 +112,14 @@ A lightweight, extensible query language interpreter that parses and executes SQ
 ## Installation
 
 ```bash
-npm install query-bery
+npm install querylib
 ```
 
 Or clone and set up locally:
 
 ```bash
-git clone https://github.com/tijngommers/query-bery.git
-cd query-bery
+git clone https://github.com/tijngommers/querylib.git
+cd querylib
 npm install
 ```
 
@@ -252,7 +252,7 @@ We welcome contributions! Please ensure:
 
 ## Roadmap & Vision
 
-Query-Bery is building towards a complete data query ecosystem:
+Querylib is building towards a complete data query ecosystem:
 
 1. **Smart Query Parsing** (Current)
 2. **Advanced Features**
@@ -274,10 +274,10 @@ ISC
 
 ## Repository
 
-[GitHub: query-bery](https://github.com/tijngommers/query-bery)
+[GitHub: querylib](https://github.com/tijngommers/querylib)
 
 ---
 
 **Created by** Tijn Gommers | **Last Updated** March 2026
 
-_Query-Bery: Powerful, simple, extensible SQL for the modern web._
+_Querylib: Powerful, simple, extensible SQL for the modern web._

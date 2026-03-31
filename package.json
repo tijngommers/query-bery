@@ -1,5 +1,5 @@
 {
-  "name": "query-bery",
+  "name": "querylib",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,16 +9,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tijngommers/query-bery.git"
+    "url": "git+https://github.com/tijngommers/querylib.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/tijngommers/query-bery/issues"
+    "url": "https://github.com/tijngommers/querylib/issues"
   },
-  "homepage": "https://github.com/tijngommers/query-bery#readme",
+  "homepage": "https://github.com/tijngommers/querylib#readme",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
     "vitest": "^4.1.0"
