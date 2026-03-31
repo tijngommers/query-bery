@@ -1,272 +1,127 @@
 # Querylib
 
-A lightweight, extensible query language interpreter that parses and executes SQL-like queries in JavaScript/TypeScript environments. Perfect for building query-based applications, data filters, and custom query languages.
+Querylib is a lightweight SQL-like query language engine for JavaScript/TypeScript.
+It tokenizes input, parses it into an AST, and executes statements through dedicated executors.
 
-## Features
+## What Is Implemented
 
-### Currently Supported
+### Statements
 
-- **SELECT statements** - Data retrieval with powerful filtering
+- SELECT
+- DELETE
+- INSERT
+- UPDATE
 
-  ```sql
-  SELECT id, name, age FROM users WHERE age > 21
-  ```
+### SQL Features
 
-- **DELETE statements** - Safe data removal with conditional filtering
+- WHERE expressions with precedence and parentheses
+- Logical operators: AND, OR, NOT
+- Comparison operators: =, !=, >, >=, <, <=
+- IN lists
+- IS NULL and IS NOT NULL
+- Arithmetic in expressions: +, -, \*, /
+- DISTINCT
+- ORDER BY with ASC/DESC
+- LIMIT and OFFSET
+- JOIN parsing and execution metadata support: INNER, LEFT, RIGHT, OUTER, CROSS
+- Aggregate functions in SELECT and HAVING parsing: COUNT, SUM, AVG, MIN, MAX
 
-  ```sql
-  DELETE FROM users WHERE status = 'inactive'
-  ```
+### Current Behavior Notes
 
-- **WHERE conditions** - Filter data with logical operators
+- Aggregate computation is implemented for non-grouped aggregate queries.
+- GROUP BY/HAVING is parsed, but grouped aggregate execution semantics are not fully implemented yet.
+- INSERT and UPDATE executors currently operate on provided in-memory row arrays and return structured result payloads.
 
-  ```sql
-  SELECT * FROM users WHERE age > 18 AND city = 'AMS' OR status = 'active'
-  ```
+## Quick Examples
 
-- **JOIN operations** - Combine data from multiple sources
-
-  ```sql
-  SELECT u.name, o.total FROM users u
-  INNER JOIN orders o ON u.id = o.user_id
-  ```
-
-  Supported: INNER, LEFT, RIGHT, CROSS joins
-
-- **Comparison & Logical Operators**
-  - `=`, `!=`, `>`, `>=`, `<`, `<=`
-  - `AND`, `OR`, `NOT`
-  - `IS NULL`, `IN`
-
-- **Query Modifiers**
-  - `DISTINCT` - Remove duplicate results
-  - `ORDER BY ... ASC/DESC` - Sort results
-  - `LIMIT` & `OFFSET` - Pagination support
-
-- **Fully Tested** - Comprehensive test coverage with Vitest
-
-### Roadmap
-
-#### Version 1.1 - Core Enhancements
-
-- [ ] **Parentheses** - Support for complex expressions
-
-  ```sql
-  WHERE (age > 18 AND city = 'AMS') OR status = 'active'
-  ```
-
-- [ ] **GROUP BY & HAVING** - Aggregation and conditional filtering
-
-  ```sql
-  SELECT city, COUNT(*) FROM users
-  GROUP BY city
-  HAVING COUNT(*) > 5
-  ```
-
-- [ ] **Aggregate Functions** - COUNT, SUM, AVG, MIN, MAX
-  ```sql
-  SELECT COUNT(*), AVG(age), MAX(salary) FROM employees
-  ```
-
-#### Version 1.2 - Advanced Features
-
-- [ ] **Arithmetic Operators** - Mathematical operations in queries
-
-  ```sql
-  SELECT name, price * quantity as total FROM orders
-  ```
-
-- [ ] **UPDATE Statements** - Modify existing data
-
-  ```sql
-  UPDATE users SET status = 'active' WHERE created_at > '2025-01-01'
-  ```
-
-- [ ] **INSERT Statements** - Add new data
-  ```sql
-  INSERT INTO users (name, email) VALUES ('John', 'john@example.com')
-  ```
-
-#### Version 1.3 - Pattern Matching
-
-- [ ] **LIKE Operator** - Flexible string pattern matching
-
-  ```sql
-  WHERE name LIKE '%John%'
-  ```
-
-- [ ] **BETWEEN Operator** - Range queries
-  ```sql
-  WHERE age BETWEEN 18 AND 65
-  ```
-
-#### Version 2.0 - Intelligence Layer
-
-- [ ] **Query Optimizer** - Automatic query optimization and execution planning
-- [ ] **NLP Translator** - Convert natural language to optimized queries
-  ```
-  User: "Show me all active users over 25 in Amsterdam"
-  Optimized: SELECT * FROM users WHERE status = 'active' AND age > 25 AND city = 'AMS'
-  ```
-
-## Installation
-
-```bash
-npm install querylib
+```sql
+SELECT name, age FROM users WHERE age >= 18 ORDER BY age DESC LIMIT 10
 ```
 
-Or clone and set up locally:
+```sql
+DELETE FROM users WHERE status = 'inactive'
+```
 
-```bash
-git clone https://github.com/tijngommers/querylib.git
-cd querylib
-npm install
+```sql
+INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30), (2, 'Bob', 25)
+```
+
+```sql
+UPDATE users SET status = 'active' WHERE id IN (1, 2, 3)
 ```
 
 ## Usage
 
-### Basic Query Execution
-
-```typescript
+```ts
 import { Interpreter } from "./src/query-language/interpreter/index.mts";
 
-// SELECT example
-const selectQuery = "SELECT id, name FROM users WHERE age > 21";
-const selectInterpreter = new Interpreter(selectQuery);
-const results = selectInterpreter.execute();
-console.log(results);
+const query = "SELECT COUNT(*), AVG(age) FROM users WHERE active = 1";
+const interpreter = new Interpreter(query);
+const result = interpreter.execute();
 
-// DELETE example
-const deleteQuery = "DELETE FROM users WHERE id = 5";
-const deleteInterpreter = new Interpreter(deleteQuery);
-deleteInterpreter.execute();
-```
-
-### Complex Queries
-
-```typescript
-// With JOINs
-const joinQuery = `
-  SELECT u.name, COUNT(o.id) as order_count 
-  FROM users u 
-  LEFT JOIN orders o ON u.id = o.user_id
-  ORDER BY order_count DESC
-  LIMIT 10
-`;
-const interpreter = new Interpreter(joinQuery);
-const topCustomers = interpreter.execute();
-
-// With DISTINCT and filtering
-const distinctQuery = `
-  SELECT DISTINCT city 
-  FROM users 
-  WHERE status = 'active'
-  ORDER BY city ASC
-`;
-const interpreter = new Interpreter(distinctQuery);
-const activeCities = interpreter.execute();
+console.log(result);
 ```
 
 ## Architecture
 
-### Core Components
-
-```
+```text
 src/query-language/
-├── lexer/
-│   └── index.mts             # Canonical lexer implementation
-├── parser/
-│   ├── index.mts             # Canonical statement parser orchestrator
-│   ├── parser-cursor.mts      # Token cursor/state management
-│   ├── value-parser.mts       # Identifier/literal/comparison parsing
-│   └── expression-parser.mts  # WHERE grammar + precedence
-├── interpreter/
-│   └── index.mts            # Canonical query execution orchestrator
-├── types/
-│   ├── tokens.mts      # Token model
-│   ├── ast.mts         # AST node model
-│   └── index.mts       # Type exports
-└── executors/
-  ├── select/
-  │   └── index.mts           # Canonical SELECT executor
-  ├── delete/
-  │   └── index.mts           # Canonical DELETE executor
-  ├── join/
-  │   └── index.mts           # Canonical JOIN executor
-
-tests/
-└── query-language/
-  ├── lexer.spec.mts
-  ├── parser.spec.mts
-  ├── interpreter.spec.mts
-  └── executors/
-    ├── select-executor.spec.mts
-    ├── delete-executor.spec.mts
-    └── join-executor.spec.mts
+  lexer/
+    index.mts
+  parser/
+    index.mts
+    parser-cursor.mts
+    value-parser.mts
+    expression-parser.mts
+  interpreter/
+    index.mts
+  types/
+    tokens.mts
+    ast.mts
+    index.mts
+  executors/
+    select/
+      index.mts
+    delete/
+      index.mts
+    insert/
+      index.mts
+    update/
+      index.mts
+    join/
+      index.mts
 ```
 
-Additional documentation:
+Execution pipeline:
 
-- `docs/ARCHITECTURE.md`
-- `docs/ADDING_FEATURES.md`
+1. Lexer converts text into tokens.
+2. Parser converts tokens into AST nodes.
+3. Interpreter dispatches AST nodes by statement type.
+4. Statement executors produce result objects.
 
-### Execution Flow
-
-1. **Lexer** - Tokenizes the input query string into meaningful tokens
-2. **Parser** - Builds an Abstract Syntax Tree (AST) from tokens
-3. **Interpreter** - Orchestrates execution based on statement type
-4. **Executors** - Specialized handlers for different query types
-
-## Development
-
-### Running Tests
+## Testing
 
 ```bash
-# Run all tests
 npm test
+```
 
-# Run with coverage report
+```bash
 npm run test:coverage
 ```
 
-### Project Structure
+The project is covered by a comprehensive Vitest suite, including parser/executor/interpreter tests for SELECT, DELETE, INSERT, UPDATE, and aggregate-related paths.
 
-- **Source** - TypeScript/JavaScript query language implementation
-- **Tests** - Comprehensive Vitest suite with 100% coverage target
-- **Coverage** - HTML coverage reports in `/coverage`
+## Development Notes
 
-### Building
+- Keep parser changes grammar-focused and push execution behavior into executors.
+- Add tests first for lexer/parser contracts and executor semantics.
+- Preserve existing error-message style when adding new validations.
 
-```bash
-npm run build
-```
+## Roadmap
 
-## Contributing
-
-We welcome contributions! Please ensure:
-
-1. All tests pass: `npm test`
-2. Coverage is maintained or improved
-3. Code follows the existing style and architecture
-4. New features include corresponding tests
-
-## Roadmap & Vision
-
-Querylib is building towards a complete data query ecosystem:
-
-1. **Smart Query Parsing** (Current)
-2. **Advanced Features**
-3. **Query Optimization**
-4. **AI-Powered Translation**
-
-Our goal is to make querying data as natural as conversation while maintaining performance and security.
-
-## Tech Stack
-
-- **Language** - TypeScript / JavaScript (Node.js)
-- **Testing** - Vitest with code coverage
-- **ES Modules** - Modern module system
-- **Type Safety** - Full TypeScript support
+- Full GROUP BY/HAVING execution semantics
+- Additional SQL operators (LIKE, BETWEEN)
+- Richer data-source integration for execution
 
 ## License
 
@@ -275,9 +130,3 @@ ISC
 ## Repository
 
 [GitHub: querylib](https://github.com/tijngommers/querylib)
-
----
-
-**Created by** Tijn Gommers | **Last Updated** March 2026
-
-_Querylib: Powerful, simple, extensible SQL for the modern web._
