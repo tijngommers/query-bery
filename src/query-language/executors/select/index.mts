@@ -19,29 +19,33 @@ import {
     getSingleTableName,
     hasJoinNodes,
 } from '../storage-adapter-helpers.mts';
+import { SelectOptimizationResult, SelectOptimizer } from './select-optimizer.mts';
 
 export class SelectExecutor {
     private joinExecutor: JoinExecutor;
     private storageAdapter?: StorageAdapter;
+    private selectOptimizer: SelectOptimizer;
 
     constructor(storageAdapter?: StorageAdapter) {
         this.joinExecutor = new JoinExecutor();
         this.storageAdapter = storageAdapter;
+        this.selectOptimizer = new SelectOptimizer();
     }
 
     executeSelect(node: SelectStatement, inputRows: Record<string, any>[] = []): any {
         this.validateSelect(node);
+        const optimization = this.optimizeSelect(node);
 
         const columns = node.columns;
         const distinct = node.distinct;
-        const from = this.processFromClause(node.from);
-        const where = this.normalizeWhereExpression(node.where);
+        const from = this.processFromClause(optimization.optimizedFrom);
+        const where = optimization.optimizedWhere;
         const orderBy = node.orderBy;
         const limit = node.limit;
 
         const hasAggregateColumns = this.hasAggregateColumns(columns);
-        const canUseStorageAdapter = this.storageAdapter !== undefined && inputRows.length === 0 && !hasJoinNodes(node.from);
-        const singleTableName = getSingleTableName(node.from);
+        const canUseStorageAdapter = this.storageAdapter !== undefined && inputRows.length === 0 && !hasJoinNodes(optimization.optimizedFrom);
+        const singleTableName = getSingleTableName(optimization.optimizedFrom);
 
         const result: any = {
             type: 'SelectResult',
@@ -63,7 +67,7 @@ export class SelectExecutor {
         }
 
         return (async () => {
-            const projection = buildSelectProjection(columns);
+            const projection = optimization.projectionByTable[singleTableName] ?? buildSelectProjection(columns);
             const filteredRows = await this.storageAdapter!.read(singleTableName, projection, compileStorageWherePredicate(where));
 
             if (hasAggregateColumns) {
@@ -74,6 +78,10 @@ export class SelectExecutor {
 
             return result;
         })();
+    }
+
+    optimizeSelect(node: SelectStatement): SelectOptimizationResult {
+        return this.selectOptimizer.optimize(node);
     }
 
     private normalizeWhereExpression(where?: ExpressionNode): ExpressionNode | undefined {

@@ -13,7 +13,7 @@ describe('StorageAdapter-backed executors', () => {
     it('should read SELECT rows through the adapter', async () => {
         const read = vi.fn(async (table: string, columns: string[], where?: Record<string, any>) => {
             expect(table).toBe('USERS');
-            expect(columns).toEqual(['NAME']);
+            expect(columns).toEqual(['NAME', 'ID']);
             expect(where).toEqual({
                 type: 'ComparisonExpression',
                 operator: '=',
