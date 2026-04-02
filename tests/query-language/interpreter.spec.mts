@@ -640,6 +640,13 @@ describe('Interpreter', () => {
         });
     });
 
+    it('should throw for unknown AST node type during dispatch', () => {
+        const interpreter = new Interpreter('SELECT id FROM users');
+        (interpreter as any).ast = { type: 'UnknownStatement' };
+
+        expect(() => interpreter.execute()).toThrow('Unknown AST node');
+    });
+
     it('should execute INSERT with multiple tuples', () => {
         const query = "INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob')";
         const interpreter = new Interpreter(query);
