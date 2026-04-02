@@ -1,127 +1,203 @@
 # Querylib
 
-Querylib is a lightweight SQL-like query language engine for JavaScript/TypeScript.
-It tokenizes input, parses it into an AST, and executes statements through dedicated executors.
+Querylib is a lightweight SQL-like query engine written in TypeScript. It includes a full query pipeline from lexical analysis to execution, plus an optional natural-language layer powered by OpenAI.
 
-## What Is Implemented
+This project is designed for:
 
-### Statements
+- building and experimenting with a custom query language
+- running query operations against an in-memory dataset
+- integrating with a pluggable storage adapter abstraction
+- extending parser and executor behavior in a test-first workflow
 
-- SELECT
-- DELETE
-- INSERT
-- UPDATE
+## Highlights
 
-### SQL Features
+- End-to-end query pipeline: lexer -> parser -> AST -> interpreter -> executors
+- Statement support: SELECT, DELETE, INSERT, UPDATE
+- Optional storage adapter integration for read/write/filter/project/delete/update
+- In-memory storage adapter implementation for local development and tests
+- SELECT optimizer with relational rewrite stages
+- Natural-language execution path via OpenAI chat completions
+- Comprehensive Vitest test suite across lexer, parser, interpreter, executors, optimizer, and storage adapter
 
-- WHERE expressions with precedence and parentheses
+## Supported Query Features
+
+- WHERE expressions with precedence and parenthesis handling
 - Logical operators: AND, OR, NOT
 - Comparison operators: =, !=, >, >=, <, <=
 - IN lists
 - IS NULL and IS NOT NULL
-- Arithmetic in expressions: +, -, \*, /
+- Arithmetic expressions: +, -, \*, /
 - DISTINCT
-- ORDER BY with ASC/DESC
+- ORDER BY with ASC and DESC
 - LIMIT and OFFSET
-- JOIN parsing and execution metadata support: INNER, LEFT, RIGHT, OUTER, CROSS
+- JOIN forms in parsing/execution metadata: INNER, LEFT, RIGHT, OUTER, CROSS
 - Aggregate functions in SELECT and HAVING parsing: COUNT, SUM, AVG, MIN, MAX
 
-### Current Behavior Notes
+Current execution notes:
 
-- Aggregate computation is implemented for non-grouped aggregate queries.
-- GROUP BY/HAVING is parsed, but grouped aggregate execution semantics are not fully implemented yet.
-- INSERT and UPDATE executors currently operate on provided in-memory row arrays and return structured result payloads.
+- Non-grouped aggregate execution is implemented
+- GROUP BY and HAVING are parsed, but full grouped aggregate execution semantics are not fully implemented yet
 
-## Quick Examples
+## Architecture Overview
 
-```sql
-SELECT name, age FROM users WHERE age >= 18 ORDER BY age DESC LIMIT 10
+Main source layout:
+
+- [src/query-language/lexer/index.mts](src/query-language/lexer/index.mts)
+- [src/query-language/parser/index.mts](src/query-language/parser/index.mts)
+- [src/query-language/parser/expression-parser.mts](src/query-language/parser/expression-parser.mts)
+- [src/query-language/parser/value-parser.mts](src/query-language/parser/value-parser.mts)
+- [src/query-language/parser/parser-cursor.mts](src/query-language/parser/parser-cursor.mts)
+- [src/query-language/interpreter/index.mts](src/query-language/interpreter/index.mts)
+- [src/query-language/interpreter/nl.mts](src/query-language/interpreter/nl.mts)
+- [src/query-language/executors/select/index.mts](src/query-language/executors/select/index.mts)
+- [src/query-language/executors/select/select-optimizer.mts](src/query-language/executors/select/select-optimizer.mts)
+- [src/query-language/executors/delete/index.mts](src/query-language/executors/delete/index.mts)
+- [src/query-language/executors/insert/index.mts](src/query-language/executors/insert/index.mts)
+- [src/query-language/executors/update/index.mts](src/query-language/executors/update/index.mts)
+- [src/query-language/executors/join/index.mts](src/query-language/executors/join/index.mts)
+- [src/storage-adapter/storage-adapter.mts](src/storage-adapter/storage-adapter.mts)
+- [src/storage-adapter/in-memory-storage-adapter.mts](src/storage-adapter/in-memory-storage-adapter.mts)
+
+Execution flow:
+
+1. Lexer tokenizes raw query text
+2. Parser constructs a typed AST
+3. Interpreter dispatches by statement type
+4. Statement executor performs operation (in-memory and or storage-adapter-backed)
+
+## Installation
+
+Requirements:
+
+- Node.js 18 or newer
+
+Install dependencies:
+
+```bash
+npm install
 ```
 
-```sql
-DELETE FROM users WHERE status = 'inactive'
-```
+## Quick Start
 
-```sql
-INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30), (2, 'Bob', 25)
-```
-
-```sql
-UPDATE users SET status = 'active' WHERE id IN (1, 2, 3)
-```
-
-## Usage
+Example using the interpreter directly:
 
 ```ts
 import { Interpreter } from "./src/query-language/interpreter/index.mts";
 
-const query = "SELECT COUNT(*), AVG(age) FROM users WHERE active = 1";
+const query = "SELECT NAME FROM USERS WHERE ACTIVE = 1";
 const interpreter = new Interpreter(query);
-const result = interpreter.execute();
 
+const result = await Promise.resolve(interpreter.execute());
 console.log(result);
 ```
 
-## Architecture
+Why Promise.resolve is used:
 
-```text
-src/query-language/
-  lexer/
-    index.mts
-  parser/
-    index.mts
-    parser-cursor.mts
-    value-parser.mts
-    expression-parser.mts
-  interpreter/
-    index.mts
-  types/
-    tokens.mts
-    ast.mts
-    index.mts
-  executors/
-    select/
-      index.mts
-    delete/
-      index.mts
-    insert/
-      index.mts
-    update/
-      index.mts
-    join/
-      index.mts
+- some executors can return sync results
+- storage-adapter-backed paths may return Promise results
+
+Using the in-memory storage adapter:
+
+```ts
+import { Interpreter } from "./src/query-language/interpreter/index.mts";
+import { InMemoryStorageAdapter } from "./src/storage-adapter/in-memory-storage-adapter.mts";
+
+const adapter = new InMemoryStorageAdapter({
+  USERS: [
+    { ID: 1, NAME: "Alice", ACTIVE: 1 },
+    { ID: 2, NAME: "Bob", ACTIVE: 0 },
+  ],
+});
+
+const interpreter = new Interpreter(
+  "SELECT NAME FROM USERS WHERE ACTIVE = 1",
+  adapter,
+);
+const result = await Promise.resolve(interpreter.execute());
+
+console.log(result.rows);
 ```
 
-Execution pipeline:
+## Natural Language Layer (OpenAI)
 
-1. Lexer converts text into tokens.
-2. Parser converts tokens into AST nodes.
-3. Interpreter dispatches AST nodes by statement type.
-4. Statement executors produce result objects.
+Querylib includes a natural-language wrapper in [src/query-language/interpreter/nl.mts](src/query-language/interpreter/nl.mts).
+
+Behavior summary:
+
+- sends user prompt to OpenAI chat completions
+- asks for a single SQL-like query string response
+- sanitizes response text
+- executes the resulting query through the main interpreter
+
+Example:
+
+```ts
+import { NaturalLanguageExecutor } from "./src/query-language/interpreter/nl.mts";
+import { InMemoryStorageAdapter } from "./src/storage-adapter/in-memory-storage-adapter.mts";
+
+const adapter = new InMemoryStorageAdapter({
+  USERS: [
+    { ID: 1, NAME: "Alice", ACTIVE: 1 },
+    { ID: 2, NAME: "Bob", ACTIVE: 0 },
+  ],
+});
+
+const executor = new NaturalLanguageExecutor({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: "gpt-5.4-mini",
+  storageAdapter: adapter,
+});
+
+const result = await executor.executeNaturalLanguageQuery("Show active users");
+console.log(result.rows);
+```
 
 ## Testing
+
+Run all tests:
 
 ```bash
 npm test
 ```
 
+Run coverage:
+
 ```bash
 npm run test:coverage
 ```
 
-The project is covered by a comprehensive Vitest suite, including parser/executor/interpreter tests for SELECT, DELETE, INSERT, UPDATE, and aggregate-related paths.
+Targeted suites:
 
-## Development Notes
+- Parser: [tests/query-language/parser.spec.mts](tests/query-language/parser.spec.mts)
+- Lexer: [tests/query-language/lexer.spec.mts](tests/query-language/lexer.spec.mts)
+- Interpreter: [tests/query-language/interpreter.spec.mts](tests/query-language/interpreter.spec.mts)
+- NL interpreter: [tests/query-language/interpreter/nl.spec.mts](tests/query-language/interpreter/nl.spec.mts)
+- Executors: [tests/query-language/executors/select-executor.spec.mts](tests/query-language/executors/select-executor.spec.mts)
+- Storage adapter: [tests/storage-adapter/in-memory-storage-adapter.spec.mts](tests/storage-adapter/in-memory-storage-adapter.spec.mts)
 
-- Keep parser changes grammar-focused and push execution behavior into executors.
-- Add tests first for lexer/parser contracts and executor semantics.
-- Preserve existing error-message style when adding new validations.
+## Extending The Project
 
-## Roadmap
+Recommended extension order:
 
-- Full GROUP BY/HAVING execution semantics
-- Additional SQL operators (LIKE, BETWEEN)
-- Richer data-source integration for execution
+1. Add or update token definitions in [src/query-language/types/tokens.mts](src/query-language/types/tokens.mts)
+2. Extend parsing logic in [src/query-language/parser/index.mts](src/query-language/parser/index.mts) and supporting parser modules
+3. Add AST shape updates in [src/query-language/types/ast-nodes.mts](src/query-language/types/ast-nodes.mts) and [src/query-language/types/ast-operations.mts](src/query-language/types/ast-operations.mts)
+4. Implement execution behavior in the relevant executor
+5. Add tests first-class in the matching test suite
+
+## Limitations
+
+- Not a full SQL engine
+- No transaction management
+- No query planner cost model yet
+- GROUP BY and HAVING are not fully executed as grouped aggregations yet
+
+## Scripts
+
+Project scripts from [package.json](package.json):
+
+- npm test
+- npm run test:coverage
 
 ## License
 
@@ -129,4 +205,5 @@ ISC
 
 ## Repository
 
-[GitHub: querylib](https://github.com/tijngommers/querylib)
+- Homepage: https://github.com/tijngommers/querylib#readme
+- Issues: https://github.com/tijngommers/querylib/issues
