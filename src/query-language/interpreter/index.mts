@@ -8,6 +8,7 @@ import { SelectExecutor } from '../executors/select/index.mjs';
 import { DeleteExecutor } from '../executors/delete/index.mjs';
 import { InsertExecutor } from '../executors/insert/index.mjs';
 import { UpdateExecutor } from '../executors/update/index.mjs';
+import { StorageAdapter } from '../../storage-adapter/storage-adapter.mts';
 
 export class Interpreter {
     private ast: ASTNode;
@@ -16,14 +17,14 @@ export class Interpreter {
     private insertExecutor: InsertExecutor;
     private updateExecutor: UpdateExecutor;
 
-    constructor(query: string) {
+    constructor(query: string, storageAdapter?: StorageAdapter) {
         const lexer = new Lexer(query);
         const parser = new Parser(lexer);
         this.ast = parser.parse();
-        this.selectExecutor = new SelectExecutor();
-        this.deleteExecutor = new DeleteExecutor();
-        this.insertExecutor = new InsertExecutor();
-        this.updateExecutor = new UpdateExecutor();
+        this.selectExecutor = new SelectExecutor(storageAdapter);
+        this.deleteExecutor = new DeleteExecutor(storageAdapter);
+        this.insertExecutor = new InsertExecutor(storageAdapter);
+        this.updateExecutor = new UpdateExecutor(storageAdapter);
     }
 
     execute(): any {

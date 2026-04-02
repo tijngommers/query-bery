@@ -4,15 +4,8 @@
 /**
  * Storage adapter contract for Querylib.
  *
- * This abstraction decouples query execution from the storage engine.
- * Implementations can be in-memory, file-backed, SQL-backed, or remote.
- *
- * Contract rules:
- * 1. All methods are asynchronous and return Promises.
- * 2. `table` refers to a logical collection name.
- * 3. Returned rows are plain key-value objects.
- * 4. `where` is an adapter-level predicate object (implementation-defined).
- * 5. Methods should throw on invalid table names or malformed input.
+ * This abstraction has functionalities for every function that
+ * a normal database adapter would have, such as read, write, filter, project, delete and update. The exact implementation of these functions is left to the adapter implementer, allowing for flexibility in how data is stored and accessed.
  *
  * @interface StorageAdapter
  */

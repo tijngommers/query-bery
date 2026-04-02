@@ -1,23 +1,46 @@
 //@author Tijn Gommers
-//@date 2026-03-31
+//@date 2026-04-02
 
 import { InsertStatement, ValueNode } from '../../types/index.mjs';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
 
 export class InsertExecutor {
+    private storageAdapter?: StorageAdapter;
+
+    constructor(storageAdapter?: StorageAdapter) {
+        this.storageAdapter = storageAdapter;
+    }
+
     executeInsert(node: InsertStatement, inputRows: Record<string, any>[] = []): any {
         this.validateInsert(node);
 
         const insertedRows = this.buildInsertedRows(node);
-        inputRows.push(...insertedRows);
 
-        return {
-            type: 'InsertResult',
-            table: node.table,
-            columns: node.columns,
-            values: node.values,
-            insertedCount: insertedRows.length,
-            rows: insertedRows,
-        };
+        if (!this.storageAdapter || inputRows.length > 0) {
+            inputRows.push(...insertedRows);
+
+            return {
+                type: 'InsertResult',
+                table: node.table,
+                columns: node.columns,
+                values: node.values,
+                insertedCount: insertedRows.length,
+                rows: insertedRows,
+            };
+        }
+
+        return (async () => {
+            await this.storageAdapter!.write(node.table.name, insertedRows);
+
+            return {
+                type: 'InsertResult',
+                table: node.table,
+                columns: node.columns,
+                values: node.values,
+                insertedCount: insertedRows.length,
+                rows: insertedRows,
+            };
+        })();
     }
 
     private validateInsert(node: InsertStatement): void {

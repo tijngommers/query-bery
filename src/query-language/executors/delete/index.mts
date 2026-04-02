@@ -1,20 +1,45 @@
 //@author Tijn Gommers
-//@date 2026-03-30
+//@date 2026-04-02
 
 import { DeleteStatement, ExpressionNode } from '../../types/index.mjs';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
+import { compileStorageWherePredicate, getSingleTableName } from '../storage-adapter-helpers.mts';
 
 export class DeleteExecutor {
+    private storageAdapter?: StorageAdapter;
+
+    constructor(storageAdapter?: StorageAdapter) {
+        this.storageAdapter = storageAdapter;
+    }
+
     executeDelete(node: DeleteStatement): any {
         this.validateDelete(node);
 
         const from = node.from;
         const where = this.normalizeWhereExpression(node.where);
+        const tableName = getSingleTableName(node.from);
 
-        return {
-            type: 'DeleteResult',
-            from,
-            where,
-        };
+        if (!this.storageAdapter || !tableName) {
+            return {
+                type: 'DeleteResult',
+                from,
+                where,
+            };
+        }
+
+        return (async () => {
+            const predicate = compileStorageWherePredicate(where);
+            const matchingRows = predicate ? await this.storageAdapter!.filter(tableName, predicate) : await this.storageAdapter!.read(tableName, ['*']);
+
+            await this.storageAdapter!.delete(tableName, predicate ?? {});
+
+            return {
+                type: 'DeleteResult',
+                from,
+                where,
+                deletedCount: matchingRows.length,
+            };
+        })();
     }
 
     private normalizeWhereExpression(where?: ExpressionNode): ExpressionNode | undefined {

@@ -1,5 +1,5 @@
 //@author Tijn Gommers
-//@date 2026-03-30
+//@date 2026-04-02
 
 import {
     AggregateFunctionNode,
@@ -12,12 +12,21 @@ import {
     ValueExpressionNode,
 } from '../../types/index.mjs';
 import { JoinExecutor } from '../join/index.mjs';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
+import {
+    buildSelectProjection,
+    compileStorageWherePredicate,
+    getSingleTableName,
+    hasJoinNodes,
+} from '../storage-adapter-helpers.mts';
 
 export class SelectExecutor {
     private joinExecutor: JoinExecutor;
+    private storageAdapter?: StorageAdapter;
 
-    constructor() {
+    constructor(storageAdapter?: StorageAdapter) {
         this.joinExecutor = new JoinExecutor();
+        this.storageAdapter = storageAdapter;
     }
 
     executeSelect(node: SelectStatement, inputRows: Record<string, any>[] = []): any {
@@ -31,6 +40,8 @@ export class SelectExecutor {
         const limit = node.limit;
 
         const hasAggregateColumns = this.hasAggregateColumns(columns);
+        const canUseStorageAdapter = this.storageAdapter !== undefined && inputRows.length === 0 && !hasJoinNodes(node.from);
+        const singleTableName = getSingleTableName(node.from);
 
         const result: any = {
             type: 'SelectResult',
@@ -42,12 +53,27 @@ export class SelectExecutor {
             limit,
         };
 
-        if (hasAggregateColumns) {
-            const filteredRows = this.applyWhereFilter(inputRows, where);
-            result.rows = [this.computeAggregateRow(columns, filteredRows)];
+        if (!canUseStorageAdapter || !singleTableName) {
+            if (hasAggregateColumns) {
+                const filteredRows = this.applyWhereFilter(inputRows, where);
+                result.rows = [this.computeAggregateRow(columns, filteredRows)];
+            }
+
+            return result;
         }
 
-        return result;
+        return (async () => {
+            const projection = buildSelectProjection(columns);
+            const filteredRows = await this.storageAdapter!.read(singleTableName, projection, compileStorageWherePredicate(where));
+
+            if (hasAggregateColumns) {
+                result.rows = [this.computeAggregateRow(columns, filteredRows)];
+            } else {
+                result.rows = filteredRows;
+            }
+
+            return result;
+        })();
     }
 
     private normalizeWhereExpression(where?: ExpressionNode): ExpressionNode | undefined {
