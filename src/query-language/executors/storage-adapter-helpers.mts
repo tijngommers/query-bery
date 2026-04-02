@@ -9,6 +9,11 @@ import {
     ValueNode,
 } from '../types/index.mjs';
 
+/**
+ * Compiles an AST WHERE expression into a storage-adapter predicate shape.
+ * @param expression Optional expression tree from the parser.
+ * @returns Storage-adapter predicate object or undefined when no predicate is present.
+ */
 export function compileStorageWherePredicate(expression?: ExpressionNode): Record<string, any> | undefined {
     if (!expression) {
         return undefined;
@@ -52,6 +57,11 @@ export function compileStorageWherePredicate(expression?: ExpressionNode): Recor
     }
 }
 
+/**
+ * Compiles a value expression into a storage-adapter operand shape.
+ * @param expression AST value expression.
+ * @returns Primitive value, identifier path, or expression object compatible with adapter evaluation.
+ */
 export function compileStorageValueExpression(expression: ValueExpressionNode): Record<string, any> | string | number | null {
     switch (expression.type) {
         case 'Identifier':
@@ -76,6 +86,11 @@ export function compileStorageValueExpression(expression: ValueExpressionNode): 
     }
 }
 
+/**
+ * Converts a value node to a primitive value used by storage predicates.
+ * @param value Literal or identifier value node.
+ * @returns Primitive literal value or identifier name.
+ */
 export function compileStorageValueNode(value: ValueNode): string | number | null {
     if (value.type === 'Literal') {
         return value.value;
@@ -84,6 +99,11 @@ export function compileStorageValueNode(value: ValueNode): string | number | nul
     return value.name;
 }
 
+/**
+ * Builds a projection list from SELECT columns.
+ * @param columns Columns specified in the SELECT clause.
+ * @returns Projected column names or wildcard when projection cannot be narrowed.
+ */
 export function buildSelectProjection(columns: SelectColumn[]): string[] {
     const projection = new Set<string>();
 
@@ -107,6 +127,11 @@ export function buildSelectProjection(columns: SelectColumn[]): string[] {
     return projection.size > 0 ? Array.from(projection) : ['*'];
 }
 
+/**
+ * Resolves a table name when the FROM clause references exactly one table and no joins.
+ * @param from FROM clause nodes.
+ * @returns Single table name or undefined when query is multi-source.
+ */
 export function getSingleTableName(from: FromNode[]): string | undefined {
     if (from.length !== 1) {
         return undefined;
@@ -120,6 +145,11 @@ export function getSingleTableName(from: FromNode[]): string | undefined {
     return firstNode.name;
 }
 
+/**
+ * Checks whether a FROM clause contains at least one join node.
+ * @param from FROM clause nodes.
+ * @returns True when a join node is present.
+ */
 export function hasJoinNodes(from: FromNode[]): boolean {
     return from.some(node => node.type === 'Join');
 }

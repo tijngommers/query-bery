@@ -21,6 +21,9 @@ import {
 } from '../storage-adapter-helpers.mts';
 import { SelectOptimizationResult, SelectOptimizer } from './select-optimizer.mts';
 
+/**
+ * Executes SELECT statements with optional storage-adapter pushdown and aggregate handling.
+ */
 export class SelectExecutor {
     private joinExecutor: JoinExecutor;
     private storageAdapter?: StorageAdapter;
@@ -32,6 +35,10 @@ export class SelectExecutor {
         this.selectOptimizer = new SelectOptimizer();
     }
 
+    /**
+     * Validates and executes a SELECT statement.
+     * Returns a plain result when running in-memory, or a Promise when a storage adapter is used.
+     */
     executeSelect(node: SelectStatement, inputRows: Record<string, any>[] = []): any {
         this.validateSelect(node);
         const optimization = this.optimizeSelect(node);
@@ -80,6 +87,9 @@ export class SelectExecutor {
         })();
     }
 
+    /**
+     * Applies the optimizer pipeline to a SELECT AST node.
+     */
     optimizeSelect(node: SelectStatement): SelectOptimizationResult {
         return this.selectOptimizer.optimize(node);
     }
@@ -116,6 +126,9 @@ export class SelectExecutor {
         });
     }
 
+    /**
+     * Validates SELECT clause structure and aggregate usage rules.
+     */
     validateSelect(node: SelectStatement): void {
         if (!node.columns || node.columns.length === 0) {
             throw new Error('Invalid SELECT: no columns specified');

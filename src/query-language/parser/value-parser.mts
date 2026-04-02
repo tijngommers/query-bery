@@ -9,13 +9,26 @@ import {
 } from '../types/index.mts';
 import { ParserCursor } from './parser-cursor.mts';
 
+/**
+ * Parses identifiers, literals, and comparison operators from parser tokens.
+ * @class ValueParser
+ */
 export class ValueParser {
     private cursor: ParserCursor;
 
+    /**
+     * Creates a value parser bound to a parser cursor.
+     * @param cursor Shared parser cursor instance.
+     */
     constructor(cursor: ParserCursor) {
         this.cursor = cursor;
     }
 
+    /**
+     * Parses a comparison operator token.
+     * @returns Comparison operator string.
+     * @throws {Error} When the current token is not a comparison operator.
+     */
     parseComparisonOperator(): ComparisonOperator {
         switch (this.cursor.currentType()) {
             case TokenType.EQUALS:
@@ -41,6 +54,11 @@ export class ValueParser {
         }
     }
 
+    /**
+     * Parses a literal or identifier value node.
+     * @returns Identifier or literal value node.
+     * @throws {Error} When the current token cannot be interpreted as a value.
+     */
     parseValueNode(): IdentifierNode | LiteralNode {
         const tokenType = this.cursor.currentType();
         const tokenValue = this.cursor.currentValue();
@@ -79,6 +97,12 @@ export class ValueParser {
         throw new Error(`Expected value in WHERE clause but got ${tokenType}`);
     }
 
+    /**
+     * Parses an identifier node, including dotted paths.
+     * @param errorContext Context label used in parse errors.
+     * @returns Identifier node.
+     * @throws {Error} When identifier syntax is invalid.
+     */
     parseIdentifierNode(errorContext: string = 'WHERE clause'): IdentifierNode {
         if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
             throw new Error(`Expected identifier in ${errorContext} but got ${this.cursor.currentType()}`);

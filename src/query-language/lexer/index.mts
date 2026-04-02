@@ -3,14 +3,27 @@
 
 import { Token, TokenType } from '../types/index.mts';
 
+/**
+ * Converts query-language input text into a stream of tokens.
+ * @class Lexer
+ */
 export class Lexer {
     private input: string;
     private cursor: number = 0;
 
+    /**
+     * Creates a lexer for a query string.
+     * @param input Raw query-language source text.
+     */
     constructor(input: string) {
         this.input = input;
     }
 
+    /**
+     * Reads the next token from the current cursor position.
+     * @returns The next token in the input stream.
+     * @throws {Error} When an unexpected character is encountered.
+     */
     public nextToken(): Token {
         this.skipWhitespace();
 
@@ -40,12 +53,21 @@ export class Lexer {
         throw new Error(`Unexpected character: ${char}`);
     }
 
+    /**
+     * Advances the cursor past contiguous whitespace.
+     * @returns Nothing.
+     */
     private skipWhitespace() {
         while (this.cursor < this.input.length && /\s/.test(this.input[this.cursor])) {
             this.cursor++;
         }
     }
 
+    /**
+     * Resolves an identifier value as a keyword token when applicable.
+     * @param id Upper-cased identifier text.
+     * @returns Keyword token or a generic identifier token.
+     */
     private checkIdentifierOrKeyword(id: string): Token {
         switch (id) {
             case 'SELECT':
@@ -125,6 +147,10 @@ export class Lexer {
         }
     }
 
+    /**
+     * Reads a numeric literal token from the current cursor.
+     * @returns NUMBER token with the parsed numeric string.
+     */
     private readNumber(): Token {
         let num = '';
         while (this.cursor < this.input.length && /\d/.test(this.input[this.cursor])) {
@@ -134,6 +160,10 @@ export class Lexer {
         return { type: TokenType.NUMBER, value: num };
     }
 
+    /**
+     * Reads an identifier or keyword token from the current cursor.
+     * @returns Identifier or keyword token.
+     */
     private readIdentifier(): Token {
         let id = '';
         while (this.cursor < this.input.length && /[a-zA-Z0-9_]/.test(this.input[this.cursor])) {
@@ -143,6 +173,10 @@ export class Lexer {
         return this.checkIdentifierOrKeyword(id.toUpperCase());
     }
 
+    /**
+     * Reads punctuation or operator tokens from the current cursor.
+     * @returns Operator token when a known operator exists, otherwise null.
+     */
     private checkOperators(): Token | null {
         const twoChars = this.input.slice(this.cursor, this.cursor + 2);
         switch (twoChars) {
@@ -197,6 +231,11 @@ export class Lexer {
         }
     }
 
+    /**
+     * Reads a single-quoted string literal token.
+     * @returns STRING token with unquoted string value.
+     * @throws {Error} When the string literal is unterminated.
+     */
     private readString(): Token {
         let str = '';
         this.cursor++;

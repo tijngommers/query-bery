@@ -5,13 +5,27 @@ import { DeleteStatement, ExpressionNode } from '../../types/index.mjs';
 import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
 import { compileStorageWherePredicate, getSingleTableName } from '../storage-adapter-helpers.mts';
 
+/**
+ * Executes DELETE statements with optional storage-adapter support.
+ * @class DeleteExecutor
+ */
 export class DeleteExecutor {
     private storageAdapter?: StorageAdapter;
 
+    /**
+     * Creates a delete executor.
+     * @param storageAdapter Optional storage adapter used for persistence operations.
+     */
     constructor(storageAdapter?: StorageAdapter) {
         this.storageAdapter = storageAdapter;
     }
 
+    /**
+     * Executes a DELETE statement and returns metadata about the deletion.
+     * @param node Parsed DELETE statement AST node.
+     * @returns Delete result object or a Promise that resolves to it when using a storage adapter.
+     * @throws {Error} When the DELETE statement is invalid.
+     */
     executeDelete(node: DeleteStatement): any {
         this.validateDelete(node);
 
@@ -42,6 +56,11 @@ export class DeleteExecutor {
         })();
     }
 
+    /**
+     * Normalizes nested WHERE-expression nodes.
+     * @param where Optional expression from a DELETE statement.
+     * @returns Normalized expression or undefined when no WHERE exists.
+     */
     private normalizeWhereExpression(where?: ExpressionNode): ExpressionNode | undefined {
         if (!where) {
             return undefined;
@@ -65,12 +84,23 @@ export class DeleteExecutor {
         return where;
     }
 
+    /**
+     * Validates minimal DELETE statement requirements.
+     * @param node Parsed DELETE statement AST node.
+     * @returns Nothing.
+     * @throws {Error} When no FROM clause is present.
+     */
     private validateDelete(node: DeleteStatement): void {
         if (!node.from || node.from.length === 0) {
             throw new Error('Invalid DELETE: no FROM clause');
         }
     }
 
+    /**
+     * Indicates whether a DELETE contains a WHERE clause.
+     * @param node Parsed DELETE statement AST node.
+     * @returns True when a WHERE clause exists.
+     */
     isSafeDelete(node: DeleteStatement): boolean {
         return node.where !== undefined;
     }

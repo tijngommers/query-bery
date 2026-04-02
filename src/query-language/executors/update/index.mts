@@ -5,6 +5,9 @@ import { ExpressionNode, IdentifierNode, UpdateStatement, ValueNode } from '../.
 import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
 import { compileStorageWherePredicate } from '../storage-adapter-helpers.mts';
 
+/**
+ * Executes UPDATE statements with optional storage-adapter pushdown.
+ */
 export class UpdateExecutor {
 	private storageAdapter?: StorageAdapter;
 
@@ -12,6 +15,9 @@ export class UpdateExecutor {
 		this.storageAdapter = storageAdapter;
 	}
 
+	/**
+	 * Executes an UPDATE statement and returns updated row metadata.
+	 */
 	executeUpdate(node: UpdateStatement, inputRows: Record<string, any>[] = []): any {
 		this.validateUpdate(node);
 

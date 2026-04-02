@@ -25,17 +25,30 @@ import { ParserCursor } from './parser-cursor.mts';
 import { ValueParser } from './value-parser.mts';
 import { ExpressionParser } from './expression-parser.mts';
 
+/**
+ * Parses token streams into query-language AST statements.
+ * @class Parser
+ */
 export class Parser {
     private cursor: ParserCursor;
     private valueParser: ValueParser;
     private expressionParser: ExpressionParser;
 
+    /**
+     * Creates a parser for a lexer token stream.
+     * @param lexer Lexer providing tokenized input.
+     */
     constructor(lexer: Lexer) {
         this.cursor = new ParserCursor(lexer);
         this.valueParser = new ValueParser(this.cursor);
         this.expressionParser = new ExpressionParser(this.cursor, this.valueParser);
     }
 
+    /**
+     * Parses the input into a top-level AST statement.
+     * @returns Parsed AST statement.
+     * @throws {Error} When the initial token does not match a supported statement type.
+     */
     parse(): ASTNode {
         if (this.cursor.currentType() === TokenType.SELECT) {
             return this.parseSelect();
@@ -56,6 +69,11 @@ export class Parser {
         throw new Error(`Unexpected token: ${this.cursor.currentType()}`);
     }
 
+    /**
+     * Parses a SELECT statement.
+     * @returns SELECT statement AST node.
+     * @throws {Error} When SELECT syntax is invalid.
+     */
     private parseSelect(): SelectStatement {
         this.cursor.eat(TokenType.SELECT);
 
@@ -101,6 +119,11 @@ export class Parser {
         return { type: 'SelectStatement', distinct, from, columns, where, groupBy, having, orderBy, limit };
     }
 
+    /**
+     * Parses a DELETE statement.
+     * @returns DELETE statement AST node.
+     * @throws {Error} When DELETE syntax is invalid.
+     */
     private parseDelete(): DeleteStatement {
         this.cursor.eat(TokenType.DELETE);
 
@@ -114,6 +137,11 @@ export class Parser {
         return { type: 'DeleteStatement', from, where: undefined };
     }
 
+    /**
+     * Parses an INSERT statement.
+     * @returns INSERT statement AST node.
+     * @throws {Error} When INSERT syntax is invalid.
+     */
     private parseInsert(): InsertStatement {
         this.cursor.eat(TokenType.INSERT);
         this.cursor.eat(TokenType.INTO);
@@ -166,6 +194,11 @@ export class Parser {
     }
 
 
+    /**
+     * Parses an UPDATE statement.
+     * @returns UPDATE statement AST node.
+     * @throws {Error} When UPDATE syntax is invalid.
+     */
     private parseUpdate(): UpdateStatement {
         this.cursor.eat(TokenType.UPDATE);
         if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
@@ -190,6 +223,11 @@ export class Parser {
         return { type: 'UpdateStatement', table, set, where: undefined };
     }
 
+    /**
+     * Parses one SET assignment in an UPDATE statement.
+     * @returns Column/value assignment object.
+     * @throws {Error} When assignment syntax is invalid.
+     */
     private parseUpdateSetClause(): { column: IdentifierNode; value: ValueNode } {
         if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
             throw new Error(`Expected column name after SET but got ${this.cursor.currentType()}`);
@@ -204,6 +242,11 @@ export class Parser {
         return { column, value };
     }
 
+    /**
+     * Parses the column list of an INSERT statement.
+     * @returns Array of identifier columns.
+     * @throws {Error} When INSERT column-list syntax is invalid.
+     */
     private parseInsertColumns(): IdentifierNode[] {
         const columns: IdentifierNode[] = [];
 
@@ -231,6 +274,11 @@ export class Parser {
     }
 
 
+    /**
+     * Parses one VALUES tuple from an INSERT statement.
+     * @returns Array of value nodes for a single tuple.
+     * @throws {Error} When VALUES tuple syntax is invalid.
+     */
     private parseInsertValues(): ValueNode[] {
         const values: ValueNode[] = [];
 
@@ -254,6 +302,11 @@ export class Parser {
     }
 
 
+    /**
+     * Parses the SELECT column list.
+     * @returns Array of select columns.
+     * @throws {Error} When SELECT column syntax is invalid.
+     */
     private parseSelectColumns(): SelectColumn[] {
         const columns: SelectColumn[] = [];
 
@@ -280,6 +333,11 @@ export class Parser {
         return columns;
     }
 
+    /**
+     * Parses a single SELECT column expression.
+     * @returns Parsed select column node.
+     * @throws {Error} When unsupported function-call syntax is encountered.
+     */
     private parseSelectColumn(): SelectColumn {
         if (this.isAggregateFunctionToken(this.cursor.currentType())) {
             return this.parseAggregateFunction();
@@ -294,6 +352,11 @@ export class Parser {
         return identifier;
     }
 
+    /**
+     * Parses an aggregate function used in SELECT columns.
+     * @returns Aggregate-function select column node.
+     * @throws {Error} When aggregate syntax is invalid.
+     */
     private parseAggregateFunction(): SelectColumn {
         const functionName = this.parseAggregateFunctionName();
         this.cursor.eat(TokenType.LEFT_PAREN);
@@ -316,6 +379,11 @@ export class Parser {
         return { type: 'AggregateFunction', functionName, argument };
     }
 
+    /**
+     * Parses aggregate function names for SELECT clauses.
+     * @returns Aggregate function name.
+     * @throws {Error} When token is not a supported aggregate function.
+     */
     private parseAggregateFunctionName(): AggregateFunctionName {
         switch (this.cursor.currentType()) {
             case TokenType.COUNT:
@@ -338,6 +406,11 @@ export class Parser {
         }
     }
 
+    /**
+     * Checks whether a token starts an aggregate function.
+     * @param tokenType Token type to inspect.
+     * @returns True when token represents a supported aggregate function.
+     */
     private isAggregateFunctionToken(tokenType: TokenType): boolean {
         return (
             tokenType === TokenType.COUNT ||
@@ -348,10 +421,20 @@ export class Parser {
         );
     }
 
+    /**
+     * Checks whether a token can start a SELECT column.
+     * @param tokenType Token type to inspect.
+     * @returns True when token is a valid SELECT-column starter.
+     */
     private isValidSelectColumnStart(tokenType: TokenType): boolean {
         return tokenType === TokenType.STAR || tokenType === TokenType.IDENTIFIER || this.isAggregateFunctionToken(tokenType);
     }
 
+    /**
+     * Parses DELETE FROM table list.
+     * @returns Array of table nodes.
+     * @throws {Error} When FROM/table syntax is invalid or JOIN is used.
+     */
     private parseDeleteFrom(): TableNode[] {
         this.cursor.eat(TokenType.FROM);
         const tables: TableNode[] = [];
@@ -379,6 +462,11 @@ export class Parser {
         return tables;
     }
 
+    /**
+     * Parses SELECT FROM sources, including join forms.
+     * @returns Array of table/join source nodes.
+     * @throws {Error} When FROM/join syntax is invalid.
+     */
     private parseSelectFrom(): FromNode[] {
         this.cursor.eat(TokenType.FROM);
         const tables: FromNode[] = [];
@@ -425,11 +513,21 @@ export class Parser {
         return tables;
     }
 
+    /**
+     * Parses a WHERE clause expression.
+     * @returns Parsed WHERE expression node.
+     * @throws {Error} When WHERE expression syntax is invalid.
+     */
     private parseWhere(): ExpressionNode {
         this.cursor.eat(TokenType.WHERE);
         return this.expressionParser.parseWhereExpression();
     }
 
+    /**
+     * Parses a GROUP BY clause.
+     * @returns Group-by identifier list.
+     * @throws {Error} When GROUP BY syntax is invalid.
+     */
     private parseGroupBy(): IdentifierNode[] {
         this.cursor.eat(TokenType.GROUP);
         this.cursor.eat(TokenType.BY);
@@ -451,11 +549,21 @@ export class Parser {
         return columns;
     }
 
+    /**
+     * Parses a HAVING clause expression.
+     * @returns Parsed HAVING expression node.
+     * @throws {Error} When HAVING expression syntax is invalid.
+     */
     private parseHaving(): ExpressionNode {
         this.cursor.eat(TokenType.HAVING);
         return this.expressionParser.parseHavingExpression();
     }
 
+    /**
+     * Parses an ORDER BY clause.
+     * @returns ORDER BY statement node.
+     * @throws {Error} When ORDER BY syntax is invalid.
+     */
     private parseOrderBy(): OrderByStatement {
         this.cursor.eat(TokenType.ORDER);
         this.cursor.eat(TokenType.BY);
@@ -501,6 +609,11 @@ export class Parser {
         return { type: 'OrderByStatement', columns, direction };
     }
 
+    /**
+     * Parses LIMIT and optional OFFSET clause.
+     * @returns Limit/offset node.
+     * @throws {Error} When LIMIT/OFFSET values are missing or invalid.
+     */
     private parseLimitOffset(): LimitOffsetNode {
         this.cursor.eat(TokenType.LIMIT);
 
@@ -527,6 +640,11 @@ export class Parser {
         return { type: 'LimitOffset', limit, offset };
     }
 
+    /**
+     * Parses a JOIN clause from SELECT FROM sources.
+     * @returns Join node.
+     * @throws {Error} When JOIN syntax is invalid.
+     */
     private parseJoin(): JoinNode {
         let joinType: 'CROSS' | 'INNER' | 'LEFT' | 'RIGHT' | 'OUTER' = 'INNER';
 

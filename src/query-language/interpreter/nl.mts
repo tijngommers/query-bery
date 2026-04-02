@@ -24,11 +24,20 @@ export interface NaturalLanguageExecutorOptions {
     storageAdapter?: StorageAdapter;
 }
 
+/**
+ * Converts natural-language prompts to query-language SQL via OpenAI and executes them.
+ * @class NaturalLanguageExecutor
+ */
 export class NaturalLanguageExecutor {
     private model: string;
     private client: OpenAIClientLike;
     private storageAdapter?: StorageAdapter;
 
+    /**
+     * Creates a natural-language executor.
+     * @param options Configuration including model, API key, optional injected client, and optional storage adapter.
+     * @throws {Error} When no API key is provided and no client is injected.
+     */
     constructor(options: NaturalLanguageExecutorOptions = {}) {
         const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? '';
         this.model = options.model ?? 'gpt-5.4-mini';
@@ -40,12 +49,24 @@ export class NaturalLanguageExecutor {
         this.storageAdapter = options.storageAdapter;
     }
 
+    /**
+     * Converts a natural-language prompt into SQL and executes it through the interpreter.
+     * @param nlQuery Natural-language prompt describing the intended query.
+     * @returns Interpreter execution result.
+     * @throws {Error} When model output is invalid or interpreter execution fails.
+     */
     async executeNaturalLanguageQuery(nlQuery: string): Promise<any> {
         const sqlQuery = await this.convertNaturalLanguageToSql(nlQuery);
         const interpreter = new Interpreter(sqlQuery, this.storageAdapter);
         return await interpreter.execute();
     }
 
+    /**
+     * Calls the OpenAI chat-completions API to translate natural language into SQL text.
+     * @param nlQuery Natural-language prompt to translate.
+     * @returns SQL string suitable for the query-language parser.
+     * @throws {Error} When the response does not contain usable SQL text.
+     */
     private async convertNaturalLanguageToSql(nlQuery: string): Promise<string> {
         const payload = await this.client.chat.completions.create({
             model: this.model,
@@ -70,6 +91,11 @@ export class NaturalLanguageExecutor {
         return this.cleanSql(content);
     }
 
+    /**
+     * Removes optional code fences and trailing statement delimiters from model output.
+     * @param content Raw model content containing SQL text.
+     * @returns Sanitized SQL string.
+     */
     private cleanSql(content: string): string {
         const trimmedContent = content.trim();
         const fencedMatch = trimmedContent.match(/^```(?:sql)?\s*([\s\S]*?)\s*```$/i);

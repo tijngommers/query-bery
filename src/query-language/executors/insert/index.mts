@@ -4,13 +4,28 @@
 import { InsertStatement, ValueNode } from '../../types/index.mjs';
 import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
 
+/**
+ * Executes INSERT statements and materializes inserted rows.
+ * @class InsertExecutor
+ */
 export class InsertExecutor {
     private storageAdapter?: StorageAdapter;
 
+    /**
+     * Creates an insert executor.
+     * @param storageAdapter Optional storage adapter used for persistent writes.
+     */
     constructor(storageAdapter?: StorageAdapter) {
         this.storageAdapter = storageAdapter;
     }
 
+    /**
+     * Executes an INSERT statement against in-memory rows or the configured storage adapter.
+     * @param node Parsed INSERT statement AST node.
+     * @param inputRows Mutable in-memory row collection used when no adapter is provided.
+     * @returns Insert result object or a Promise that resolves to it when using a storage adapter.
+     * @throws {Error} When INSERT statement validation fails.
+     */
     executeInsert(node: InsertStatement, inputRows: Record<string, any>[] = []): any {
         this.validateInsert(node);
 
@@ -43,6 +58,12 @@ export class InsertExecutor {
         })();
     }
 
+    /**
+     * Validates INSERT table, columns, and values cardinality.
+     * @param node Parsed INSERT statement AST node.
+     * @returns Nothing.
+     * @throws {Error} When required INSERT parts are missing or tuple lengths mismatch.
+     */
     private validateInsert(node: InsertStatement): void {
         if (!node.table) {
             throw new Error('Invalid INSERT: no table specified');
@@ -63,6 +84,11 @@ export class InsertExecutor {
         });
     }
 
+    /**
+     * Materializes row objects from INSERT value tuples.
+     * @param node Parsed INSERT statement AST node.
+     * @returns Array of row objects ready for insertion.
+     */
     private buildInsertedRows(node: InsertStatement): Record<string, any>[] {
         return node.values.map(tuple => {
             const row: Record<string, any> = {};
@@ -75,6 +101,11 @@ export class InsertExecutor {
         });
     }
 
+    /**
+     * Resolves a value node into a primitive value.
+     * @param value Value node from INSERT tuples.
+     * @returns Primitive literal value or identifier name.
+     */
     private resolveValueNode(value: ValueNode): string | number | null {
         if (value.type === 'Literal') {
             return value.value;

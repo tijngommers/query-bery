@@ -1,6 +1,10 @@
 // @author Tijn Gommers
 // @date 2026-03-30
 
+/**
+ * Token types emitted by the lexer and consumed by the parser.
+ * @enum {string}
+ */
 export enum TokenType {
     SELECT = 'SELECT',
     DELETE = 'DELETE',
@@ -58,6 +62,12 @@ export enum TokenType {
     SET = 'SET',
 }
 
+/**
+ * Single lexical token emitted by the lexer.
+ * @interface Token
+ * @property {TokenType} type Token classification.
+ * @property {string} value Raw token value.
+ */
 export interface Token {
     type: TokenType;
     value: string;
