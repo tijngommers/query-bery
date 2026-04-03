@@ -8,13 +8,14 @@ import {
     ValueExpressionNode,
     ValueNode,
 } from '../types/index.mjs';
+import { StorageOperand, StoragePredicate } from '../../../storage-adapter/storage-adapter-types.mjs';
 
 /**
  * Compiles an AST WHERE expression into a storage-adapter predicate shape.
  * @param expression Optional expression tree from the parser.
  * @returns Storage-adapter predicate object or undefined when no predicate is present.
  */
-export function compileStorageWherePredicate(expression?: ExpressionNode): Record<string, any> | undefined {
+export function compileStorageWherePredicate(expression?: ExpressionNode): StoragePredicate | undefined {
     if (!expression) {
         return undefined;
     }
@@ -62,7 +63,7 @@ export function compileStorageWherePredicate(expression?: ExpressionNode): Recor
  * @param expression AST value expression.
  * @returns Primitive value, identifier path, or expression object compatible with adapter evaluation.
  */
-export function compileStorageValueExpression(expression: ValueExpressionNode): Record<string, any> | string | number | null {
+export function compileStorageValueExpression(expression: ValueExpressionNode): StorageOperand {
     switch (expression.type) {
         case 'Identifier':
             return expression.name;

@@ -2,6 +2,7 @@
 //@date 2026-04-02
 
 import { InsertStatement, ValueNode } from '../../types/index.mjs';
+import { InsertResult } from '../../types/execution-results.mjs';
 import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 
 /**
@@ -26,7 +27,7 @@ export class InsertExecutor {
      * @returns Insert result object or a Promise that resolves to it when using a storage adapter.
      * @throws {Error} When INSERT statement validation fails.
      */
-    executeInsert(node: InsertStatement, inputRows: Record<string, any>[] = []): any {
+    executeInsert(node: InsertStatement, inputRows: Record<string, any>[] = []): InsertResult | Promise<InsertResult> {
         this.validateInsert(node);
 
         const insertedRows = this.buildInsertedRows(node);

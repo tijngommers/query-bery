@@ -2,6 +2,7 @@
 //@date 2026-04-02
 
 import { DeleteStatement, ExpressionNode } from '../../types/index.mjs';
+import { DeleteResult } from '../../types/execution-results.mjs';
 import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 import { compileStorageWherePredicate, getSingleTableName } from '../storage-adapter-helpers.mjs';
 
@@ -26,7 +27,7 @@ export class DeleteExecutor {
      * @returns Delete result object or a Promise that resolves to it when using a storage adapter.
      * @throws {Error} When the DELETE statement is invalid.
      */
-    executeDelete(node: DeleteStatement): any {
+    executeDelete(node: DeleteStatement): DeleteResult | Promise<DeleteResult> {
         this.validateDelete(node);
 
         const from = node.from;

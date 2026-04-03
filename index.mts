@@ -13,3 +13,5 @@ export { Interpreter } from './src/query-language/interpreter/index.mjs';
 export { NaturalLanguageExecutor } from './src/query-language/interpreter/nl.mjs';
 export { StorageAdapter } from './src/storage-adapter/storage-adapter.mjs';
 export { InMemoryStorageAdapter } from './src/storage-adapter/in-memory-storage-adapter.mjs';
+export * from './src/query-language/types/index.mjs';
+export * from './src/storage-adapter/storage-adapter-types.mjs';

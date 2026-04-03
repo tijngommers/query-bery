@@ -11,6 +11,7 @@ import {
     SelectStatement,
     ValueExpressionNode,
 } from '../../types/index.mjs';
+import { SelectResult, SelectFromItem } from '../../types/execution-results.mjs';
 import { JoinExecutor } from '../join/index.mjs';
 import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 import {
@@ -39,7 +40,7 @@ export class SelectExecutor {
      * Validates and executes a SELECT statement.
      * Returns a plain result when running in-memory, or a Promise when a storage adapter is used.
      */
-    executeSelect(node: SelectStatement, inputRows: Record<string, any>[] = []): any {
+    executeSelect(node: SelectStatement, inputRows: Record<string, any>[] = []): SelectResult | Promise<SelectResult> {
         this.validateSelect(node);
         const optimization = this.optimizeSelect(node);
 
@@ -54,7 +55,7 @@ export class SelectExecutor {
         const canUseStorageAdapter = this.storageAdapter !== undefined && inputRows.length === 0 && !hasJoinNodes(optimization.optimizedFrom);
         const singleTableName = getSingleTableName(optimization.optimizedFrom);
 
-        const result: any = {
+        const result: SelectResult = {
             type: 'SelectResult',
             columns,
             distinct,
@@ -117,10 +118,10 @@ export class SelectExecutor {
         return where;
     }
 
-    private processFromClause(fromNodes: FromNode[]): any[] {
+    private processFromClause(fromNodes: FromNode[]): SelectFromItem[] {
         return fromNodes.map(node => {
             if (node.type === 'Join') {
-                return this.joinExecutor.executeJoin(node as JoinNode);
+                return this.joinExecutor.executeJoin(node as JoinNode) as SelectFromItem;
             }
             return node;
         });

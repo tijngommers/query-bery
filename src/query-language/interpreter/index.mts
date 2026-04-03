@@ -9,6 +9,7 @@ import { DeleteExecutor } from '../executors/delete/index.mjs';
 import { InsertExecutor } from '../executors/insert/index.mjs';
 import { UpdateExecutor } from '../executors/update/index.mjs';
 import { StorageAdapter } from '../../storage-adapter/storage-adapter.mjs';
+import { QueryExecutionResult } from '../types/execution-results.mjs';
 
 /**
  * Parses a query string and dispatches execution to the correct statement executor.
@@ -42,7 +43,7 @@ export class Interpreter {
      * @returns Statement result object or a Promise-backed result for adapter operations.
      * @throws {Error} When the AST node type is unsupported.
      */
-    execute(): any {
+    execute(): QueryExecutionResult | Promise<QueryExecutionResult> {
         switch (this.ast.type) {
             case 'SelectStatement':
                 return this.executeSelectStatement(this.ast as SelectStatement);
@@ -62,7 +63,7 @@ export class Interpreter {
      * @param ast Parsed SELECT AST node.
      * @returns SELECT execution result.
      */
-    private executeSelectStatement(ast: SelectStatement): any {
+    private executeSelectStatement(ast: SelectStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.selectExecutor.executeSelect(ast);
     }
 
@@ -71,7 +72,7 @@ export class Interpreter {
      * @param ast Parsed DELETE AST node.
      * @returns DELETE execution result.
      */
-    private executeDeleteStatement(ast: DeleteStatement): any {
+    private executeDeleteStatement(ast: DeleteStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.deleteExecutor.executeDelete(ast);
     }
 
@@ -80,7 +81,7 @@ export class Interpreter {
      * @param ast Parsed INSERT AST node.
      * @returns INSERT execution result.
      */
-    private executeInsertStatement(ast: InsertStatement): any {
+    private executeInsertStatement(ast: InsertStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.insertExecutor.executeInsert(ast);
     }
 
@@ -89,7 +90,7 @@ export class Interpreter {
      * @param ast Parsed UPDATE AST node.
      * @returns UPDATE execution result.
      */
-    private executeUpdateStatement(ast: UpdateStatement): any {
+    private executeUpdateStatement(ast: UpdateStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.updateExecutor.executeUpdate(ast);
     }
 
