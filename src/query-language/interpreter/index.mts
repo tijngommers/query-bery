@@ -8,7 +8,7 @@ import { SelectExecutor } from '../executors/select/index.mjs';
 import { DeleteExecutor } from '../executors/delete/index.mjs';
 import { InsertExecutor } from '../executors/insert/index.mjs';
 import { UpdateExecutor } from '../executors/update/index.mjs';
-import { StorageAdapter } from '../../storage-adapter/storage-adapter.mts';
+import { StorageAdapter } from '../../storage-adapter/storage-adapter.mjs';
 
 /**
  * Parses a query string and dispatches execution to the correct statement executor.

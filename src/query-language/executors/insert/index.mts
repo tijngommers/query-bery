@@ -2,7 +2,7 @@
 //@date 2026-04-02
 
 import { InsertStatement, ValueNode } from '../../types/index.mjs';
-import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 
 /**
  * Executes INSERT statements and materializes inserted rows.

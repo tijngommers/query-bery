@@ -1,7 +1,7 @@
 // @author Tijn Gommers
 // @date 2026-03-30
 
-import { Token, TokenType } from '../types/index.mts';
+import { Token, TokenType } from '../types/index.mjs';
 
 /**
  * Converts query-language input text into a stream of tokens.

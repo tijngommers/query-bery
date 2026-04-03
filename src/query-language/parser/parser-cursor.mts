@@ -1,8 +1,8 @@
 // @author Tijn Gommers
 // @date 2026-03-30
 
-import { Lexer } from '../lexer/index.mts';
-import { Token, TokenType } from '../types/index.mts';
+import { Lexer } from '../lexer/index.mjs';
+import { Token, TokenType } from '../types/index.mjs';
 
 /**
  * Maintains parser position and provides token navigation helpers.

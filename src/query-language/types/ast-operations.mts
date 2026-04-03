@@ -8,7 +8,7 @@ import {
     SelectColumn,
     TableNode,
     ValueNode,
-} from './ast-nodes.mts';
+} from './ast-nodes.mjs';
 
 /**
  * ORDER BY clause representation.

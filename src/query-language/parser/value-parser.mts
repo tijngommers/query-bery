@@ -6,8 +6,8 @@ import {
     IdentifierNode,
     LiteralNode,
     TokenType,
-} from '../types/index.mts';
-import { ParserCursor } from './parser-cursor.mts';
+} from '../types/index.mjs';
+import { ParserCursor } from './parser-cursor.mjs';
 
 /**
  * Parses identifiers, literals, and comparison operators from parser tokens.

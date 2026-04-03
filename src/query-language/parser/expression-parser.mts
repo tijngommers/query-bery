@@ -14,9 +14,9 @@ import {
     ValueExpressionNode,
     ValueNode,
     WildcardNode,
-} from '../types/index.mts';
-import { ParserCursor } from './parser-cursor.mts';
-import { ValueParser } from './value-parser.mts';
+} from '../types/index.mjs';
+import { ParserCursor } from './parser-cursor.mjs';
+import { ValueParser } from './value-parser.mjs';
 
 /**
  * Parses boolean and arithmetic expressions for WHERE and HAVING clauses.

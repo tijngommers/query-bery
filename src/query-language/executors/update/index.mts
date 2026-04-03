@@ -2,8 +2,8 @@
 //@date 2026-04-02
 
 import { ExpressionNode, IdentifierNode, UpdateStatement, ValueNode } from '../../types/index.mjs';
-import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
-import { compileStorageWherePredicate } from '../storage-adapter-helpers.mts';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
+import { compileStorageWherePredicate } from '../storage-adapter-helpers.mjs';
 
 /**
  * Executes UPDATE statements with optional storage-adapter pushdown.

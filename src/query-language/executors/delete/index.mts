@@ -2,8 +2,8 @@
 //@date 2026-04-02
 
 import { DeleteStatement, ExpressionNode } from '../../types/index.mjs';
-import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
-import { compileStorageWherePredicate, getSingleTableName } from '../storage-adapter-helpers.mts';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
+import { compileStorageWherePredicate, getSingleTableName } from '../storage-adapter-helpers.mjs';
 
 /**
  * Executes DELETE statements with optional storage-adapter support.

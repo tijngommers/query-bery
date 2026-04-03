@@ -19,11 +19,11 @@ import {
     ValueNode,
     WildcardNode,
     UpdateStatement
-} from '../types/index.mts';
-import { Lexer } from '../lexer/index.mts';
-import { ParserCursor } from './parser-cursor.mts';
-import { ValueParser } from './value-parser.mts';
-import { ExpressionParser } from './expression-parser.mts';
+} from '../types/index.mjs';
+import { Lexer } from '../lexer/index.mjs';
+import { ParserCursor } from './parser-cursor.mjs';
+import { ValueParser } from './value-parser.mjs';
+import { ExpressionParser } from './expression-parser.mjs';
 
 /**
  * Parses token streams into query-language AST statements.

@@ -3,7 +3,7 @@
 
 import OpenAI from 'openai';
 import { Interpreter } from './index.mjs';
-import { StorageAdapter } from '../../storage-adapter/storage-adapter.mts';
+import { StorageAdapter } from '../../storage-adapter/storage-adapter.mjs';
 
 interface OpenAIClientLike {
     chat: {

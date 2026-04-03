@@ -12,14 +12,14 @@ import {
     ValueExpressionNode,
 } from '../../types/index.mjs';
 import { JoinExecutor } from '../join/index.mjs';
-import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mts';
+import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 import {
     buildSelectProjection,
     compileStorageWherePredicate,
     getSingleTableName,
     hasJoinNodes,
-} from '../storage-adapter-helpers.mts';
-import { SelectOptimizationResult, SelectOptimizer } from './select-optimizer.mts';
+} from '../storage-adapter-helpers.mjs';
+import { SelectOptimizationResult, SelectOptimizer } from './select-optimizer.mjs';
 
 /**
  * Executes SELECT statements with optional storage-adapter pushdown and aggregate handling.

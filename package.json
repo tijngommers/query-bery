@@ -1,11 +1,31 @@
 {
   "name": "querylib",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Lightweight SQL-like query engine with optional natural-language execution",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
+    "build": "tsup index.mts --format esm --dts --out-dir dist --clean",
     "test": "vitest",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -14,13 +34,14 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/tijngommers/querylib/issues"
   },
   "homepage": "https://github.com/tijngommers/querylib#readme",
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
     "@vitest/coverage-v8": "^4.1.0",
     "vitest": "^4.1.0"
   },

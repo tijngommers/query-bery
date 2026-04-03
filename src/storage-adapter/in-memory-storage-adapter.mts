@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 //@date 2026-04-02
 
-import { StorageAdapter } from './storage-adapter.mts';
+import { StorageAdapter } from './storage-adapter.mjs';
 
 type Row = Record<string, any>;
 type TableStore = Map<string, Row[]>;
