@@ -4,6 +4,26 @@
 import OpenAI from 'openai';
 import { Interpreter } from './index.mjs';
 import { StorageAdapter } from '../../storage-adapter/storage-adapter.mjs';
+import { Lexer } from '../lexer/index.mjs';
+import { Parser } from '../parser/index.mjs';
+
+type QueryStatementType = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
+
+export interface NaturalLanguagePromptContext {
+    model: string;
+    schemaContext?: string;
+    allowedStatements: readonly QueryStatementType[];
+}
+
+export interface NaturalLanguagePromptOutput {
+    systemPrompt: string;
+    userPrompt: string;
+}
+
+export type NaturalLanguagePromptBuilder = (
+    nlQuery: string,
+    context: NaturalLanguagePromptContext,
+) => NaturalLanguagePromptOutput;
 
 interface OpenAIClientLike {
     chat: {
@@ -22,6 +42,11 @@ export interface NaturalLanguageExecutorOptions {
     model?: string;
     client?: OpenAIClientLike;
     storageAdapter?: StorageAdapter;
+    schemaContext?: string;
+    allowedStatements?: QueryStatementType[];
+    systemPrompt?: string;
+    promptBuilder?: NaturalLanguagePromptBuilder;
+    validateSql?: (sql: string) => void;
 }
 
 /**
@@ -32,6 +57,11 @@ export class NaturalLanguageExecutor {
     private model: string;
     private client: OpenAIClientLike;
     private storageAdapter?: StorageAdapter;
+    private schemaContext?: string;
+    private allowedStatements: QueryStatementType[];
+    private systemPrompt: string;
+    private promptBuilder?: NaturalLanguagePromptBuilder;
+    private validateSql?: (sql: string) => void;
 
     /**
      * Creates a natural-language executor.
@@ -47,6 +77,11 @@ export class NaturalLanguageExecutor {
 
         this.client = options.client ?? new OpenAI({ apiKey });
         this.storageAdapter = options.storageAdapter;
+        this.schemaContext = options.schemaContext;
+        this.allowedStatements = options.allowedStatements ?? ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+        this.systemPrompt = options.systemPrompt ?? 'Translate the user request into one SQL query for this query language. Return only the SQL query text, with no markdown and no explanation.';
+        this.promptBuilder = options.promptBuilder;
+        this.validateSql = options.validateSql;
     }
 
     /**
@@ -57,7 +92,9 @@ export class NaturalLanguageExecutor {
      */
     async executeNaturalLanguageQuery(nlQuery: string): Promise<any> {
         const sqlQuery = await this.convertNaturalLanguageToSql(nlQuery);
-        const interpreter = new Interpreter(sqlQuery, this.storageAdapter);
+        const cleanedSql = this.cleanSql(sqlQuery);
+        this.validateGeneratedSql(cleanedSql);
+        const interpreter = new Interpreter(cleanedSql, this.storageAdapter);
         return await interpreter.execute();
     }
 
@@ -68,17 +105,18 @@ export class NaturalLanguageExecutor {
      * @throws {Error} When the response does not contain usable SQL text.
      */
     private async convertNaturalLanguageToSql(nlQuery: string): Promise<string> {
+        const prompt = this.buildPrompt(nlQuery);
         const payload = await this.client.chat.completions.create({
             model: this.model,
             temperature: 0,
             messages: [
                 {
                     role: 'system',
-                    content: 'Translate the user request into one SQL query for this query language. Return only the SQL query text, with no markdown and no explanation.',
+                    content: prompt.systemPrompt,
                 },
                 {
                     role: 'user',
-                    content: nlQuery,
+                    content: prompt.userPrompt,
                 },
             ],
         });
@@ -88,7 +126,30 @@ export class NaturalLanguageExecutor {
             throw new Error('OpenAI response did not contain SQL text');
         }
 
-        return this.cleanSql(content);
+        return content;
+    }
+
+    private buildPrompt(nlQuery: string): NaturalLanguagePromptOutput {
+        if (this.promptBuilder) {
+            return this.promptBuilder(nlQuery, {
+                model: this.model,
+                schemaContext: this.schemaContext,
+                allowedStatements: this.allowedStatements,
+            });
+        }
+
+        const promptParts = [this.systemPrompt];
+
+        if (this.schemaContext) {
+            promptParts.push(`Schema context:\n${this.schemaContext.trim()}`);
+        }
+
+        promptParts.push(`Allowed statements: ${this.allowedStatements.join(', ')}`);
+
+        return {
+            systemPrompt: promptParts.join('\n\n'),
+            userPrompt: nlQuery,
+        };
     }
 
     /**
@@ -98,9 +159,31 @@ export class NaturalLanguageExecutor {
      */
     private cleanSql(content: string): string {
         const trimmedContent = content.trim();
-        const fencedMatch = trimmedContent.match(/^```(?:sql)?\s*([\s\S]*?)\s*```$/i);
+        const fencedMatch = trimmedContent.match(/```(?:sql)?\s*([\s\S]*?)\s*```/i);
         const rawSql = fencedMatch ? fencedMatch[1] : trimmedContent;
         return rawSql.replace(/^sql\s*:\s*/i, '').replace(/;\s*$/, '').trim();
+    }
+
+    private validateGeneratedSql(sql: string): void {
+        if (typeof this.validateSql === 'function') {
+            this.validateSql(sql);
+        }
+
+        if (sql.includes(';')) {
+            throw new Error('OpenAI response must contain exactly one SQL statement');
+        }
+
+        const statementType = sql.split(/\s+/, 1)[0]?.toUpperCase() as QueryStatementType | undefined;
+
+        if (!statementType || !this.allowedStatements.includes(statementType)) {
+            throw new Error(`OpenAI response used an unsupported statement type: ${statementType ?? 'unknown'}`);
+        }
+
+        try {
+            new Parser(new Lexer(sql)).parse();
+        } catch (error) {
+            throw new Error(`OpenAI response did not produce a valid query: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 }
         
