@@ -11,6 +11,15 @@ export type MaybePromise<T> = T | Promise<T>;
 
 /**
  * SELECT execution result.
+ * @interface SelectResult
+ * @property {'SelectResult'} type Discriminator for select results.
+ * @property {SelectColumn[]} columns Selected columns.
+ * @property {boolean} distinct Whether DISTINCT is enabled.
+ * @property {SelectFromItem[]} from Normalized FROM items.
+ * @property {ExpressionNode} [where] WHERE predicate.
+ * @property {OrderByStatement} [orderBy] ORDER BY clause.
+ * @property {LimitOffsetNode} [limit] LIMIT/OFFSET clause.
+ * @property {Record<string, any>[]} [rows] Result rows, if available.
  */
 export interface SelectResult {
     type: 'SelectResult';
@@ -25,6 +34,9 @@ export interface SelectResult {
 
 /**
  * Normalized FROM item returned from SELECT execution.
+ * Can be a simple table reference or a JOIN structure, depending on the original AST.
+ * This allows execution results to provide a consistent structure regardless of the original query complexity.
+ * @typedef {FromNode | { type: 'Join'; table: JoinNode['table']; joinType: JoinNode['joinType']; on: JoinNode['on'] }} SelectFromItem
  */
 export type SelectFromItem =
     | FromNode
@@ -37,6 +49,11 @@ export type SelectFromItem =
 
 /**
  * DELETE execution result.
+ * @interface DeleteResult
+ * @property {'DeleteResult'} type Discriminator for delete results.
+ * @property {TableNode[]} from Deleted tables.
+ * @property {ExpressionNode} [where] WHERE predicate used for deletion.
+ * @property {number} [deletedCount] Number of rows deleted, if available.
  */
 export interface DeleteResult {
     type: 'DeleteResult';
@@ -47,6 +64,13 @@ export interface DeleteResult {
 
 /**
  * INSERT execution result.
+ * @interface InsertResult
+ * @property {'InsertResult'} type Discriminator for insert results.
+ * @property {TableNode} table Target table.
+ * @property {IdentifierNode[]} columns Insert columns.
+ * @property {ValueNode[][]} values Inserted value tuples.
+ * @property {number} insertedCount Number of rows inserted.
+ * @property {Record<string, any>[]} rows Inserted rows, if available.
  */
 export interface InsertResult {
     type: 'InsertResult';
@@ -59,6 +83,13 @@ export interface InsertResult {
 
 /**
  * UPDATE execution result.
+ * @interface UpdateResult
+ * @property {'UpdateResult'} type Discriminator for update results.
+ * @property {TableNode} table Target table.
+ * @property {{ column: IdentifierNode; value: ValueNode }[]} set SET assignments.
+ * @property {ExpressionNode} [where] WHERE predicate used for update.
+ * @property {number} [updatedCount] Number of rows updated, if available.
+ * @property {Record<string, any>[]} [rows] Updated rows, if available.
  */
 export interface UpdateResult {
     type: 'UpdateResult';
@@ -71,5 +102,6 @@ export interface UpdateResult {
 
 /**
  * Root execution result union.
+ * @typedef {SelectResult | DeleteResult | InsertResult | UpdateResult} QueryExecutionResult
  */
 export type QueryExecutionResult = SelectResult | DeleteResult | InsertResult | UpdateResult;

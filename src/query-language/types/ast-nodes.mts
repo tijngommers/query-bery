@@ -37,7 +37,7 @@ export interface LiteralNode {
 }
 
 /**
- * Wildcard token used in SELECT and aggregate arguments.
+ * Wildcard token (*) used in SELECT and aggregate arguments.
  * @interface WildcardNode
  * @property {'Wildcard'} type Discriminator for wildcard nodes.
  * @property {'*'} value Wildcard symbol.
@@ -52,11 +52,13 @@ export interface WildcardNode {
  * @typedef {'=' | '>' | '<' | '>=' | '<=' | '!='} ComparisonOperator
  */
 export type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!=';
+
 /**
  * Supported arithmetic operators.
  * @typedef {'+' | '-' | '*' | '/'} ArithmeticOperator
  */
 export type ArithmeticOperator = '+' | '-' | '*' | '/';
+
 /**
  * Supported aggregate function names.
  * @typedef {'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX'} AggregateFunctionName
@@ -102,6 +104,7 @@ export interface ArithmeticExpressionNode {
  * @typedef {IdentifierNode | LiteralNode | ArithmeticExpressionNode | AggregateFunctionNode} ValueExpressionNode
  */
 export type ValueExpressionNode = IdentifierNode | LiteralNode | ArithmeticExpressionNode | AggregateFunctionNode;
+
 /**
  * Value types allowed in insert/update and IN lists.
  * @typedef {IdentifierNode | LiteralNode} ValueNode

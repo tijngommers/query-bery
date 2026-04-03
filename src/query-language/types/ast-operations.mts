@@ -15,7 +15,7 @@ import {
  * @interface OrderByStatement
  * @property {'OrderByStatement'} type Discriminator for order-by nodes.
  * @property {IdentifierNode[]} columns Ordered columns.
- * @property {'ASC' | 'DESC'} [direction] Sort direction.
+ * @property {'ASC' | 'DESC'} [direction] Sort direction, ascending by default.
  */
 export interface OrderByStatement {
     type: 'OrderByStatement';
