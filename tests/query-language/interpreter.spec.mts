@@ -167,11 +167,10 @@ describe('Interpreter', () => {
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [
-                    { type: 'Identifier', name: 'AGE' },
-                    { type: 'Identifier', name: 'CITY' }
+                items: [
+                    { column: { type: 'Identifier', name: 'AGE' }, direction: 'DESC' },
+                    { column: { type: 'Identifier', name: 'CITY' }, direction: 'ASC' }
                 ],
-                direction: 'DESC'
             },
             limit: undefined
         });
@@ -453,7 +452,9 @@ describe('Interpreter', () => {
         expect(result.from[1].type).toBe('Join');
         expect(result.where).toBeDefined();
         expect(result.orderBy).toBeDefined();
-        expect(result.orderBy?.direction).toBe('DESC');
+        expect(result.orderBy?.items).toEqual([
+            { column: { type: 'Identifier', name: 'ORDERS.CREATED_AT' }, direction: 'DESC' }
+        ]);
     });
 
     it('should execute SELECT DISTINCT', () => {
@@ -514,7 +515,9 @@ describe('Interpreter', () => {
 
         expect(result.type).toBe('SelectResult');
         expect(result.distinct).toBe(true);
-        expect(result.orderBy?.direction).toBe('DESC');
+        expect(result.orderBy?.items).toEqual([
+            { column: { type: 'Identifier', name: 'NAME' }, direction: 'DESC' }
+        ]);
     });
 
     it('should execute SELECT DISTINCT with LIMIT', () => {

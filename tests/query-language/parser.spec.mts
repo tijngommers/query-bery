@@ -664,11 +664,10 @@ describe("Parser", () => {
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [
-                    { type: 'Identifier', name: 'AGE' },
-                    { type: 'Identifier', name: 'CITY' }
+                items: [
+                    { column: { type: 'Identifier', name: 'AGE' }, direction: 'ASC' },
+                    { column: { type: 'Identifier', name: 'CITY' }, direction: 'DESC' }
                 ],
-                direction: 'DESC'
             }
         });
     });
@@ -686,11 +685,10 @@ describe("Parser", () => {
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [
-                    { type: 'Identifier', name: 'AGE' },
-                    { type: 'Identifier', name: 'CITY' }
+                items: [
+                    { column: { type: 'Identifier', name: 'AGE' }, direction: 'ASC' },
+                    { column: { type: 'Identifier', name: 'CITY' }, direction: 'ASC' }
                 ],
-                direction: 'ASC'
             }
         });
     });
@@ -708,11 +706,10 @@ describe("Parser", () => {
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [
-                    { type: 'Identifier', name: 'AGE' },
-                    { type: 'Identifier', name: 'CITY' }
+                items: [
+                    { column: { type: 'Identifier', name: 'AGE' }, direction: 'ASC' },
+                    { column: { type: 'Identifier', name: 'CITY' }, direction: 'ASC' }
                 ],
-                direction: 'ASC'
             }
         });
     });
@@ -730,11 +727,10 @@ describe("Parser", () => {
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [
-                    { type: 'Identifier', name: 'AGE' },
-                    { type: 'Identifier', name: 'CITY' }
+                items: [
+                    { column: { type: 'Identifier', name: 'AGE' }, direction: 'ASC' },
+                    { column: { type: 'Identifier', name: 'CITY' }, direction: 'ASC' }
                 ],
-                direction: 'ASC'
             }
         });
     });
@@ -757,11 +753,10 @@ describe("Parser", () => {
             },
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [
-                    { type: 'Identifier', name: 'AGE' },
-                    { type: 'Identifier', name: 'CITY' }
+                items: [
+                    { column: { type: 'Identifier', name: 'AGE' }, direction: 'DESC' },
+                    { column: { type: 'Identifier', name: 'CITY' }, direction: 'ASC' }
                 ],
-                direction: 'DESC'
             }
         });
     });
@@ -1153,7 +1148,9 @@ describe("Parser", () => {
 
         expect(ast.distinct).toBe(true);
         expect(ast.orderBy).toBeDefined();
-        expect(ast.orderBy?.direction).toBe('ASC');
+        expect(ast.orderBy?.items).toEqual([
+            { column: { type: 'Identifier', name: 'NAME' }, direction: 'ASC' }
+        ]);
     });
 
     it("should parse SELECT DISTINCT with LIMIT", () => {

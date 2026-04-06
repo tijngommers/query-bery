@@ -12,15 +12,24 @@ import {
 
 /**
  * ORDER BY clause representation.
+ * @interface OrderByItem
+ * @property {IdentifierNode} column Ordered column.
+ * @property {'ASC' | 'DESC'} [direction] Sort direction for this column, ascending by default.
+ */
+export interface OrderByItem {
+    column: IdentifierNode;
+    direction?: 'ASC' | 'DESC';
+}
+
+/**
+ * ORDER BY clause representation.
  * @interface OrderByStatement
  * @property {'OrderByStatement'} type Discriminator for order-by nodes.
- * @property {IdentifierNode[]} columns Ordered columns.
- * @property {'ASC' | 'DESC'} [direction] Sort direction, ascending by default.
+ * @property {OrderByItem[]} items Ordered columns and their directions.
  */
 export interface OrderByStatement {
     type: 'OrderByStatement';
-    columns: IdentifierNode[];
-    direction?: 'ASC' | 'DESC';
+    items: OrderByItem[];
 }
 
 /**

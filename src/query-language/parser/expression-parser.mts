@@ -2,7 +2,6 @@
 // @date 2026-03-30
 
 import {
-    AggregateFunctionName,
     AggregateFunctionNode,
     ArithmeticExpressionNode,
     ComparisonNode,
@@ -16,6 +15,7 @@ import {
     WildcardNode,
 } from '../types/index.mjs';
 import { ParserCursor } from './parser-cursor.mjs';
+import { isAggregateFunctionToken, parseAggregateFunctionName } from './parser-helpers.mjs';
 import { ValueParser } from './value-parser.mjs';
 
 /**
@@ -38,7 +38,7 @@ export class ExpressionParser {
 
     /**
      * Parses a WHERE expression.
-     * @returns Parsed expression AST.
+     * @returns {ExpressionNode} Parsed expression AST.
      * @throws {Error} When expression syntax is invalid.
      */
     parseWhereExpression(): ExpressionNode {
@@ -47,7 +47,7 @@ export class ExpressionParser {
 
     /**
      * Parses a HAVING expression with aggregate-function support.
-     * @returns Parsed expression AST.
+     * @returns {ExpressionNode} Parsed expression AST.
      * @throws {Error} When expression syntax is invalid.
      */
     parseHavingExpression(): ExpressionNode {
@@ -56,8 +56,11 @@ export class ExpressionParser {
 
     /**
      * Parses OR-precedence expressions.
+     * This is the expression entry point because OR has the lowest boolean precedence;
+     * starting here ensures tighter operators (AND, NOT, comparisons, arithmetic) are parsed first.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Parsed expression AST.
+     * @returns {ExpressionNode} Parsed expression AST.
+     * @example Parses "a = 5 OR b > 10 AND c IS NULL" as an OR expression with left child "a = 5" and right child "b > 10 AND c IS NULL"
      */
     private parseOrExpression(allowAggregateFunctions: boolean): ExpressionNode {
         let left = this.parseAndExpression(allowAggregateFunctions);
@@ -74,7 +77,7 @@ export class ExpressionParser {
     /**
      * Parses AND-precedence expressions.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Parsed expression AST.
+     * @returns {ExpressionNode} Parsed expression AST.
      */
     private parseAndExpression(allowAggregateFunctions: boolean): ExpressionNode {
         let left = this.parseUnaryExpression(allowAggregateFunctions);
@@ -91,7 +94,7 @@ export class ExpressionParser {
     /**
      * Parses unary expressions such as NOT or parenthesized expressions.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Parsed expression AST.
+     * @returns {ExpressionNode} Parsed expression AST.
      */
     private parseUnaryExpression(allowAggregateFunctions: boolean): ExpressionNode {
         if (this.cursor.currentType() === TokenType.NOT) {
@@ -117,13 +120,14 @@ export class ExpressionParser {
     /**
      * Parses comparison, IN, and IS NULL expressions.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Comparison-compatible expression node.
+     * @returns {ComparisonNode | NullCheckExpressionNode | InExpressionNode} Comparison-compatible expression node.
      * @throws {Error} When operator or operand syntax is invalid.
      */
     private parseComparisonExpression(allowAggregateFunctions: boolean): ComparisonNode | NullCheckExpressionNode | InExpressionNode {
         const left = this.parseAdditiveExpression(allowAggregateFunctions);
 
         if (this.cursor.currentType() === TokenType.IN) {
+            // example: "user.id IN (1, 2, 3)"
             if (left.type !== 'Identifier') {
                 throw new Error('Expected identifier before IN operator');
             }
@@ -148,6 +152,7 @@ export class ExpressionParser {
         }
 
         if (this.cursor.currentType() === TokenType.IS) {
+            // example: "user.name IS NOT NULL"
             if (left.type !== 'Identifier') {
                 throw new Error('Expected identifier before IS operator');
             }
@@ -190,7 +195,7 @@ export class ExpressionParser {
     /**
      * Parses additive arithmetic expressions.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Parsed value expression.
+     * @returns {ValueExpressionNode} Parsed value expression.
      */
     private parseAdditiveExpression(allowAggregateFunctions: boolean): ValueExpressionNode {
         let expression = this.parseMultiplicativeExpression(allowAggregateFunctions);
@@ -208,7 +213,7 @@ export class ExpressionParser {
     /**
      * Parses multiplicative arithmetic expressions.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Parsed value expression.
+     * @returns {ValueExpressionNode} Parsed value expression.
      */
     private parseMultiplicativeExpression(allowAggregateFunctions: boolean): ValueExpressionNode {
         let expression = this.parseValuePrimaryExpression(allowAggregateFunctions);
@@ -226,7 +231,7 @@ export class ExpressionParser {
     /**
      * Parses primary value expressions.
      * @param allowAggregateFunctions Whether aggregate functions are allowed in value expressions.
-     * @returns Parsed value expression.
+     * @returns {ValueExpressionNode} Parsed value expression.
      */
     private parseValuePrimaryExpression(allowAggregateFunctions: boolean): ValueExpressionNode {
         if (this.cursor.currentType() === TokenType.LEFT_PAREN) {
@@ -236,7 +241,7 @@ export class ExpressionParser {
             return expression;
         }
 
-        if (allowAggregateFunctions && this.isAggregateFunctionToken(this.cursor.currentType())) {
+        if (allowAggregateFunctions && isAggregateFunctionToken(this.cursor.currentType())) {
             return this.parseAggregateFunctionValue();
         }
 
@@ -245,11 +250,11 @@ export class ExpressionParser {
 
     /**
      * Parses aggregate function calls used in HAVING expressions.
-     * @returns Aggregate-function AST node.
+     * @returns {AggregateFunctionNode} Aggregate-function AST node.
      * @throws {Error} When aggregate syntax is invalid.
      */
     private parseAggregateFunctionValue(): AggregateFunctionNode {
-        const functionName = this.parseAggregateFunctionName();
+        const functionName = parseAggregateFunctionName(this.cursor, 'HAVING clause');
         this.cursor.eat(TokenType.LEFT_PAREN);
 
         let argument: IdentifierNode | WildcardNode;
@@ -271,55 +276,17 @@ export class ExpressionParser {
     }
 
     /**
-     * Parses aggregate function names.
-     * @returns Aggregate function name.
-     * @throws {Error} When the token is not a supported aggregate function.
-     */
-    private parseAggregateFunctionName(): AggregateFunctionName {
-        switch (this.cursor.currentType()) {
-            case TokenType.COUNT:
-                this.cursor.eat(TokenType.COUNT);
-                return 'COUNT';
-            case TokenType.SUM:
-                this.cursor.eat(TokenType.SUM);
-                return 'SUM';
-            case TokenType.AVG:
-                this.cursor.eat(TokenType.AVG);
-                return 'AVG';
-            case TokenType.MIN:
-                this.cursor.eat(TokenType.MIN);
-                return 'MIN';
-            case TokenType.MAX:
-                this.cursor.eat(TokenType.MAX);
-                return 'MAX';
-            default:
-                throw new Error(`Unsupported function in HAVING clause: ${this.cursor.currentValue()}`);
-        }
-    }
-
-    /**
-     * Checks whether a token is an aggregate function token.
-     * @param tokenType Token type to inspect.
-     * @returns True when token type is an aggregate function keyword.
-     */
-    private isAggregateFunctionToken(tokenType: TokenType): boolean {
-        return (
-            tokenType === TokenType.COUNT ||
-            tokenType === TokenType.SUM ||
-            tokenType === TokenType.AVG ||
-            tokenType === TokenType.MIN ||
-            tokenType === TokenType.MAX
-        );
-    }
-
-    /**
      * Builds a logical expression node.
      * @param operator Logical operator.
      * @param left Left operand.
      * @param right Right operand.
-     * @returns Logical expression node.
+     * @returns {ExpressionNode} Logical expression node.
      */
-    private buildLogicalExpression(operator: 'AND' | 'OR', left: ExpressionNode, right: ExpressionNode): ExpressionNode {
+    private buildLogicalExpression(
+        operator: 'AND' | 'OR', 
+        left: ExpressionNode, 
+        right: ExpressionNode
+    ): ExpressionNode {
         return {
             type: 'LogicalExpression',
             operator,
@@ -333,7 +300,7 @@ export class ExpressionParser {
      * @param left Left arithmetic operand.
      * @param operator Arithmetic operator.
      * @param right Right arithmetic operand.
-     * @returns Arithmetic expression node.
+     * @returns {ArithmeticExpressionNode} Arithmetic expression node.
      */
     private buildArithmeticExpression(
         left: ValueExpressionNode,
@@ -351,7 +318,7 @@ export class ExpressionParser {
     /**
      * Checks whether a token is a comparison operator token.
      * @param tokenType Token type to inspect.
-     * @returns True when token is a comparison operator.
+     * @returns {boolean} True when token is a comparison operator.
      */
     private isComparisonOperator(tokenType: TokenType): boolean {
         return (

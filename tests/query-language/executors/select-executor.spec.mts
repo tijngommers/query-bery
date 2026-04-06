@@ -61,8 +61,7 @@ describe('SelectExecutor', () => {
             where: undefined,
             orderBy: {
                 type: 'OrderByStatement',
-                columns: [{ type: 'Identifier', name: 'NAME' }],
-                direction: 'ASC'
+                items: [{ column: { type: 'Identifier', name: 'NAME' }, direction: 'ASC' }]
             },
             limit: undefined
         };
@@ -70,7 +69,9 @@ describe('SelectExecutor', () => {
         const result = selectExecutor.executeSelect(selectNode);
 
         expect(result.orderBy).toBeDefined();
-        expect(result.orderBy?.direction).toBe('ASC');
+        expect(result.orderBy?.items).toEqual([
+            { column: { type: 'Identifier', name: 'NAME' }, direction: 'ASC' }
+        ]);
     });
 
     it('should execute SELECT with LIMIT clause', () => {

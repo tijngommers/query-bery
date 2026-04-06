@@ -23,7 +23,7 @@ export class ParserCursor {
 
     /**
      * Gets the current token type.
-     * @returns Current token type.
+     * @returns {TokenType} Current token type.
      */
     currentType(): TokenType {
         return this.currentToken.type;
@@ -31,7 +31,7 @@ export class ParserCursor {
 
     /**
      * Gets the current token value.
-     * @returns Current token value.
+     * @returns {string} Current token value.
      */
     currentValue(): string {
         return this.currentToken.value;
@@ -39,7 +39,7 @@ export class ParserCursor {
 
     /**
      * Gets the full current token object.
-     * @returns Current token.
+     * @returns {Token} Current token.
      */
     current(): Token {
         return this.currentToken;
@@ -48,7 +48,7 @@ export class ParserCursor {
     /**
      * Consumes the current token when it matches the expected type.
      * @param tokenType Token type that must match the current token.
-     * @returns Nothing.
+     * @returns {void}
      * @throws {Error} When the current token does not match the expected type.
      */
     eat(tokenType: TokenType): void {

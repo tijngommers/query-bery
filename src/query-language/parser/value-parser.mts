@@ -26,7 +26,7 @@ export class ValueParser {
 
     /**
      * Parses a comparison operator token.
-     * @returns Comparison operator string.
+     * @returns {ComparisonOperator} Comparison operator string.
      * @throws {Error} When the current token is not a comparison operator.
      */
     parseComparisonOperator(): ComparisonOperator {
@@ -56,7 +56,7 @@ export class ValueParser {
 
     /**
      * Parses a literal or identifier value node.
-     * @returns Identifier or literal value node.
+     * @returns {IdentifierNode | LiteralNode} Identifier or literal value node.
      * @throws {Error} When the current token cannot be interpreted as a value.
      */
     parseValueNode(): IdentifierNode | LiteralNode {
@@ -100,8 +100,9 @@ export class ValueParser {
     /**
      * Parses an identifier node, including dotted paths.
      * @param errorContext Context label used in parse errors.
-     * @returns Identifier node.
+     * @returns {IdentifierNode} Identifier node.
      * @throws {Error} When identifier syntax is invalid.
+     * @example Parses "user.name" as an identifier node with name "user.name"
      */
     parseIdentifierNode(errorContext: string = 'WHERE clause'): IdentifierNode {
         if (this.cursor.currentType() !== TokenType.IDENTIFIER) {
