@@ -21,7 +21,7 @@ export class Lexer {
 
     /**
      * Reads the next token from the current cursor position.
-     * @returns The next token in the input stream.
+     * @returns {Token} The next token in the input stream.
      * @throws {Error} When an unexpected character is encountered.
      */
     public nextToken(): Token {
@@ -55,9 +55,9 @@ export class Lexer {
 
     /**
      * Advances the cursor past contiguous whitespace.
-     * @returns Nothing.
+     * @returns {void}
      */
-    private skipWhitespace() {
+    private skipWhitespace(): void {
         while (this.cursor < this.input.length && /\s/.test(this.input[this.cursor])) {
             this.cursor++;
         }
@@ -66,7 +66,7 @@ export class Lexer {
     /**
      * Resolves an identifier value as a keyword token when applicable.
      * @param id Upper-cased identifier text.
-     * @returns Keyword token or a generic identifier token.
+     * @returns {Token} Keyword token or a generic identifier token.
      */
     private checkIdentifierOrKeyword(id: string): Token {
         switch (id) {
@@ -149,7 +149,7 @@ export class Lexer {
 
     /**
      * Reads a numeric literal token from the current cursor.
-     * @returns NUMBER token with the parsed numeric string.
+     * @returns {Token} NUMBER token with the parsed numeric string.
      */
     private readNumber(): Token {
         let num = '';
@@ -162,7 +162,7 @@ export class Lexer {
 
     /**
      * Reads an identifier or keyword token from the current cursor.
-     * @returns Identifier or keyword token.
+     * @returns {Token} Identifier or keyword token.
      */
     private readIdentifier(): Token {
         let id = '';
@@ -175,7 +175,7 @@ export class Lexer {
 
     /**
      * Reads punctuation or operator tokens from the current cursor.
-     * @returns Operator token when a known operator exists, otherwise null.
+     * @returns {Token | null} Operator token when a known operator exists, otherwise null.
      */
     private checkOperators(): Token | null {
         const twoChars = this.input.slice(this.cursor, this.cursor + 2);
@@ -233,7 +233,7 @@ export class Lexer {
 
     /**
      * Reads a single-quoted string literal token.
-     * @returns STRING token with unquoted string value.
+     * @returns {Token} STRING token with unquoted string value.
      * @throws {Error} When the string literal is unterminated.
      */
     private readString(): Token {
