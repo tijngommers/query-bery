@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Documents - SimpleDBMS Team 9</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div class="logo">DB9</div>
+        <div>
+          <h1>Documents in <span id="collectionName">Collection</span></h1>
+          <p class="lead">
+            <a href="simpledbmswebclient.html" style="color: var(--accent); text-decoration: none"
+              >← Back to Collections</a
+            >
+            |
+            <a href="dashboard.html" style="color: var(--accent); text-decoration: none">User Dashboard</a>
+          </p>
+        </div>
+      </header>
+
+      <div class="grid">
+        <div class="card">
+          <div class="collections-header">
+            <div class="meta">Documents List</div>
+            <div class="header-buttons">
+              <button id="deleteDocument" class="btn btn-ghost" style="display: none">Delete</button>
+              <button id="editDocument" class="btn btn-ghost" style="display: none">Edit</button>
+              <button id="refreshDocuments" class="btn btn-ghost">Refresh</button>
+              <button id="insertDocument" class="btn btn-primary">Insert Document</button>
+            </div>
+          </div>
+          <div id="documentsView" aria-live="polite">Loading documents...</div>
+        </div>
+
+        <aside class="card">
+          <div class="meta">Document Details</div>
+          <label for="documentView">Selected document (read-only)</label>
+          <textarea
+            id="documentView"
+            readonly
+            placeholder="Select a document to view its data"
+            class="docview"
+          ></textarea>
+
+          <div class="spacer-md"></div>
+          <div class="meta">Errors</div>
+          <div id="error">&nbsp;</div>
+        </aside>
+      </div>
+
+      <!-- Aggregate Section -->
+      <div class="card" style="margin-top: 20px">
+        <div class="meta"><h2>Data Analysis</h2></div>
+
+        <label for="groupByField">Group by field</label>
+        <input id="groupByField" type="text" placeholder="e.g., category, status, department" />
+
+        <div class="spacer"></div>
+
+        <label for="operationType">Operation</label>
+        <select
+          id="operationType"
+          style="
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #1e293b;
+            color: #ffffff;
+            font-size: 16px;
+            box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          "
+        >
+          <option value="count">Count documents</option>
+          <option value="sum">Sum</option>
+          <option value="avg">Average</option>
+          <option value="min">Minimum</option>
+          <option value="max">Maximum</option>
+        </select>
+
+        <div id="operationFieldContainer" style="display: none">
+          <div class="spacer"></div>
+          <label for="operationField">Field to analyze</label>
+          <input id="operationField" type="text" placeholder="e.g., price, age, score" />
+        </div>
+
+        <div class="spacer-md"></div>
+        <button id="runAggregate" class="btn btn-primary">Run Analysis</button>
+
+        <div class="spacer-md"></div>
+        <label for="aggregateResults">Results</label>
+        <div
+          id="aggregateResults"
+          style="
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #1e293b;
+            color: #ffffff;
+            font-size: 16px;
+            box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-height: 120px;
+            white-space: pre-wrap;
+            font-family: ui-monospace, monospace;
+            font-size: 13px;
+            line-height: 1.6;
+          "
+        >
+          No results yet. Configure and run an analysis above.
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for deleting document -->
+    <div id="deleteModalOverlay" class="modal-overlay">
+      <div class="modal-content">
+        <h2 class="modal-title">Delete Document</h2>
+        <p style="color: var(--muted); margin: 0 0 16px 0">
+          Are you sure you want to delete this document? This action cannot be undone.
+        </p>
+        <div class="actions">
+          <button id="cancelDelete" class="btn btn-ghost">Cancel</button>
+          <button id="confirmDelete" class="btn btn-primary" style="background: #ef4444">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for inserting document -->
+    <div id="insertModalOverlay" class="modal-overlay">
+      <div class="modal-content" style="max-width: 600px">
+        <h2 class="modal-title">Insert New Document</h2>
+        <label for="insertIdInput">Document name</label>
+        <input id="insertIdInput" type="text" placeholder="name of the document" />
+
+        <div class="spacer"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
+          <label style="margin: 0">Document Fields</label>
+          <button id="addFieldBtn" class="btn btn-ghost" type="button" style="padding: 8px 12px; font-size: 14px">
+            + Add Field
+          </button>
+        </div>
+
+        <div id="documentFields" style="max-height: 400px; overflow-y: auto; margin-bottom: 16px">
+          <!-- Dynamic fields will be added here -->
+        </div>
+
+        <div class="actions">
+          <button id="cancelInsert" class="btn btn-ghost">Cancel</button>
+          <button id="confirmInsert" class="btn btn-primary">Insert</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/scripts/documents.mjs" defer></script>
+  </body>
+</html>

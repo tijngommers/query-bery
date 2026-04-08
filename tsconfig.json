@@ -1,17 +1,33 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "lib": ["es2024", "DOM"],
     "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "target": "es2024",
     "strict": true,
-    "skipLibCheck": true,
-    "declaration": true,
-    "declarationMap": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "NodeNext",
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    //"exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    //"noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "allowJs": false,
+    //"checkJs": false,
+    "allowSyntheticDefaultImports": true,
+    "rootDir": "src",
+    "sourceMap": true,
+    "outDir": "build",
+    "noImplicitAny": true
   },
-  "include": [
-    "index.mts",
-    "src/**/*.mts"
-  ]
+  "ts-node": { "esm": true },
+  "exclude": ["build"],
+  "include": ["src"]
 }
