@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 //@date 2026-04-02
 
-import {
+import type {
     AggregateFunctionNode,
     ExpressionNode,
     FromNode,
@@ -11,16 +11,17 @@ import {
     SelectStatement,
     ValueExpressionNode,
 } from '../../types/index.mjs';
-import { SelectResult, SelectFromItem } from '../../types/execution-results.mjs';
+import type { SelectResult, SelectFromItem } from '../../types/execution-results.mjs';
 import { JoinExecutor } from '../join/index.mjs';
-import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
+import type { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 import {
     buildSelectProjection,
     compileStorageWherePredicate,
     getSingleTableName,
     hasJoinNodes,
 } from '../storage-adapter-helpers.mjs';
-import { SelectOptimizationResult, SelectOptimizer } from './select-optimizer.mjs';
+import type { SelectOptimizationResult } from './select-optimizer.mjs';
+import { SelectOptimizer } from './select-optimizer.mjs';
 
 /**
  * Executes SELECT statements with optional storage-adapter pushdown and aggregate handling.

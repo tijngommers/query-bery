@@ -1,14 +1,14 @@
 //@author Tijn Gommers
 //@date 2026-04-02
 
-import {
+import type {
     ExpressionNode,
     FromNode,
     SelectColumn,
     ValueExpressionNode,
     ValueNode,
 } from '../types/index.mjs';
-import { StorageOperand, StoragePredicate } from '../../storage-adapter/storage-adapter-types.mjs';
+import type { StorageOperand, StoragePredicate } from '../../storage-adapter/storage-adapter-types.mjs';
 
 /**
  * Compiles an AST WHERE expression into a storage-adapter predicate shape.

@@ -1,7 +1,8 @@
 //@author Tijn Gommers
 //@date 2026-04-02
 
-import { StorageAdapter } from './storage-adapter.mjs';
+import type { StorageAdapter } from './storage-adapter.mjs';
+import type { StoragePredicate } from './storage-adapter-types.mjs';
 
 type Row = Record<string, any>;
 type TableStore = Map<string, Row[]>;
@@ -33,7 +34,7 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @returns {Promise<Row[]>} Matching rows.
      * @throws {Error} When the table does not exist.
      */
-    async read(table: string, columns: string[], where?: Record<string, any>): Promise<Row[]> {
+    async read(table: string, columns: string[], where?: StoragePredicate): Promise<Row[]> {
         const rows = this.getTableRows(table, true);
         const filteredRows = this.applyPredicate(rows, where);
 
@@ -70,7 +71,7 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @returns {Promise<Row[]>} Filtered rows.
      * @throws {Error} When the table does not exist.
      */
-    async filter(table: string, where: Record<string, any>): Promise<Row[]> {
+    async filter(table: string, where: StoragePredicate): Promise<Row[]> {
         const rows = this.getTableRows(table, true);
         return this.applyPredicate(rows, where).map(row => this.cloneRow(row));
     }
@@ -93,7 +94,7 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @returns {Promise<void>} Resolves when deletion completes.
      * @throws {Error} When the table does not exist.
      */
-    async delete(table: string, where: Record<string, any>): Promise<void> {
+    async delete(table: string, where: StoragePredicate): Promise<void> {
         const rows = this.getTableRows(table, true);
 
         if (this.isEmptyPredicate(where)) {
@@ -113,12 +114,11 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @returns {Promise<void>} Resolves when updates complete.
      * @throws {Error} When the table does not exist.
      */
-    async update(table: string, set: Record<string, any>, where?: Record<string, any>): Promise<void> {
+    async update(table: string, set: Record<string, any>, where?: StoragePredicate): Promise<void> {
         const rows = this.getTableRows(table, true);
-        const hasPredicate = !!where && !this.isEmptyPredicate(where);
 
         rows.forEach(row => {
-            if (hasPredicate && !this.evaluatePredicate(where, row)) {
+            if (where && !this.isEmptyPredicate(where) && !this.evaluatePredicate(where, row)) {
                 return;
             }
 
@@ -148,7 +148,7 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @param {Record<string, any>} [where] Optional predicate.
      * @returns {Row[]} Filtered row list.
      */
-    private applyPredicate(rows: Row[], where?: Record<string, any>): Row[] {
+    private applyPredicate(rows: Row[], where?: StoragePredicate): Row[] {
         if (!where || this.isEmptyPredicate(where)) {
             return rows;
         }
@@ -162,7 +162,11 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @param {Row} row Row under evaluation.
      * @returns {boolean} True when row matches predicate.
      */
-    private evaluatePredicate(predicate: Record<string, any>, row: Row): boolean {
+    private evaluatePredicate(predicate: StoragePredicate | undefined, row: Row): boolean {
+        if (!predicate) {
+            return false;
+        }
+
         switch (predicate.type) {
             case 'LogicalExpression':
                 if (predicate.operator === 'AND') {
@@ -364,7 +368,7 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * @param {Record<string, any>} [where] Predicate object.
      * @returns {boolean} True when predicate is absent or empty.
      */
-    private isEmptyPredicate(where?: Record<string, any>): boolean {
+    private isEmptyPredicate(where?: StoragePredicate): boolean {
         return !where || Object.keys(where).length === 0;
     }
 

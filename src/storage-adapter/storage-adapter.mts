@@ -1,7 +1,7 @@
 //@author Tijn Gommers
 //@date 2026-03-31
 
-import { StoragePredicate, StorageRow } from './storage-adapter-types.mjs';
+import type { StoragePredicate, StorageRow } from './storage-adapter-types.mjs';
 
 /**
  * Storage adapter contract for Querylib.

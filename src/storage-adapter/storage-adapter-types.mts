@@ -1,7 +1,7 @@
 // @author Tijn Gommers
 // @date 2026-04-03
 
-import { ArithmeticOperator, ComparisonOperator } from '../query-language/types/index.mjs';
+import type { ArithmeticOperator, ComparisonOperator } from '../query-language/types/index.mjs';
 
 /**
  * Primitive value types supported by storage adapter payloads.

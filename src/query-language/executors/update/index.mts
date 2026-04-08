@@ -1,9 +1,9 @@
 //@author Tijn Gommers
 //@date 2026-04-02
 
-import { ExpressionNode, IdentifierNode, UpdateStatement, ValueNode } from '../../types/index.mjs';
-import { UpdateResult } from '../../types/execution-results.mjs';
-import { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
+import type { ExpressionNode, IdentifierNode, UpdateStatement, ValueNode } from '../../types/index.mjs';
+import type { UpdateResult } from '../../types/execution-results.mjs';
+import type { StorageAdapter } from '../../../storage-adapter/storage-adapter.mjs';
 import { compileStorageWherePredicate } from '../storage-adapter-helpers.mjs';
 
 /**
