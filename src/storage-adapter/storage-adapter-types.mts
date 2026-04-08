@@ -15,6 +15,8 @@ export type StorageValue = StorageScalar | StorageRow | StorageValue[];
 
 /**
  * Generic row shape used by adapters.
+ * @interface StorageRow
+ * @property {StorageValue} [key: string] - Column values can be primitives, nested objects, or arrays.
  */
 export interface StorageRow {
     [key: string]: StorageValue;

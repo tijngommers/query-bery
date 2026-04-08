@@ -109,15 +109,16 @@ export class InMemoryStorageAdapter implements StorageAdapter {
      * Updates rows matching a predicate with values from a set payload.
      * @param {string} table Target table name.
      * @param {Record<string, any>} set Partial row payload to apply.
-     * @param {Record<string, any>} where Predicate object.
+     * @param {Record<string, any>} [where] Optional predicate object. When omitted, all rows are updated.
      * @returns {Promise<void>} Resolves when updates complete.
      * @throws {Error} When the table does not exist.
      */
-    async update(table: string, set: Record<string, any>, where: Record<string, any>): Promise<void> {
+    async update(table: string, set: Record<string, any>, where?: Record<string, any>): Promise<void> {
         const rows = this.getTableRows(table, true);
+        const hasPredicate = !!where && !this.isEmptyPredicate(where);
 
         rows.forEach(row => {
-            if (!this.isEmptyPredicate(where) && !this.evaluatePredicate(where, row)) {
+            if (hasPredicate && !this.evaluatePredicate(where, row)) {
                 return;
             }
 

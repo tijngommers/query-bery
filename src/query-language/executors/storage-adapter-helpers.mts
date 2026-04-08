@@ -8,12 +8,12 @@ import {
     ValueExpressionNode,
     ValueNode,
 } from '../types/index.mjs';
-import { StorageOperand, StoragePredicate } from '../../../storage-adapter/storage-adapter-types.mjs';
+import { StorageOperand, StoragePredicate } from '../../storage-adapter/storage-adapter-types.mjs';
 
 /**
  * Compiles an AST WHERE expression into a storage-adapter predicate shape.
  * @param expression Optional expression tree from the parser.
- * @returns Storage-adapter predicate object or undefined when no predicate is present.
+ * @returns {StoragePredicate | undefined} Storage-adapter predicate object or undefined when no predicate is present.
  */
 export function compileStorageWherePredicate(expression?: ExpressionNode): StoragePredicate | undefined {
     if (!expression) {
@@ -24,7 +24,7 @@ export function compileStorageWherePredicate(expression?: ExpressionNode): Stora
         case 'LogicalExpression':
             return {
                 type: 'LogicalExpression',
-                operator: expression.operator,
+                operator: expression.operator === 'AND' ? 'AND' : 'OR',
                 left: compileStorageWherePredicate(expression.left),
                 right: compileStorageWherePredicate(expression.right),
             };
@@ -61,7 +61,7 @@ export function compileStorageWherePredicate(expression?: ExpressionNode): Stora
 /**
  * Compiles a value expression into a storage-adapter operand shape.
  * @param expression AST value expression.
- * @returns Primitive value, identifier path, or expression object compatible with adapter evaluation.
+ * @returns {StorageOperand} Primitive value, identifier path, or expression object compatible with adapter evaluation.
  */
 export function compileStorageValueExpression(expression: ValueExpressionNode): StorageOperand {
     switch (expression.type) {
@@ -90,7 +90,7 @@ export function compileStorageValueExpression(expression: ValueExpressionNode): 
 /**
  * Converts a value node to a primitive value used by storage predicates.
  * @param value Literal or identifier value node.
- * @returns Primitive literal value or identifier name.
+ * @returns {string | number | null} Primitive literal value or identifier name.
  */
 export function compileStorageValueNode(value: ValueNode): string | number | null {
     if (value.type === 'Literal') {
@@ -103,7 +103,7 @@ export function compileStorageValueNode(value: ValueNode): string | number | nul
 /**
  * Builds a projection list from SELECT columns.
  * @param columns Columns specified in the SELECT clause.
- * @returns Projected column names or wildcard when projection cannot be narrowed.
+ * @returns {string[]} Projected column names or wildcard when projection cannot be narrowed.
  */
 export function buildSelectProjection(columns: SelectColumn[]): string[] {
     const projection = new Set<string>();
@@ -131,7 +131,7 @@ export function buildSelectProjection(columns: SelectColumn[]): string[] {
 /**
  * Resolves a table name when the FROM clause references exactly one table and no joins.
  * @param from FROM clause nodes.
- * @returns Single table name or undefined when query is multi-source.
+ * @returns {string | undefined} Single table name or undefined when query is multi-source.
  */
 export function getSingleTableName(from: FromNode[]): string | undefined {
     if (from.length !== 1) {
@@ -149,7 +149,7 @@ export function getSingleTableName(from: FromNode[]): string | undefined {
 /**
  * Checks whether a FROM clause contains at least one join node.
  * @param from FROM clause nodes.
- * @returns True when a join node is present.
+ * @returns {boolean} True when a join node is present.
  */
 export function hasJoinNodes(from: FromNode[]): boolean {
     return from.some(node => node.type === 'Join');

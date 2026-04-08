@@ -11,7 +11,7 @@ export class JoinExecutor {
     /**
      * Processes a single JOIN node into executable metadata.
      * @param joinNode Join node to normalize.
-     * @returns Serializable join metadata used by select execution results.
+     * @returns  {any} Serializable join metadata used by select execution results.
      */
     executeJoin(joinNode: JoinNode): any {
         return this.processJoin(joinNode);
@@ -20,7 +20,7 @@ export class JoinExecutor {
     /**
      * Processes multiple JOIN nodes.
      * @param joinNodes Join nodes to normalize.
-     * @returns Array of normalized join metadata objects.
+     * @returns {any[]} Array of normalized join metadata objects.
      */
     executeMultipleJoins(joinNodes: JoinNode[]): any[] {
         return joinNodes.map(join => this.processJoin(join));
@@ -29,7 +29,7 @@ export class JoinExecutor {
     /**
      * Internal join-node normalizer.
      * @param node Join node to transform.
-     * @returns Join metadata object.
+     * @returns {any} Join metadata object.
      */
     private processJoin(node: JoinNode): any {
         const { table, joinType, on } = node;
@@ -45,7 +45,7 @@ export class JoinExecutor {
     /**
      * Validates that a JOIN node has both table and ON predicate.
      * @param joinNode Join node to validate.
-     * @returns Nothing.
+     * @returns {void}
      * @throws {Error} When table or ON condition is missing.
      */
     validateJoin(joinNode: JoinNode): void {
