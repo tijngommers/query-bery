@@ -40,7 +40,7 @@ export class Interpreter {
 
     /**
      * Executes the parsed statement by dispatching on AST node type.
-     * @returns Statement result object or a Promise-backed result for adapter operations.
+     * @returns {QueryExecutionResult | Promise<QueryExecutionResult>} Statement result object or a Promise-backed result for adapter operations.
      * @throws {Error} When the AST node type is unsupported.
      */
     execute(): QueryExecutionResult | Promise<QueryExecutionResult> {
@@ -61,7 +61,7 @@ export class Interpreter {
     /**
      * Executes a parsed SELECT statement.
      * @param ast Parsed SELECT AST node.
-     * @returns SELECT execution result.
+     * @returns {QueryExecutionResult | Promise<QueryExecutionResult>} SELECT execution result.
      */
     private executeSelectStatement(ast: SelectStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.selectExecutor.executeSelect(ast);
@@ -70,7 +70,7 @@ export class Interpreter {
     /**
      * Executes a parsed DELETE statement.
      * @param ast Parsed DELETE AST node.
-     * @returns DELETE execution result.
+     * @returns {QueryExecutionResult | Promise<QueryExecutionResult>} DELETE execution result.
      */
     private executeDeleteStatement(ast: DeleteStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.deleteExecutor.executeDelete(ast);
@@ -79,7 +79,7 @@ export class Interpreter {
     /**
      * Executes a parsed INSERT statement.
      * @param ast Parsed INSERT AST node.
-     * @returns INSERT execution result.
+     * @returns {QueryExecutionResult | Promise<QueryExecutionResult>} INSERT execution result.
      */
     private executeInsertStatement(ast: InsertStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.insertExecutor.executeInsert(ast);
@@ -88,7 +88,7 @@ export class Interpreter {
     /**
      * Executes a parsed UPDATE statement.
      * @param ast Parsed UPDATE AST node.
-     * @returns UPDATE execution result.
+     * @returns {QueryExecutionResult | Promise<QueryExecutionResult>} UPDATE execution result.
      */
     private executeUpdateStatement(ast: UpdateStatement): QueryExecutionResult | Promise<QueryExecutionResult> {
         return this.updateExecutor.executeUpdate(ast);
@@ -97,7 +97,7 @@ export class Interpreter {
     /**
      * Exhaustiveness guard for AST node dispatch.
      * @param value Unexpected AST value.
-     * @returns Never returns; always throws.
+     * @returns {QueryExecutionResult | Promise<QueryExecutionResult>} Never returns; always throws.
      * @throws {Error} Always thrown to signal unsupported AST node types.
      */
     private assertNever(value: never): never {
