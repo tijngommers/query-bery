@@ -2,6 +2,8 @@
 //@date 2026-04-02
 
 import OpenAI from 'openai';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Interpreter } from './index.mjs';
 import { StorageAdapter } from '../../storage-adapter/storage-adapter.mjs';
 import { Lexer } from '../lexer/index.mjs';
@@ -48,6 +50,10 @@ export interface NaturalLanguageExecutorOptions {
     systemPrompt?: string;
     promptBuilder?: NaturalLanguagePromptBuilder;
     validateSql?: (sql: string) => void;
+    includeLanguageSpecInPrompt?: boolean;
+    includeLanguageSpecOnlyOnce?: boolean;
+    languageSpecPath?: string;
+    languageSpecText?: string;
 }
 
 /**
@@ -63,6 +69,11 @@ export class NaturalLanguageExecutor {
     private systemPrompt: string;
     private promptBuilder?: NaturalLanguagePromptBuilder;
     private validateSql?: (sql: string) => void;
+    private includeLanguageSpecInPrompt: boolean;
+    private includeLanguageSpecOnlyOnce: boolean;
+    private hasIncludedLanguageSpecInPrompt: boolean;
+    private languageSpecPath: string;
+    private languageSpecText?: string;
 
     /**
      * Creates a natural-language executor.
@@ -83,6 +94,11 @@ export class NaturalLanguageExecutor {
         this.systemPrompt = options.systemPrompt ?? 'Translate the user request into one SQL query for this query language. Return only the SQL query text, with no markdown and no explanation.';
         this.promptBuilder = options.promptBuilder;
         this.validateSql = options.validateSql;
+        this.includeLanguageSpecInPrompt = options.includeLanguageSpecInPrompt ?? true;
+        this.includeLanguageSpecOnlyOnce = options.includeLanguageSpecOnlyOnce ?? true;
+        this.hasIncludedLanguageSpecInPrompt = false;
+        this.languageSpecPath = options.languageSpecPath ?? resolve(process.cwd(), 'AI_QUERY_LANGUAGE_SPEC.md');
+        this.languageSpecText = options.languageSpecText;
     }
 
     /**
@@ -150,12 +166,48 @@ export class NaturalLanguageExecutor {
             promptParts.push(`Schema context:\n${this.schemaContext.trim()}`);
         }
 
+        const languageSpec = this.resolveLanguageSpecText();
+        if (languageSpec) {
+            promptParts.push(`Query language specification:\n${languageSpec}`);
+            this.hasIncludedLanguageSpecInPrompt = true;
+        }
+
         promptParts.push(`Allowed statements: ${this.allowedStatements.join(', ')}`);
 
         return {
             systemPrompt: promptParts.join('\n\n'),
             userPrompt: nlQuery,
         };
+    }
+
+    /**
+     * Resolves the query-language specification text that should be embedded in the system prompt.
+     * @returns {string | undefined} Specification text when available, otherwise undefined.
+     */
+    private resolveLanguageSpecText(): string | undefined {
+        if (!this.includeLanguageSpecInPrompt) {
+            return undefined;
+        }
+
+        if (this.includeLanguageSpecOnlyOnce && this.hasIncludedLanguageSpecInPrompt) {
+            return undefined;
+        }
+
+        if (typeof this.languageSpecText === 'string' && this.languageSpecText.trim().length > 0) {
+            return this.languageSpecText.trim();
+        }
+
+        if (!existsSync(this.languageSpecPath)) {
+            return undefined;
+        }
+
+        const fileContents = readFileSync(this.languageSpecPath, 'utf8').trim();
+        if (fileContents.length === 0) {
+            return undefined;
+        }
+
+        this.languageSpecText = fileContents;
+        return this.languageSpecText;
     }
 
     /**

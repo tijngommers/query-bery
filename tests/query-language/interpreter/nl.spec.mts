@@ -90,6 +90,77 @@ describe('NaturalLanguageExecutor', () => {
         expect(request.messages[0].content).toContain('Allowed statements: DELETE');
     });
 
+    it('should include language specification text in the prompt', async () => {
+        const createMock = vi.fn(async (_request: OpenAIChatCompletionRequest) => ({
+            choices: [
+                {
+                    message: {
+                        content: 'SELECT NAME FROM USERS',
+                    },
+                },
+            ],
+        }));
+
+        const executor = new NaturalLanguageExecutor({
+            client: {
+                chat: {
+                    completions: {
+                        create: createMock,
+                    },
+                },
+            },
+            languageSpecText: 'RULE: USE EXACT GRAMMAR',
+        });
+
+        await executor.executeNaturalLanguageQuery('list users');
+
+        const request = createMock.mock.calls[0]?.[0];
+        if (!request) {
+            throw new Error('Expected OpenAI request to be captured');
+        }
+
+        expect(request.messages[0].content).toContain('Query language specification:');
+        expect(request.messages[0].content).toContain('RULE: USE EXACT GRAMMAR');
+    });
+
+    it('should include language specification only in the first prompt by default', async () => {
+        const createMock = vi.fn(async (_request: OpenAIChatCompletionRequest) => ({
+            choices: [
+                {
+                    message: {
+                        content: 'SELECT NAME FROM USERS',
+                    },
+                },
+            ],
+        }));
+
+        const executor = new NaturalLanguageExecutor({
+            client: {
+                chat: {
+                    completions: {
+                        create: createMock,
+                    },
+                },
+            },
+            languageSpecText: 'RULE: FIRST PROMPT ONLY',
+        });
+
+        await executor.executeNaturalLanguageQuery('list users');
+        await executor.executeNaturalLanguageQuery('list users again');
+
+        const firstRequest = createMock.mock.calls[0]?.[0];
+        const secondRequest = createMock.mock.calls[1]?.[0];
+
+        if (!firstRequest || !secondRequest) {
+            throw new Error('Expected two OpenAI requests to be captured');
+        }
+
+        expect(firstRequest.messages[0].content).toContain('Query language specification:');
+        expect(firstRequest.messages[0].content).toContain('RULE: FIRST PROMPT ONLY');
+        expect(secondRequest.messages[0].content).not.toContain('Query language specification:');
+        expect(secondRequest.messages[0].content).not.toContain('RULE: FIRST PROMPT ONLY');
+    });
+
     it('should reject multiple SQL statements before execution', async () => {
         const createMock = vi.fn(async (_request: OpenAIChatCompletionRequest) => ({
             choices: [
